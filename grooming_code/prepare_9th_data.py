@@ -120,7 +120,7 @@ new_sector_plotting_mappings = pd.DataFrame(columns=['sectors_plotting', 'refere
 ordered_columns = [ 'sub2sectors', 'sub1sectors','sectors']
 for col in ordered_columns:
     #extract rows where the value is not na in this col
-
+    for 
     #loop through the rows
 
         #create new row in new_sector_plotting_mappings
