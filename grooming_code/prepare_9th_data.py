@@ -187,7 +187,7 @@ model_df_transformation = model_df_transformation.merge(transformation_sector_ma
 model_df_transformation = model_df_transformation.merge(fuels_plotting, how='right', on=['sectors','sub1sectors'])
  
 #now separaten into input and output dfs using book and whtehr value is positive or negative
-input_transformation = model_df_transformation[(model_df_transformation['input_fuel'] == True) & (model_df_transformation['value'] < 0)]
+input_transformation = model_df_transfo rmation[(model_df_transformation['input_fuel'] == True) & (model_df_transformation['value'] < 0)]
 
 output_transformation = model_df_transformation[(model_df_transformation['input_fuel'] == False) & (model_df_transformation['value'] > 0)]
 
