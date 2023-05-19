@@ -24,9 +24,9 @@ model_df_wide = model_df_wide[model_df_wide['economy'] == '01_AUS']
 
 #make model_df_wide into model_df_tall
 #fgirst grab object copls as the index cols
-index_cols = model_df_wide_transformation.select_dtypes(include=['object']).columns
+index_cols = model_df_wide.select_dtypes(include=['object']).columns
 #now melt the data
-model_df_transformation = pd.melt(model_df_wide_transformation, id_vars=index_cols, var_name='year', value_name='value')
+model_df_wide = pd.melt(model_df_wide, id_vars=index_cols, var_name='year', value_name='value')
 #todo
 
 #data details:
