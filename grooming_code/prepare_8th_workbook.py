@@ -56,35 +56,6 @@ model_df_wide = model_df_wide[model_df_wide['economy'] == '01_AUS']
 
 ##############################################################################
 #%%
-#take in the model_variables.xlsx file and check that the unique variables in the columns in Variables sheet match the variables in the columns in the Data sheet. If not, throw a descriptive error/warning.
-
-model_variables = pd.read_excel('../input_data/model_variables.xlsx', sheet_name='Variables', header = 2)
-#drop first 2 rows (includes the columns row) and check the next row is a set of columns that match the object columns in the Data sheet
-
-#we first need to check that the columns in the Variables sheet match the columns in the Data sheet
-object_columns = model_df_wide.select_dtypes(include=['object']).columns
-#check the difference between the columns in the Variables sheet and the columns in the Data sheet
-diff = np.setdiff1d(model_variables.columns, object_columns)
-
-if len(diff) > 0:
-    print('The following columns between the Variables sheet and the Data are different: ', diff)
-    raise Exception('The columns in the Variables sheet do not match the columns in the Data sheet')
-
-#Now check that the unique variables in the columns in the Variables sheet match the unique variables in the columns in the Data sheet
-for col in object_columns:
-    unique_variables = model_variables[col].dropna().unique()
-    unique_variables.sort()
-    unique_variables_data = model_df_wide[col].dropna().unique()
-    unique_variables_data.sort()
-    diff = np.setdiff1d(unique_variables, unique_variables_data)
-    if len(diff) > 0:
-        #determine whether its missing from the Variables sheet or the Data sheet
-        for variable in diff:
-            if variable in unique_variables:
-                data_checking_warning_or_error('The variable {} in the column {} is missing from the Data sheet'.format(variable, col))
-            else:
-                data_checking_warning_or_error('The variable {} in the column {} is missing from the Data sheet'.format(variable, col))
-
 ##############################################################################
 
 #import mappings:
