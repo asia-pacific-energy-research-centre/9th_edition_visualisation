@@ -1,0 +1,1 @@
+conda env create --prefix ./env --file ./config/env_jupyter.yml

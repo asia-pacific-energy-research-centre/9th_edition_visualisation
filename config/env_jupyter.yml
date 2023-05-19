@@ -1,0 +1,12 @@
+name: 9th_edition_visualisation
+dependencies:
+  - plotly
+  - pandas
+  - numpy
+  - plotly
+  - matplotlib
+  - openpyxl #for some reason this is necessary
+  - pip
+  - jupyter
+  - pip:
+    - kaleido
