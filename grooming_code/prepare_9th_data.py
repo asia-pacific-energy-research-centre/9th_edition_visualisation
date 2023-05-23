@@ -26,8 +26,8 @@ model_df_wide = model_df_wide[model_df_wide['economy'] == '01_AUS']
 #fgirst grab object copls as the index cols
 index_cols = model_df_wide.select_dtypes(include=['object']).columns
 #now melt the data
-model_df_wide = pd.melt(model_df_wide, id_vars=index_cols, var_name='year', value_name='value')
-#todo
+model_df_tall = pd.melt(model_df_wide, id_vars=index_cols, var_name='year', value_name='value')
+#%%
 
 #data details:
 #Columns: model_df_wide.columns
@@ -113,6 +113,7 @@ economy_mappings = pd.read_csv('../config/economy_code_to_name.csv')
 # economy_mappings.columns: Index(['economy', 'economy_name', 'alt_aperc_code', 'alt_aperc_code2','region1', 'region2_test', 'region3_aperc_code'],dtype='object')
 #%%
 #############################
+#FORMAT THE MAPPINGS
 #for fuel and sector mappings we will extract the most sepcific reference for each row and then record it's column in a column called 'column'.
 #so for example, where we want to extract the reference for the sectors_plotting value Agriculture, we find the rightmost column that is not na (this is the msot specific column), set 'reference_sector' to that value in the most specific column, and then the column to the name of the most specific column
 new_sector_plotting_mappings = pd.DataFrame(columns=['sectors_plotting', 'reference_sector', 'reference_column'])
@@ -120,53 +121,96 @@ new_sector_plotting_mappings = pd.DataFrame(columns=['sectors_plotting', 'refere
 ordered_columns = [ 'sub2sectors', 'sub1sectors','sectors']
 for col in ordered_columns:
     #extract rows where the value is not na in this col
-    for 
-    #loop through the rows
-
+    for row in sector_plotting_mappings[sector_plotting_mappings[col].notna()].index:
+        #loop through the rows
+        row_x = sector_plotting_mappings.loc[row]
         #create new row in new_sector_plotting_mappings
-        #set sectors_plotting to sectors_plotting
-        #reference_sector to col value
-        #reference_column to col
-
-    #remove these rows from the sector_plotting_mappings
-
+        new_sector_plotting_mappings = new_sector_plotting_mappings.append({'sectors_plotting': row_x['sectors_plotting'], 'reference_sector': row_x[col], 'reference_column': col}, ignore_index=True)
+    #remove these rows from the sector_plotting_mappings so that we don't double count them
+    sector_plotting_mappings = sector_plotting_mappings[sector_plotting_mappings[col].isna()]
 
 #do the same for fuels
+new_fuel_plotting_mappings = pd.DataFrame(columns=['fuels_plotting', 'reference_fuel', 'reference_column'])
+
+ordered_columns = [ 'subfuels', 'fuels']
+for col in ordered_columns:
+    #extract rows where the value is not na in this col
+    for row in fuel_plotting_mappings[fuel_plotting_mappings[col].notna()].index:
+        #loop through the rows
+        row_x = fuel_plotting_mappings.loc[row]
+        #create new row in new_sector_plotting_mappings
+        new_fuel_plotting_mappings = new_fuel_plotting_mappings.append({'fuels_plotting': row_x['fuels_plotting'], 'reference_fuel': row_x[col], 'reference_column': col}, ignore_index=True)
+    #remove these rows from the sector_plotting_mappings so that we don't double count them
+    fuel_plotting_mappings = fuel_plotting_mappings[fuel_plotting_mappings[col].isna()]
 
 #now check for nas in the entire dfs
+if new_sector_plotting_mappings.isna().sum().sum() > 0:
+    data_checking_warning_or_error('There are still some nas in the new_sector_plotting_mappings')
+if new_fuel_plotting_mappings.isna().sum().sum() > 0:
+    data_checking_warning_or_error('There are still some nas in the new_fuel_plotting_mappings')
 
 #save in intermediate data
-plotting_sector_mappings.to_csv(f'../intermediate_data/config/plotting_sector_mappings_{FILE_DATE_ID}.csv', index=False)
-plotting_fuel_mappings.to_csv(f'../intermediate_data/config/plotting_fuel_mappings_{FILE_DATE_ID}.csv', index=False)
+new_sector_plotting_mappings.to_csv(f'../intermediate_data/config/plotting_sector_mappings_{FILE_DATE_ID}.csv', index=False)
+new_fuel_plotting_mappings.to_csv(f'../intermediate_data/config/plotting_fuel_mappings_{FILE_DATE_ID}.csv', index=False)
 transformation_sector_mappings.to_csv(f'../intermediate_data/config/transformation_sector_mappings_{FILE_DATE_ID}.csv', index=False)
-
+#%%
 #############################
+#EXTRACT PLOTTING NAMES FROM MODEL DATA
 #and now these mappings can be joined to the model_df and used to extract the data needed for each plotting_name
 #note that (i think) it works if you :
 # copy model df tall. called it sector_model_df_tall
 # in sector_model_df_tall join the sector plotting names (left join).  #note this will need to be done a special way because its no simple join
 # remove the sector columns. 
+####DROPPED THESE BELOW
 # copy model df tall again, called it sector_blank
 # in sector_blank, remove the sector columns and create new sector_plotting column and fill it with np.nan #this allows for when the graph might not need a sectort. but tbh would expect it to need at least sector = total?
 # stack sector_blank on sector_model_df_tall
+####DROPPED THESE ABOVE
 # join fuels_plotting to sector_model_df_tall using left join?   #note this will need to be done a special way because its no simple join
 #drop the other fuels columns
+
+new_model_df_tall = model_df_tall.copy()
+#empty it
+new_model_df_tall = new_model_df_tall[0:0]
+
+#so join the new_sector_plotting_mappings to the model_df_tall
+for unique_col in new_sector_plotting_mappings.reference_column.unique():
+    columns_data = new_sector_plotting_mappings[new_sector_plotting_mappings.reference_column == unique_col][['sectors_plotting', 'reference_sector']]
+    #filter for the unique col and then join on the unique col to the model_df_tall
+    columns_data = model_df_tall.merge(columns_data, how='inner', left_on=unique_col, right_on='reference_sector')#use inner so we only get the rows that match each other
+    #concat to the new_model_df_tall
+    new_model_df_tall = pd.concat([new_model_df_tall, columns_data])
+
+#now drop the sectors	sub1sectors	sub2sectors	sub3sectors	sub4sectors	 cols
+new_model_df_tall = new_model_df_tall.drop(columns=['sectors', 'sub1sectors', 'sub2sectors', 'sub3sectors', 'sub4sectors', 'reference_sector'])
+
+#now we join on the fuels mappigns:
+#%%
+new_new_model_df_tall = new_model_df_tall.copy()
+#empty it
+new_new_model_df_tall = new_new_model_df_tall[0:0]
+
+#so join the new_sector_plotting_mappings to the model_df_tall
+for unique_col in new_fuel_plotting_mappings.reference_column.unique():
+    columns_data = new_fuel_plotting_mappings[new_fuel_plotting_mappings.reference_column == unique_col][['fuels_plotting', 'reference_fuel']]
+    #filter for the unique col and then join on the unique col to the model_df_tall
+    columns_data = new_model_df_tall.merge(columns_data, how='inner', left_on=unique_col, right_on='reference_fuel')
+    #concat to the new_model_df_tall
+    new_new_model_df_tall = pd.concat([new_new_model_df_tall, columns_data])
+
+#drop the fuels cols
+new_new_model_df_tall = new_new_model_df_tall.drop(columns=['fuels', 'subfuels','reference_fuel'])
 
 #what about if we need sectors where fuels are blank? i dont think its liekly though? because without a definition for sector you will get double ups, for example form the sum of TFEC and TFC.
 
 #now we have a df with only the columns fuels_plotting and sectors_plotting which contains defintiions of all the possible combinations of fuels_plotting and sectors_plotting we could have.. i think.
 #call it plotting_df
-
+plotting_df = new_new_model_df_tall.copy()
 
 #%%
-#############################
-#now we can extract the data for each graph we need to produce using the file D:\APERC\9th_edition_visualisation\intermediate_data\config\charts_mapping_9th_computer_generated.xlsx
-#
-#for now jsut use the sheet called 1
-#for each unique sheet, table_numbers combination, extract the values form the cols sectors_8th_plotting and fuels_8th_plotting which specifies the data we need to grab from the new plotting_df
-#merge these cols with the plotting_df and grab the values.
 
 #############################
+#TRANSFORMATION MAPPING
 #next step will include creating new datasets which create aggregations of data to match some of the categories plotted in the 8th edition. 
 #for example we need an aggregation of the transformation sector input and output values to create entries for Power, Refining or Hydrogen
 
@@ -179,36 +223,134 @@ transformation_sector_mappings = pd.read_excel('../config/visualisation_category
 #we will create a new dataframe which is the aggregation of the sectors in the transformation_sector_mappings dataframe, applied to the 9th modelling data. 
 #we will create a column within this dataframe called sectors_plotting which will then be able to be stacked with the other columns in other dataframes with the same column name
 
-model_df_tall_transformation = model_df_tall.copy()
+model_df_transformation = model_df_tall.copy()
 #join the transformation_sector_mappings dataframe to the model_df_tall_transformation dataframe
 model_df_transformation = model_df_transformation.merge(transformation_sector_mappings, how='right', on=['sectors','sub1sectors'])
 
-#and join the fuel_plotting mapping to the df #note this will need to be done a special way because its no simple join
-model_df_transformation = model_df_transformation.merge(fuels_plotting, how='right', on=['sectors','sub1sectors'])
+#and join the fuel_plotting mapping to the df 
+new_model_df_transformation = model_df_transformation.copy()
+#empty it
+new_model_df_transformation = new_model_df_transformation[0:0]
+
+#so join the new_sector_plotting_mappings to the model_df_tall
+for unique_col in new_fuel_plotting_mappings.reference_column.unique():
+    columns_data = new_fuel_plotting_mappings[new_fuel_plotting_mappings.reference_column == unique_col][['fuels_plotting', 'reference_fuel']]
+    #filter for the unique col and then join on the unique col to the model_df_tall
+    columns_data = model_df_transformation.merge(columns_data, how='inner', left_on=unique_col, right_on='reference_fuel')
+    #concat to the new_model_df_tall
+    new_model_df_transformation = pd.concat([new_model_df_transformation, columns_data])
+
+#drop the fuels cols
+new_model_df_transformation = new_model_df_transformation.drop(columns=['fuels', 'subfuels','reference_fuel'])
  
 #now separaten into input and output dfs using book and whtehr value is positive or negative
-input_transformation = model_df_transfo rmation[(model_df_transformation['input_fuel'] == True) & (model_df_transformation['value'] < 0)]
+input_transformation = new_model_df_transformation[(new_model_df_transformation['input_fuel'] == True) & (new_model_df_transformation['value'] < 0)]
 
-output_transformation = model_df_transformation[(model_df_transformation['input_fuel'] == False) & (model_df_transformation['value'] > 0)]
+output_transformation = new_model_df_transformation[(new_model_df_transformation['input_fuel'] == False) & (new_model_df_transformation['value'] > 0)]
 
 #Thats it. We will stack this with the other dataframes later on. We wont sum up by plotting_sector yet as we will do that later on when we have all the dataframes stacked together (the extra info is usefuul right now)
-
+plotting_df = pd.concat([plotting_df, input_transformation, output_transformation])
 #%%
-#now we will join the plotting sectors and plotting fuels mappings to the model_df_tall dataframe to extract the data we need for those sectors and fuels
-# sector_plotting_mappings
-# fuel_plotting_mappings
+#sum up the values by the ?object cols? so we dont accidentally sum up by economy or somethign else. #ignore nas
+plotting_df = plotting_df.groupby(['scenarios','economy', 'year','sectors_plotting', 'fuels_plotting']).sum().reset_index()
+#%%
+#############################
+#now we can extract the data for each graph we need to produce using the file D:\APERC\9th_edition_visualisation\intermediate_data\config\charts_mapping_9th_computer_generated.xlsx
 
-#join model_df_tall to sector_plotting_mappings suing left join. HOwever it is a bit complicated because we will need to do a  #note this will need to be done a special way because its no simple join
-model_df_tall_sectors = model_df_tall.merge(sector_plotting_mappings, how='left', on=['sectors','sub1sectors','sub2sectors'])
+#for now jsut use the sheet called Balances from that file, as its where we ahve mapped the most values
+charts_mapping = pd.read_excel('../intermediate_data/config/charts_mapping_9th_computer_generated.xlsx', sheet_name='Balances')
 
-#now stack with the transformation data we did earlier
-plotting_df = pd.concat([])
+#for each unique sheet, table_numbers combination, extract the values form the cols sectors_8th_plotting and fuels_8th_plotting which specifies the data we need to grab from the new plotting_df
+#so drop the fuels_8th and secotrs_8th cols
+charts_mapping = charts_mapping.drop(columns=['fuels_8th', 'sectors_8th'])
+#concat unique sheet and table_numbers cols
+charts_mapping['plot_id'] = charts_mapping['sheet'] + '_' + charts_mapping['table_number'].astype(str)
+#merge these cols with the plotting_df and grab the values.
+charts_mapping = charts_mapping.merge(plotting_df, how='left', left_on=['sectors_8th_plotting','fuels_8th_plotting'], right_on=['sectors_plotting','fuels_plotting'])
+#drop the cols we dont need
+charts_mapping = charts_mapping.drop(columns=['sectors_8th_plotting','fuels_8th_plotting'])
+#now loop through the unique plot_ids and idneitfy if there are any missing values (nas) in the value col. Put the data for these into a new dataframe called missing_data
+missing_data = pd.DataFrame()
+for plot_id in charts_mapping.plot_id.unique():
+    data = charts_mapping[charts_mapping.plot_id == plot_id]
+    if data.value.isna().any():
+        charts_mapping = charts_mapping[charts_mapping.plot_id != plot_id]
+        missing_data = pd.concat([missing_data, data])
+#now we have a dataframe called missing_data which contains the data we dont have mapped, yet. We will need to map this manually. Print the unique 'sectors_plotting','fuels_plotting' in this dataframe
+if len(missing_data) > 0:
+    print('There are ' + str(len(missing_data)) + ' unique sectors_plotting, fuels_plotting combinations that need to be mapped manually')
+    #print the unique sectors_plotting, fuels_plotting combinations
+    print(missing_data[['sectors_plotting','fuels_plotting']].drop_duplicates())
+else:
+    print('There are no missing values in the plotting_df')
 
-#sum up the values by the ?object cols? so we dont accidentally sum up by economy or somethign else. 
-plotting_df = #
-
+#check for duplicates. not sure why there are duplicates, but there are. so drop them
+if len(charts_mapping[charts_mapping.duplicated()]) > 0:
+    print('There are ' + str(len(charts_mapping[charts_mapping.duplicated()])) + ' duplicates in the charts_mapping dataframe')
+    charts_mapping = charts_mapping.drop_duplicates()
+else:
+    print('There are no duplicates in the charts_mapping dataframe')
+#%%
+import plotly.express as px
+import plotly.graph_objects as go
 #since we havent gotten to specifiying the atual plot that is required, just plot a line graph with matplotlib. save it with the name being the same as the unique sheet, table_numbers combination and save it in output\plotting_output
+charts_mapping['legend'] = charts_mapping['sectors_plotting'] + '_' + charts_mapping['fuels_plotting']
+#filter for just 2017 to 2030
+#make year an int
+charts_mapping['year'] = charts_mapping['year'].astype(int)
+charts_mapping = charts_mapping[(charts_mapping.year >= 2017) & (charts_mapping.year <= 2030)]
+#order years
+charts_mapping = charts_mapping.sort_values(by=['year'])
+
+#replavce 0's with nan
+charts_mapping['value'] = charts_mapping['value'].replace(0, np.nan)
+#since we are missing data up to 2030, do a ffill on 0's, grouped by the plot_id, economy, scenario, sectors_plotting, fuels_plotting cols
+charts_mapping['value'] = charts_mapping.groupby(['plot_id','economy','scenarios','sectors_plotting','fuels_plotting'])['value'].ffill()
+
+#also, because of 
+#%%
+j=0
+plot_this = False
+if plot_this:
+    #loop through the unique plot_ids, but stop after plotting the first one for now
+    for i, plot_id in enumerate(charts_mapping.plot_id.unique()):
+        # if i > 0:
+        #     break
+        data = charts_mapping[charts_mapping.plot_id == plot_id]
+
+
+        #for each economy and scenario, plot a line graph
+        for economy in data.economy.unique():
+            for scenario in data.scenarios.unique():
+                # j+=1
+                # print(j)
+
+                #filter for the economy and scenario
+                plot_data = data[(data.economy == economy) & (data.scenarios == scenario)]
+                #plot the data so the x axis is year and the y axis is value then make the legend the legend col
+                fig = px.line(plot_data, x="year", y="value", color='legend', title=plot_id + ' ' + economy + ' ' + scenario)
+                #format the x axis years
+                fig.update_xaxes(tickvals=[2017, 2020, 2025, 2030])
+                #make the y axis the value with the unit as the label
+                fig.update_yaxes(title_text=data.unit.unique()[0])
+
+                #save the plot as html
+                fig.write_html('../output/plotting_output/' + plot_id + '_' + economy + '_' + scenario + '.html')
+
+                #also save the data to a csv in wide format so we can see what the data looks like
+                plot_data.to_csv('../output/plotting_output/csvs/' + plot_id + '_' + economy + '_' + scenario + '.csv', index=False)
+                
+            
 
 #%%
 #############################
- 
+#save data to pickle
+plotting_df.to_pickle('../intermediate_data/data/data_mapped_to_plotting_names_9th.pkl')
+#and sav charts_mapping to pickle since its useful
+charts_mapping.to_pickle('../intermediate_data/data/charts_mapping_9th.pkl')
+#%%
+
+#what next? 
+# i guess we need to introduce more ability to edit graphs and choose how theyll be presented. eg. title, colors, graph stylew (bar vs line etc), total vvs no total, better legend names, better axis names, better axis labels, better axis units, better axis scales, better axis limits, better axis ticks, better axis tick labels, better axis tick units, better axis tick scales, better axis tick limits, better axis tick po
+# It would also be good to get the 8th data in here so we can compare against that.
+# it would be good to create the same format as the workbook in the 8th data so we could move to doing that

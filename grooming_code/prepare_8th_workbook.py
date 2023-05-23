@@ -303,52 +303,36 @@ for i, table_group in enumerate(table_tuple_values_mapped3):
     #now add the table_group to the tuple
     table_tuple_values_mapped2 = table_tuple_values_mapped2 + (table_group,)
 
+#%%
+#now what we've notice is that there are duplicate tables for each scenario (reference and carbon neutral), but we ddnt label that. So we will search for duplicates when we remove the table number and remove them
+#note that later on it would be best to have some method of including scenario in the mappings
 
+#at the same time will replace the tuple structure with a dictionary structure so we can name each table. the table names will be:
+table_names = ['Overview', 'Balances', 'Heavy industry', 'Road transport','Power output', 'Power input','Transformation','Own-use','Coal by type','Gas trade1','Gas trade2','Hydrogen output','Hydrogen input']
+#as long as len(table_names) == len(table_tuple_values_mapped2) we are good
+if len(table_names) != len(table_tuple_values_mapped2):
+    data_checking_warning_or_error('table_names and table_tuple_values_mapped2 are not the same length')
 
+table_dict = {}
+for i, table_group in enumerate(table_tuple_values_mapped2):
+    table_name = table_names[i]
+    # if i == 1:
+    #     break
+    #check for duplicates when you look in all columns except the table_number column. count them and show how many compared to the number of rows
+    duplicate_rows = table_group.duplicated(subset=[col for col in table_group.columns if col != 'table_number'], keep=False)
+    #now we have a series of true false values. We can count the number of true values and compare to the number of rows
+    num_duplicate_rows = duplicate_rows.sum()
+    num_rows = table_group.shape[0]
+    print('table name: ' + table_name + ' has ' + str(num_duplicate_rows) + ' duplicate rows out of ' + str(num_rows) + ' rows')
+
+    #drop the duplicate rows
+    table_group = table_group.drop_duplicates(subset=[col for col in table_group.columns if col != 'table_number'], keep='first')
+    #now add the table_group to the dict
+    table_dict[table_names[i]] = table_group
 #%%
 #we will save the data again in a new file:
 #save the data
 with pd.ExcelWriter('../intermediate_data/config/charts_mapping_9th_computer_generated.xlsx') as writer:
-    for i, table_group in enumerate(table_tuple_values_mapped2):
-        table_group.to_excel(writer, sheet_name=str(i), index=False)
-
-
+    for table_name, table_group in table_dict.items():
+        table_group.to_excel(writer, sheet_name=table_name, index=False)
 #%%
-
-#next step will include creating new datasets which create aggregations of data to match some of the categories plotted in the 8th edition. 
-#for example we need an aggregation of the transformation sector input and output values to create entries for Power, Refining or Hydrogen
-
-#first we import the transformation mappigns from the visualisation_category_mappings.xlsx file
-transformation_sector_mappings = pd.read_excel('../config/visualisation_category_mappings.xlsx', sheet_name='transformation_sector_mappings')
-#Index(['input_fuel', 'sectors_plotting', 'sectors','sub1sectors'], dtype='object')
-
-#the input_fuel col is a bool and determines whether we are looking for input or output fuels from the transformation sector. If input then the values will be negative, if output then positive
-
-#we will create a new dataframe which is the aggregation of the sectors in the transformation_sector_mappings dataframe, applied to the 9th modelling data. 
-#we will create a column within this dataframe called sectors_plotting which will then be able to be stacked with the other columns in other dataframes with the same column name
-
-model_df_wide_transformation = model_df_wide.copy()
-#make the data long so we can filter for negative and positive values
-#fgirst grab object copls as the index cols
-index_cols = model_df_wide_transformation.select_dtypes(include=['object']).columns
-#now melt the data
-model_df_transformation = pd.melt(model_df_wide_transformation, id_vars=index_cols, var_name='year', value_name='value')
-
-#join the transformation_sector_mappings dataframe to the model_df_wide_transformation dataframe
-model_df_transformation = model_df_transformation.merge(transformation_sector_mappings, how='right', on=['sectors','sub1sectors'])
-#now separaten into input and output dfs using book and whtehr value is positive or negative
-input_transformation = model_df_transformation[(model_df_transformation['input_fuel'] == True) & (model_df_transformation['value'] < 0)]
-
-output_transformation = model_df_transformation[(model_df_transformation['input_fuel'] == False) & (model_df_transformation['value'] > 0)]
-
-#Thats it. We will stack this with the other dataframes later on. We wont sum up by plotting_sector yet as we will do that later on when we have all the dataframes stacked together (the extra info is usefuul right now)
-
-
-#%%
-#now we will join the plotting sectors and plotting fuels mappings to the model_df_wide dataframe to extract the data we need for those sectors and fuels
-# sector_plotting_mappings
-# fuel_plotting_mappings
-
-#join model_df_wide to sector_plotting_mappings suing left join. HOwever it is a bit complicated because we will need to do a 
-model_df_wide_sectors = model_df_wide.merge(sector_plotting_mappings, how='left', on=['sectors','sub1sectors','sub2sectors'])
-
