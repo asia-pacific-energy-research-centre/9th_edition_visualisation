@@ -304,8 +304,12 @@ for i, table_group in enumerate(table_tuple_values_mapped3):
     table_tuple_values_mapped2 = table_tuple_values_mapped2 + (table_group,)
 
 #%%
+
+########################################################################
+
 #now what we've notice is that there are duplicate tables for each scenario (reference and carbon neutral), but we ddnt label that. So we will search for duplicates when we remove the table number and remove them
 #note that later on it would be best to have some method of including scenario in the mappings
+#please note that this will remove tables like the ones that are only for every ten years that are used t plot bars. we will have to add these back in later.. thinking by doing it based on if a bar chart is required for the original (all years) table.
 
 #at the same time will replace the tuple structure with a dictionary structure so we can name each table. the table names will be:
 table_names = ['Overview', 'Balances', 'Heavy industry', 'Road transport','Power output', 'Power input','Transformation','Own-use','Coal by type','Gas trade1','Gas trade2','Hydrogen output','Hydrogen input']

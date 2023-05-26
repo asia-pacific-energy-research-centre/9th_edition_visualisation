@@ -22,7 +22,7 @@ plotting_df = pd.read_pickle('../intermediate_data/data/data_mapped_to_plotting_
 #       dtype='object')
 
 charts_mapping = pd.read_pickle('../intermediate_data/data/charts_mapping_9th.pkl')
-# charts_mapping.columns Index(['sheet', 'unit', 'table_number', 'plot_id', 'scenarios', 'economy',
+# charts_mapping.columns Index(['sheet', 'unit', 'table_number', 'table_id', 'scenarios', 'economy',
 #    'year', 'sectors_plotting', 'fuels_plotting', 'value', 'legend'],
 #   dtype='object')
 
@@ -47,9 +47,9 @@ for sheet in sheets:
     sheet_dfs[sheet] = ()
 
     sheet_data = charts_mapping.loc[charts_mapping['sheet'] == sheet]
-    sheet_data = sheet_data[['unit', 'value', 'fuels_plotting','sectors_plotting','scenarios','year','table_number','plot_id']]
+    sheet_data = sheet_data[['unit', 'value', 'fuels_plotting','sectors_plotting','scenarios','year','table_number','table_id']]
     #pivot the data and create order of cols
-    sheet_data = sheet_data.pivot(index=['plot_id','unit','fuels_plotting','sectors_plotting','scenarios','table_number'], columns='year', values='value')
+    sheet_data = sheet_data.pivot(index=['table_id','unit','fuels_plotting','sectors_plotting','scenarios','table_number'], columns='year', values='value')
     sheet_data = sheet_data.reset_index()
 
     #add tables to tuple by table number
@@ -60,8 +60,8 @@ for sheet in sheets:
         #add table data to tuple
         sheet_dfs[sheet] = sheet_dfs[sheet] + (table_data,)
 
-#create plot_id_to_labels_dict
-plot_id_to_labels_dict = {}
+#create table_id_to_labels_dict
+table_id_to_labels_dict = {}
 for sheet in sheets:
     for table in sheet_dfs[sheet]:
         #find key column
@@ -69,35 +69,35 @@ for sheet in sheets:
             key_column = 'fuels_plotting'
         else:
             key_column = 'sectors_plotting'
-        plot_id_to_labels_dict[table['plot_id'].iloc[0]] = table[key_column].unique().tolist()
+        table_id_to_labels_dict[table['table_id'].iloc[0]] = table[key_column].unique().tolist()
 
 #save to config 
-plot_id_to_labels_df = pd.DataFrame.from_dict(plot_id_to_labels_dict, orient = 'index')
-plot_id_to_labels_df.to_csv(f'../config/computer_generated/plot_id_to_labels_{FILE_DATE_ID}.csv')
-#create plot_id_to_chart_type_dict
-plot_id_to_chart_type_dict = {}
+table_id_to_labels_df = pd.DataFrame.from_dict(table_id_to_labels_dict, orient = 'index')
+table_id_to_labels_df.to_csv(f'../config/computer_generated/table_id_to_labels_{FILE_DATE_ID}.csv')
+#create table_id_to_chart_type_dict
+table_id_to_chart_type_dict = {}
 for sheet in sheets:
     for table in sheet_dfs[sheet]:
-        plot_id_to_chart_type_dict[table['plot_id'].iloc[0]] = 'area_chart'
+        table_id_to_chart_type_dict[table['table_id'].iloc[0]] = 'area_chart'
 #save to config
-plot_id_to_chart_type_df = pd.DataFrame.from_dict(plot_id_to_chart_type_dict, orient = 'index')
-plot_id_to_chart_type_df.to_csv(f'../config/computer_generated/plot_id_to_chart_type_{FILE_DATE_ID}.csv')
-#create plot_id_to_chart_position_dict
-plot_id_to_chart_position_dict = {}
+table_id_to_chart_type_df = pd.DataFrame.from_dict(table_id_to_chart_type_dict, orient = 'index')
+table_id_to_chart_type_df.to_csv(f'../config/computer_generated/table_id_to_chart_type_{FILE_DATE_ID}.csv')
+#create table_id_to_chart_position_dict
+table_id_to_chart_position_dict = {}
 for sheet in sheets:
     for table in sheet_dfs[sheet]:
-        plot_id_to_chart_position_dict[table['plot_id'].iloc[0]] = 'above_table'
+        table_id_to_chart_position_dict[table['table_id'].iloc[0]] = 'above_table'
 #save to config
-plot_id_to_chart_position_df = pd.DataFrame.from_dict(plot_id_to_chart_position_dict, orient = 'index')
-plot_id_to_chart_position_df.to_csv(f'../config/computer_generated/plot_id_to_chart_position_{FILE_DATE_ID}.csv')
+table_id_to_chart_position_df = pd.DataFrame.from_dict(table_id_to_chart_position_dict, orient = 'index')
+table_id_to_chart_position_df.to_csv(f'../config/computer_generated/table_id_to_chart_position_{FILE_DATE_ID}.csv')
 
 # #extract the conifgs data and put in dictss
-# plot_id_to_chart_position_df = pd.read_csv(f'../config/computer_generated/plot_id_to_chart_position_{FILE_DATE_ID}.csv', index_col=0)
-# plot_id_to_chart_position_dict = plot_id_to_chart_position_df.to_dict()[plot_id_to_chart_position_df.columns[0]]
-# plot_id_to_chart_type_df = pd.read_csv(f'../config/computer_generated/plot_id_to_chart_type_{FILE_DATE_ID}.csv', index_col=0)
-# plot_id_to_chart_type_dict = plot_id_to_chart_type_df.to_dict()[plot_id_to_chart_type_df.columns[0]]
-# plot_id_to_labels_df = pd.read_csv(f'../config/computer_generated/plot_id_to_labels_{FILE_DATE_ID}.csv', index_col=0)
-# plot_id_to_labels_dict = plot_id_to_labels_df.to_dict()[plot_id_to_labels_df.columns[0]]
+# table_id_to_chart_position_df = pd.read_csv(f'../config/computer_generated/table_id_to_chart_position_{FILE_DATE_ID}.csv', index_col=0)
+# table_id_to_chart_position_dict = table_id_to_chart_position_df.to_dict()[table_id_to_chart_position_df.columns[0]]
+# table_id_to_chart_type_df = pd.read_csv(f'../config/computer_generated/table_id_to_chart_type_{FILE_DATE_ID}.csv', index_col=0)
+# table_id_to_chart_type_dict = table_id_to_chart_type_df.to_dict()[table_id_to_chart_type_df.columns[0]]
+# table_id_to_labels_df = pd.read_csv(f'../config/computer_generated/table_id_to_labels_{FILE_DATE_ID}.csv', index_col=0)
+# table_id_to_labels_dict = table_id_to_labels_df.to_dict()[table_id_to_labels_df.columns[0]]
 
 
 
@@ -115,9 +115,9 @@ if automatic:
     existing_sheets = [pd.read_excel('../config/chart_config.xlsx', sheet_name=sheet, index_col=None) for sheet in existing_sheet_names]
     #add new sheets
     chart_config =  pd.ExcelWriter('../config/chart_config.xlsx', engine='xlsxwriter')
-    plot_id_to_labels_df.to_excel(chart_config, sheet_name='plot_id_to_labels')
-    plot_id_to_chart_type_df.to_excel(chart_config, sheet_name='plot_id_to_chart_type')
-    plot_id_to_chart_position_df.to_excel(chart_config, sheet_name='plot_id_to_chart_position')
+    table_id_to_labels_df.to_excel(chart_config, sheet_name='table_id_to_labels')
+    table_id_to_chart_type_df.to_excel(chart_config, sheet_name='table_id_to_chart_type')
+    table_id_to_chart_position_df.to_excel(chart_config, sheet_name='table_id_to_chart_position')
     #find sheets that are in existing_sheets but not in chart_config and add them
     for sheet in existing_sheet_names:
         if sheet not in chart_config.sheets.keys():

@@ -267,17 +267,17 @@ for economy_x in model_df_wide['economy'].unique():
     #so drop the fuels_8th and secotrs_8th cols
     charts_mapping = charts_mapping.drop(columns=['fuels_8th', 'sectors_8th'])
     #concat unique sheet and table_numbers cols
-    charts_mapping['plot_id'] = charts_mapping['sheet'] + '_' + charts_mapping['table_number'].astype(str)
+    charts_mapping['table_id'] = charts_mapping['sheet'] + '_' + charts_mapping['table_number'].astype(str)
     #merge these cols with the plotting_df and grab the values.
     charts_mapping = charts_mapping.merge(plotting_df, how='left', left_on=['sectors_8th_plotting','fuels_8th_plotting'], right_on=['sectors_plotting','fuels_plotting'])
     #drop the cols we dont need
     charts_mapping = charts_mapping.drop(columns=['sectors_8th_plotting','fuels_8th_plotting'])
-    #now loop through the unique plot_ids and idneitfy if there are any missing values (nas) in the value col. Put the data for these into a new dataframe called missing_data
+    #now loop through the unique table_ids and idneitfy if there are any missing values (nas) in the value col. Put the data for these into a new dataframe called missing_data
     missing_data = pd.DataFrame()
-    for plot_id in charts_mapping.plot_id.unique():
-        data = charts_mapping[charts_mapping.plot_id == plot_id]
+    for table_id in charts_mapping.table_id.unique():
+        data = charts_mapping[charts_mapping.table_id == table_id]
         if data.value.isna().any():
-            charts_mapping = charts_mapping[charts_mapping.plot_id != plot_id]
+            charts_mapping = charts_mapping[charts_mapping.table_id != table_id]
             missing_data = pd.concat([missing_data, data])
     #now we have a dataframe called missing_data which contains the data we dont have mapped, yet. We will need to map this manually. Print the unique 'sectors_plotting','fuels_plotting' in this dataframe
     if len(missing_data) > 0:
@@ -307,19 +307,19 @@ for economy_x in model_df_wide['economy'].unique():
 
     #replavce 0's with nan
     charts_mapping['value'] = charts_mapping['value'].replace(0, np.nan)
-    #since we are missing data up to 2030, do a ffill on 0's, grouped by the plot_id, economy, scenario, sectors_plotting, fuels_plotting cols
-    charts_mapping['value'] = charts_mapping.groupby(['plot_id','economy','scenarios','sectors_plotting','fuels_plotting'])['value'].ffill()
+    #since we are missing data up to 2030, do a ffill on 0's, grouped by the table_id, economy, scenario, sectors_plotting, fuels_plotting cols
+    charts_mapping['value'] = charts_mapping.groupby(['table_id','economy','scenarios','sectors_plotting','fuels_plotting'])['value'].ffill()
 
     #also, because of 
     
     j=0
     plot_this = False
     if plot_this:
-        #loop through the unique plot_ids, but stop after plotting the first one for now
-        for i, plot_id in enumerate(charts_mapping.plot_id.unique()):
+        #loop through the unique table_ids, but stop after plotting the first one for now
+        for i, table_id in enumerate(charts_mapping.table_id.unique()):
             # if i > 0:
             #     break
-            data = charts_mapping[charts_mapping.plot_id == plot_id]
+            data = charts_mapping[charts_mapping.table_id == table_id]
 
 
             #for each economy and scenario, plot a line graph
@@ -331,17 +331,17 @@ for economy_x in model_df_wide['economy'].unique():
                     #filter for the economy and scenario
                     plot_data = data[(data.economy == economy) & (data.scenarios == scenario)]
                     #plot the data so the x axis is year and the y axis is value then make the legend the legend col
-                    fig = px.line(plot_data, x="year", y="value", color='legend', title=plot_id + ' ' + economy + ' ' + scenario)
+                    fig = px.line(plot_data, x="year", y="value", color='legend', title=table_id + ' ' + economy + ' ' + scenario)
                     #format the x axis years
                     fig.update_xaxes(tickvals=[2017, 2020, 2025, 2030])
                     #make the y axis the value with the unit as the label
                     fig.update_yaxes(title_text=data.unit.unique()[0])
 
                     #save the plot as html
-                    fig.write_html('../output/plotting_output/' + plot_id + '_' + economy + '_' + scenario + '.html')
+                    fig.write_html('../output/plotting_output/' + table_id + '_' + economy + '_' + scenario + '.html')
 
                     #also save the data to a csv in wide format so we can see what the data looks like
-                    plot_data.to_csv('../output/plotting_output/csvs/' + plot_id + '_' + economy + '_' + scenario + '.csv', index=False)
+                    plot_data.to_csv('../output/plotting_output/csvs/' + table_id + '_' + economy + '_' + scenario + '.csv', index=False)
                     
                 
 
