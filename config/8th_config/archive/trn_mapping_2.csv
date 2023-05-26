@@ -1,0 +1,37 @@
+TRN_road_freight_HT_BEV,Heavy truck
+TRN_road_freight_HT_CNG,Heavy truck
+TRN_road_freight_HT_D,Heavy truck
+TRN_road_freight_HT_FCEV,Heavy truck
+TRN_road_freight_HT_G,Heavy truck
+TRN_road_freight_HT_LPG,Heavy truck
+TRN_road_freight_HT_PHEVD,Heavy truck
+TRN_road_freight_LT_BEV,Light truck
+TRN_road_freight_LT_CNG,Light truck
+TRN_road_freight_LT_D,Light truck
+TRN_road_freight_LT_FCEV,Light truck
+TRN_road_freight_LT_G,Light truck
+TRN_road_freight_LT_LPG,Light truck
+TRN_road_freight_LT_PHEVG,Light truck
+TRN_road_passenger_2W_BEV,Two/three wheeler
+TRN_road_passenger_2W_G,Two/three wheeler
+TRN_road_passenger_BUS_BEV,Bus
+TRN_road_passenger_BUS_CNG,Bus
+TRN_road_passenger_BUS_D,Bus
+TRN_road_passenger_BUS_FCEV,Bus
+TRN_road_passenger_BUS_G,Bus
+TRN_road_passenger_BUS_LPG,Bus
+TRN_road_passenger_BUS_PHEVD,Bus
+TRN_road_passenger_LT_BEV,Light truck
+TRN_road_passenger_LT_CNG,Light truck
+TRN_road_passenger_LT_D,Light truck
+TRN_road_passenger_LT_FCEV,Light truck
+TRN_road_passenger_LT_G,Light truck
+TRN_road_passenger_LT_LPG,Light truck
+TRN_road_passenger_LT_PHEVG,Light truck
+TRN_road_passenger_LV_BEV,Light vehicle
+TRN_road_passenger_LV_CNG,Light vehicle
+TRN_road_passenger_LV_D,Light vehicle
+TRN_road_passenger_LV_FCEV,Light vehicle
+TRN_road_passenger_LV_G,Light vehicle
+TRN_road_passenger_LV_LPG,Light vehicle
+TRN_road_passenger_LV_PHEVG,Light vehicle

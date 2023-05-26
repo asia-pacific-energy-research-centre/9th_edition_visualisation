@@ -1,0 +1,37 @@
+TRN_road_freight_HT_BEV,Battery EV
+TRN_road_freight_HT_CNG,Compressed NG
+TRN_road_freight_HT_D,Diesel
+TRN_road_freight_HT_FCEV,Fuel cell EV
+TRN_road_freight_HT_G,Gasoline
+TRN_road_freight_HT_LPG,LPG
+TRN_road_freight_HT_PHEVD,PHEV diesel
+TRN_road_freight_LT_BEV,Battery EV
+TRN_road_freight_LT_CNG,Compressed NG
+TRN_road_freight_LT_D,Diesel
+TRN_road_freight_LT_FCEV,Fuel cell EV
+TRN_road_freight_LT_G,Gasoline
+TRN_road_freight_LT_LPG,LPG
+TRN_road_freight_LT_PHEVG,PHEV gasoline
+TRN_road_passenger_2W_BEV,Battery EV
+TRN_road_passenger_2W_G,Gasoline
+TRN_road_passenger_BUS_BEV,Battery EV
+TRN_road_passenger_BUS_CNG,Compressed NG
+TRN_road_passenger_BUS_D,Diesel
+TRN_road_passenger_BUS_FCEV,Fuel cell EV
+TRN_road_passenger_BUS_G,Gasoline
+TRN_road_passenger_BUS_LPG,LPG
+TRN_road_passenger_BUS_PHEVD,PHEV diesel
+TRN_road_passenger_LT_BEV,Battery EV
+TRN_road_passenger_LT_CNG,Compressed NG
+TRN_road_passenger_LT_D,Diesel
+TRN_road_passenger_LT_FCEV,Fuel cell EV
+TRN_road_passenger_LT_G,Gasoline
+TRN_road_passenger_LT_LPG,LPG
+TRN_road_passenger_LT_PHEVG,PHEV gasoline
+TRN_road_passenger_LV_BEV,Battery EV
+TRN_road_passenger_LV_CNG,Compressed NG
+TRN_road_passenger_LV_D,Diesel
+TRN_road_passenger_LV_FCEV,Fuel cell EV
+TRN_road_passenger_LV_G,Gasoline
+TRN_road_passenger_LV_LPG,LPG
+TRN_road_passenger_LV_PHEVG,PHEV gasoline

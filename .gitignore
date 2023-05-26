@@ -2,7 +2,8 @@
 input_data/*
 intermediate_data/*
 output/*
-
+config/computer_generated/*
+archive/*
 #######################################
 
 
