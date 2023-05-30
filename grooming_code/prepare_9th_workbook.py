@@ -25,6 +25,9 @@ if len(charts_mapping_files) == 0:
 #to extract the economy we can just use the economys in the original input file!
 model_df_wide = pd.read_csv('../input_data/model_df_wide_20230420.csv')
 economies = model_df_wide['economy'].unique()
+#drop file from memory
+del model_df_wide
+
 charts_mapping_economys = []
 for file in charts_mapping_files:
     for economy in economies:
@@ -32,10 +35,9 @@ for file in charts_mapping_files:
             charts_mapping_economys.append(economy)
 ############################################
 #import chart_config xlsx
-chart_config_variables = pd.read_excel('../config/chart_config.xlsx', sheet_name='variables')
+chart_config = pd.read_excel('../config/chart_config.xlsx', sheet_name='variables')
 table_id_to_labels_df = pd.read_excel('../config/chart_config.xlsx', sheet_name='table_id_to_labels')
-table_id_to_chart_type_df = pd.read_excel('../config/chart_config.xlsx', sheet_name='table_id_to_chart_type', index_col=0)
-table_id_to_chart_position_df = pd.read_excel('../config/chart_config.xlsx', sheet_name='table_id_to_chart_position', index_col=0)
+table_id_to_chart_type_df = pd.read_excel('../config/chart_config.xlsx', sheet_name='table_id_to_chart_type')
 
 #convert
 ############################################
@@ -43,34 +45,29 @@ table_id_to_chart_position_df = pd.read_excel('../config/chart_config.xlsx', she
 colours_dict = pd.read_csv('../config/colours_dict.csv', header=None)
 colours_dict = colours_dict.set_index(colours_dict.columns[0]).to_dict()[colours_dict.columns[1]]
 
-
 ################################################################################################################################
 #FORMAT CONFIGS
 ################################################################################################################################
 #cconvert into dictrionary
-if len(chart_config_variables.columns) != 2:
-    raise Exception('chart_config_variables must have exactly two columns')
-chart_config_variables = chart_config_variables.set_index(chart_config_variables.columns[0]).to_dict()[chart_config_variables.columns[1]]
+if len(chart_config.columns) != 2:
+    raise Exception('chart_config must have exactly two columns')
+chart_config = chart_config.set_index(chart_config.columns[0]).to_dict()[chart_config.columns[1]]
 
-# Make space for charts (before data/tables)
-chart_height =  chart_config_variables['chart_height']
-col_chart_years = ast.literal_eval(chart_config_variables['col_chart_years']) #will be like ['2000', '2010', '2018', '2020', '2030', '2040', '2050'] so format it as a list
+# Format the bar_years as a list
+chart_config['bar_years'] = ast.literal_eval(chart_config['bar_years']) #will be like ['2000', '2010', '2018', '2020', '2030', '2040', '2050'] so format it as a list
 
 #clean table_id_to_X files
 # Convert the DataFrame values to lists and then to dictionary
-table_id_to_labels_dict = table_id_to_labels_df.set_index('Unnamed: 0').T.to_dict('list')
-table_id_to_chart_type_dict = table_id_to_chart_type_dict.set_index('Unnamed: 0').T.to_dict('list')
-table_id_to_chart_position_dict = table_id_to_chart_position_dict.set_index('Unnamed: 0').T.to_dict('list')
- 
+table_id_to_labels = table_id_to_labels_df.set_index('Unnamed: 0').T.to_dict('list')
+table_id_to_chart_type = table_id_to_chart_type_df.set_index('Unnamed: 0').T.to_dict('list')
 #check they all havesame keys
-if table_id_to_labels_dict.keys() != table_id_to_chart_type_dict.keys() != table_id_to_chart_position_dict.keys():
+if table_id_to_labels.keys() != table_id_to_chart_type.keys():
     raise Exception('You need to have the same table_ids in each of the table_id_to_X files')
     
 # Drop the nan values from the lists
-for key in table_id_to_labels_dict.keys():
-    table_id_to_labels_dict[key] = [item for item in table_id_to_labels_dict[key] if item == item]  # item == item is a way to check if item is not nan
-    table_id_to_chart_type_dict[key] = [item for item in table_id_to_chart_type_dict[key] if item == item]
-    table_id_to_chart_position_dict[key] = [item for item in table_id_to_chart_position_dict[key] if item == item]
+for key in table_id_to_labels.keys():
+    table_id_to_labels[key] = [item for item in table_id_to_labels[key] if item == item]  # item == item is a way to check if item is not nan
+    table_id_to_chart_type[key] = [item for item in table_id_to_chart_type[key] if item == item]
 
 
 ####################################################################################################################################
@@ -101,6 +98,8 @@ for economy in charts_mapping_economys:
         #then create a dictionary of the sheets and the dataframes we will use to populate them:
         sheet_dfs = {}
         for sheet in sheets:
+
+            #PREPARE DATA ########################################
             sheet_dfs[sheet] = ()
 
             sheet_data = charts_mapping_economy.loc[charts_mapping_economy['sheet'] == sheet]
@@ -122,8 +121,7 @@ for economy in charts_mapping_economys:
 
                     #add table data to tuple
                     sheet_dfs[sheet] = sheet_dfs[sheet] + (table_data,)
-                
-
+            #PREPARE DATA END  ########################################
         #now we have a dictionary of dataframes for each sheet, we can iterate through them and create the charts and tables we need.
         writer = pd.ExcelWriter('../output/output_workbooks/' + economy + '_charts_' + FILE_DATE_ID + '.xlsx', engine = 'xlsxwriter')
         workbook = writer.book
@@ -136,7 +134,7 @@ for economy in charts_mapping_economys:
         cell_format2 = workbook.add_format({'font_size': 9})
         # cell_format3 = workbook.add_format({'font_size': 9, 'bold': True, 'underline': True})
 
-
+        #CREATE WORKBOOK ########################################
         #iterate through the sheets and create them
         for sheet in sheets:
             #create sheet in workbook
@@ -146,21 +144,23 @@ for economy in charts_mapping_economys:
             #format some cells in sheet
             num_cols = len(sheet_dfs[sheet][0].columns)
             # worksheet.set_column(1, num_cols + 1, None, space_format)#set_column(first_col, last_col, width, cell_format, options) #whats this do. trying out rmeoving it
-            # worksheet.set_row(chart_height, None, header_format)#whats this do. trying out rmeoving it
+            # worksheet.set_row(chart_config['height'], None, header_format)#whats this do. trying out rmeoving it
 
             #get index for start of year cols, which is when the first non object column is
             first_non_object_col = sheet_dfs[sheet][0].select_dtypes(exclude=['object']).columns[0]
             year_cols_start = sheet_dfs[sheet][0].columns.get_loc(first_non_object_col)
 
             num_tables = len(sheet_dfs[sheet])
-            num_rows_list = []
+            num_table_rows_list = []
+            num_rows_taken_by_charts = 0
             current_scenario = ''
-            scenarios_spaces = 0
+            title_spaces = 0
             for table in sheet_dfs[sheet]:
-                num_rows = len(table.index)
-                sum_num_rows = sum(num_rows_list) + scenarios_spaces
-                #add num rows to lsit so we can skip them when we add following elements
-                num_rows_list.append(num_rows)
+
+                num_table_rows = len(table.index)
+                sum_num_table_rows = sum(num_table_rows_list)+1#add on column headers
+                num_table_rows_list.append(num_table_rows)
+
                 ########################
                 if current_scenario == '':
                     #this is the first table. we will also use this opportunity to add the title of the sheet:
@@ -171,75 +171,42 @@ for economy in charts_mapping_economys:
                 elif table['scenarios'].iloc[0] != current_scenario:
                     #New scenario. Add scenario title to next line and then carry on
                     current_scenario = table['scenarios'].iloc[0]
-                    row = ((chart_height*(len(num_rows_list))) + sum_num_rows) - chart_height + 2
-                    worksheet.write(row, 0, economy + ' ' + sheet + ' ' + current_scenario, cell_format1)
-                    scenarios_spaces+=2#add some space under the scenario title
-                    sum_num_rows+=2#add some space under the scenario title
+
+                    scenario_title_row = num_rows_taken_by_charts + sum_num_table_rows + title_spaces + 2#add two spaces above the scenario title
+
+                    worksheet.write(scenario_title_row, 0, economy + ' ' + sheet + ' ' + current_scenario, cell_format1)
+
+                    title_spaces+=3#add two spaces above the scenario title
+
                 else:
                     pass
                 ########################
-                #find out if the table is in terms of fuels or sectors. we can do this by identifying the number of unique values in the fuels_plotting column vs the sectors_plotting column
-                if len(table['fuels_plotting'].unique()) > len(table['sectors_plotting'].unique()):
-                    key_column = 'fuels_plotting'
-                    key_column_index = table.columns.get_loc(key_column)
-                    # #drop non key column
-                    # table = table.drop(columns = ['sectors_plotting'])#keeping non key col for now as it might be sueful info
-                else:
-                    key_column = 'sectors_plotting'
-                    key_column_index = table.columns.get_loc(key_column)
-                    #drop non key column
-                    # table = table.drop(columns = ['fuels_plotting'])
+                key_column, key_column_index = workbook_creation_functions.get_key_column(table)
                 ########################
                 #now start adding the table and charts
-                table_start_row = (chart_height*(len(num_rows_list))) + sum_num_rows
+                #find out if there is at least a chart for this table, in which case we need to space the table down by the height of the chart
+                if len(table_id_to_chart_type[table['table_id'].iloc[0]]) > 0:
+                    num_rows_taken_by_charts += chart_config['height'] 
+                table_start_row = num_rows_taken_by_charts + sum_num_table_rows + title_spaces
                 worksheet.set_row(table_start_row, None, header_format)
 
                 #sort table into correct order
-                table = workbook_creation_functions.sort_table_by_labels_dict(table,table_id_to_labels_dict,key_column)
-                #identify chart types we need to create
-                chart_types = workbook_creation_functions.identify_chart_type_and_positions(table, table_id_to_chart_type,table_id_to_chart_position)
-                
-                def create_charts(table, chart_types,chart_positions):
-                    #depending on the chart type, create different charts. then add them to the worksheet according to their positions
-                    table_id = table['table_id'].iloc[0]
-                    charts_to_plot = []
-                    for chart in chart_types[table_id]:
-                        if chart == 'line':
-                            #configure the chart
-                            line_chart, chart_position = workbook_creation_functions.line_chart_config(num_rows, table, key_column, sheet, table_start_row, key_column_index, year_cols_start, num_cols, colours_dict, chart_height, area_chart)
-                            if not line_chart:
-                                #if chart is False then dont plot the chart and carry on.
-                                continue
-                            charts_to_plot.append([line_chart,chart_position])
-                        elif chart == 'area':
-                            #configure the chart
-                            area_chart, chart_position = workbook_creation_functions.area_chart_config(num_rows, table, key_column, sheet, table_start_row, key_column_index, year_cols_start, num_cols, colours_dict, chart_height, area_chart)
-                            if not area_chart:
-                                #if chart is False then dont plot the chart and carry on.
-                                continue
-                            charts_to_plot.append([area_chart,chart_position])
-                        elif chart == 'bar':
-                            #configure the chart
-                            bar_chart, chart_position = workbook_creation_functions.bar_chart_config(num_rows, table, key_column, sheet, table_start_row, key_column_index, year_cols_start, num_cols, colours_dict, chart_height, area_chart)
-                            if not bar_chart:
-                                #if chart is False then dont plot the chart and carry on.
-                                continue
-                            charts_to_plot.append([bar_chart,chart_position])
-                            
-
+                table = workbook_creation_functions.sort_table_by_labels(table,table_id_to_labels,key_column)
+                #identify and format charts we need to create
+                chart_types, chart_positions = workbook_creation_functions.identify_chart_type_and_positions(table, table_id_to_chart_type,table_start_row, chart_config)
+                charts_to_plot = workbook_creation_functions.create_charts(table, chart_types,chart_config,workbook,num_table_rows, key_column, sheet, table_start_row, key_column_index, year_cols_start, num_cols, colours_dict)
 
                 #write table to sheet
                 table.to_excel(writer, sheet_name = sheet, index = False, startrow = table_start_row)
-
-        for chart in charts_to_plot:
-            chart_position = chart[0]
-            chart = chart[1]
-            worksheet.insert_chart(chart_position, chart)
+                #write charts to sheet
+                for i, chart in enumerate(charts_to_plot):
+                    chart_position = chart_positions[i]
+                    worksheet.insert_chart(chart_position, chart)
 
         #save the workbook
         writer.close()
 
-
+#%%
 
 #ok. now we are going to save the plotting configurations so we can edit and utilise them later.
 # So we will save the unique table_id and key_columns all in a dataframe, and then save that dataframe to a csv. this can be the table_id_to_labels_dict. This can be used to manually set the order of the labels in the legend. We will qait to see if ther eare other uses
@@ -249,7 +216,7 @@ for economy in charts_mapping_economys:
 #would be good to make the process clean so it can be done many times.
 
 #also to do:
-#when we use a bar chart, we will have ot make sure 10 year increments are skipped
+
 
 
 
