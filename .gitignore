@@ -1,14 +1,15 @@
 #manually added gitignore files:
-input_data/*
-intermediate_data/*
-output/*
-config/computer_generated/*
+# input_data/*
+# intermediate_data/*
+# output/*
+# config/computer_generated/*
 archive/*
-original_preparation_code/*
+# original_preparation_code/*
 
 *.xlsx
 *.csv
 *.html
+*.pkl
 
 !.gitkeep
 !master_config.xlsx
