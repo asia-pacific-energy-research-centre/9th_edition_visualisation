@@ -18,7 +18,7 @@ config/master_config.xlsx:
 - colors: mapping from plotting names to colors
 - plotting_specifications
 
-intermediate_data/data/economy_charts_mapping_9th_{}_{}.pkl > created in prepare_9th_data.py and contains the mappings and data which are used directly to create the charts workbooks and tables.
+- intermediate_data/data/economy_charts_mapping_9th_{}_{}.pkl > created in prepare_9th_data.py and contains the mappings and data which are used directly to create the charts workbooks and tables.
 
 ## Common Column and Variable names:
 Plotting names: any time this is referred to, it is the label of an aggregation of data from the 9th data, which is then plotted in a chart with the exact 'Plotting name'. In some cases, like in the mappings: sectors_plotting, fuels_plotting and transformation_sector_mappings, the plotting names might be referred to as sectors_plotting or fuels_plotting. This is just to specify whether the aggregation is based on sectors or fuels. But these are then stacked together in the config sheets: table_id_to_chart, colors_dict where they are all referred to as plotting names.
