@@ -1,4 +1,5 @@
-#first file for the setup of the project
+#first file for the setup of the project. THis doesnt need to be rerun unless something needs to be changed. THis is especially the case because manual (non recorded) changes have been made to the output from this file to set up the 9th edition workbook.
+
 #import data from input_data/model_df_wide_20230420.csv
 #%%
 import pandas as pd

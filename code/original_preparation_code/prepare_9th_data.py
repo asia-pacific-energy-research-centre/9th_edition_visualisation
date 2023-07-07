@@ -1,5 +1,6 @@
-#first file for the setup of the project
-#import data from input_data/model_df_wide_20230420.csv
+#second file for the setup of the project
+#import data from input_data/model_df_wide_20230420.csv. This is the data from the concatenation of all data for the 9th edition modelling (created in https://github.com/asia-pacific-energy-research-centre/Outlook9th_EBT). 
+#this data is used to create the data that is used in the charts, which is saved in intermediate_data/data/data_mapped_to_plotting_names_9th.pkl
 #%%
 import pandas as pd
 import numpy as np
@@ -16,13 +17,14 @@ def data_checking_warning_or_error(message):
 FILE_DATE_ID = datetime.now().strftime('%Y%m%d')
 #read in data
 model_df_wide = pd.read_csv('../input_data/model_df_wide_20230420.csv')
-
+#%%
 ##############################################################################
 
 
 #import mappings:
 #these will be mappings from the names used to refer to categories shown in the plotting, to the combinations of column categories from which these categories are aggregated from.
 # Eg: Buildings is extracted by finding all values with 16_01_buildings in their sub1sectors column. Also Bunkers is extacted by finding all values with 04_international_marine_bunkers or 05_international_aviation_bunkers in their sectors column
+#The mappings are used to reduce dataframe manipulations, as a lot of code is needed to manually extract the categories from the columns when they come from so many different columns and combinations. 
 
 sector_plotting_mappings = pd.read_excel('../config/visualisation_category_mappings.xlsx', sheet_name='sectors_plotting')
 # sector_plotting_mappings.columns Index(['sectors_plotting', 'sectors', 'sub1sectors', 'sub2sectors'], dtype='object')
@@ -33,21 +35,27 @@ fuel_plotting_mappings = pd.read_excel('../config/visualisation_category_mapping
 transformation_sector_mappings = pd.read_excel('../config/visualisation_category_mappings.xlsx', sheet_name='transformation_sector_mappings')
 # transformation_sector_mappings.columns: input_fuel	transformation_sectors	sub1sectors
 
-economy_mappings = pd.read_csv('../config/economy_code_to_name.csv')
-# economy_mappings.columns: Index(['economy', 'economy_name', 'alt_aperc_code', 'alt_aperc_code2','region1', 'region2_test', 'region3_aperc_code'],dtype='object')
+# economy_mappings = pd.read_csv('../config/economy_code_to_name.csv')
+# # economy_mappings.columns: Index(['economy', 'economy_name', 'alt_aperc_code', 'alt_aperc_code2','region1', 'region2_test', 'region3_aperc_code'],dtype='object')
 
-#first we import the transformation mappigns from the visualisation_category_mappings.xlsx file
-transformation_sector_mappings = pd.read_excel('../config/visualisation_category_mappings.xlsx', sheet_name='transformation_sector_mappings')
-#Index(['input_fuel', 'sectors_plotting', 'sectors','sub1sectors'], dtype='object')
+# #first we import the transformation mappigns from the visualisation_category_mappings.xlsx file
+# transformation_sector_mappings = pd.read_excel('../config/visualisation_category_mappings.xlsx', sheet_name='transformation_sector_mappings')
+# #Index(['input_fuel', 'sectors_plotting', 'sectors','sub1sectors'], dtype='object')
 
-#for now jsut use the sheet called Balances from that file, as its where we ahve mapped the most values
+#for now jsut use the sheet called Balances from that file, as its where we ahve mapped the most values. Later we can include the other sheets, i think
 charts_mapping = pd.read_excel('../intermediate_data/config/charts_mapping_9th_computer_generated.xlsx', sheet_name='Balances')
 
 ##############################################################################
 
-#take in the model_variables.xlsx file and check that the unique variables in the columns in Variables sheet match the variables in the columns in the Data sheet. If not, throw a descriptive error/warning.
+#take in the model_variables.xlsx file. This will be used to check that the unique variables in the columns in Variables sheet match the variables in the columns in the Data sheet (model_df_wide). If not, throw a descriptive error/warning.
 
 model_variables = pd.read_excel('../input_data/model_variables.xlsx', sheet_name='Variables', header = 2)
+
+##############################################################################
+#########################
+
+#BEGIN PROCESSING THE DATA
+
 #############################
 #FORMAT THE MAPPINGS
 #for fuel and sector mappings we will extract the most sepcific reference for each row and then record it's column in a column called 'column'.
@@ -236,7 +244,7 @@ for economy_x in model_df_wide['economy'].unique():
     #for example we need an aggregation of the transformation sector input and output values to create entries for Power, Refining or Hydrogen
 
 
-    #the input_fuel col is a bool and determines whether we are looking for input or output fuels from the transformation sector. If input then the values will be negative, if output then positive
+    #the input_fuel col is a bool and determines whether we are looking for input or output fuels from the transformation sector. If input then the values need to be negative, if output then positive (We'll filter for this)
 
     #we will create a new dataframe which is the aggregation of the sectors in the transformation_sector_mappings dataframe, applied to the 9th modelling data. 
     #we will create a column within this dataframe called sectors_plotting which will then be able to be stacked with the other columns in other dataframes with the same column name
@@ -261,7 +269,7 @@ for economy_x in model_df_wide['economy'].unique():
     #drop the fuels cols
     new_model_df_transformation = new_model_df_transformation.drop(columns=['fuels', 'subfuels','reference_fuel'])
     
-    #now separaten into input and output dfs using book and whtehr value is positive or negative
+    #now separaten into input and output dfs using the boolean and whtehr value is positive or negative
     input_transformation = new_model_df_transformation[(new_model_df_transformation['input_fuel'] == True) & (new_model_df_transformation['value'] < 0)]
 
     output_transformation = new_model_df_transformation[(new_model_df_transformation['input_fuel'] == False) & (new_model_df_transformation['value'] > 0)]
@@ -275,6 +283,8 @@ for economy_x in model_df_wide['economy'].unique():
     #############################
     #now we can extract the data for each graph we need to produce using the file D:\APERC\9th_edition_visualisation\intermediate_data\config\charts_mapping_9th_computer_generated.xlsx
 
+    #TODO, REMOVE ANY RELATION TO 8TH IN THIS. ANYTHING THAT USEAS STUFF FROM THE 8TH SHOULD BE MANUALLY UPDATED 
+    
     #for each unique sheet, table_numbers combination, extract the values form the cols sectors_8th_plotting and fuels_8th_plotting which specifies the data we need to grab from the new plotting_df
     #so drop the fuels_8th and secotrs_8th cols
     #merge these cols with the plotting_df and grab the values.
