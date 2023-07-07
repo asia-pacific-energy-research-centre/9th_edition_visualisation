@@ -1,0 +1,10 @@
+name: 9th_edition_visualisation
+dependencies:
+  - plotly
+  - pandas
+  - numpy
+  - plotly
+  - matplotlib
+  - xlsxwriter
+  - pip
+  - jupyter
