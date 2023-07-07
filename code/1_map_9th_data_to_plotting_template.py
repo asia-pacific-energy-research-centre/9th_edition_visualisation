@@ -41,7 +41,8 @@ charts_mapping = pd.read_excel('../config/master_config.xlsx', sheet_name='table
 colors_df = pd.read_excel('../config/master_config.xlsx', sheet_name='colors')
 
 #also plot a color wheel for the user to understand the colors_df
-mapping_functions.plot_color_wheel(colors_df)
+#NOTE THAT I DIDNT GET AROUND TO MAKING THIS WORK SORRY
+# mapping_functions.prepare_color_plot(colors_df)
 #just need to double check all plotting names are in here
 ##############################################################################
 

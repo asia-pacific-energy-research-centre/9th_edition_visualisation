@@ -4,6 +4,12 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from datetime import datetime
+
+import collections
+import plotly.graph_objects as go
+import colorsys
+import math
+from plotly.subplots import make_subplots
 STRICT_DATA_CHECKING = False
 def data_checking_warning_or_error(message):
     if STRICT_DATA_CHECKING:
@@ -295,7 +301,6 @@ def merge_transformation_sector_mappings(model_df_tall, transformation_sector_ma
 #     return missing_data, economy_new_charts_mapping
 
 def check_for_duplicates_in_plotting_names(new_sector_plotting_mappings, new_fuel_plotting_mappings):
-    import collections
     #merge the two dataframes on their plotting names (sectors_plotting and fuels_plotting)
     
     plotting_names = new_sector_plotting_mappings['sectors_plotting'].unique().tolist() + new_fuel_plotting_mappings['fuels_plotting'].unique().tolist()
@@ -330,117 +335,114 @@ def test_plotting_names_match_colors_df(plotting_names,colors_df):
     else:
         pass 
         
-def prepare_color_plot(colors_df):
+# def prepare_color_plot(colors_df):
 
-    import plotly.graph_objects as go
-    import colorsys
-    import math
-    # Create labels and colors lists
-    labels = colors_df.plotting_name
-    colors = colors_df.color
+#     # Create labels and colors lists
+#     labels = colors_df.plotting_name
+#     colors = colors_df.color
 
-    #identify any duplicate labels
-    if labels[labels.duplicated()].empty == False:
-        raise ValueError('Duplicate labels found in the colors_df dataframe', labels[labels.duplicated()])
+#     #identify any duplicate labels
+#     if labels[labels.duplicated()].empty == False:
+#         raise ValueError('Duplicate labels found in the colors_df dataframe', labels[labels.duplicated()])
     
-    #create dict
-    colors_dict = dict(zip(labels, colors))
+#     #create dict
+#     colors_dict = dict(zip(labels, colors))
     
-    plot_color_grid(colors_df)
-    plot_color_wheel(colors_df)
+#     plot_color_grid(colors_dict)
+#     plot_color_wheel(colors_dict)
     
-def plot_color_wheel(colors_dict):
+# def plot_color_wheel(colors_dict):
     
-    #Convert to the HSV color space and sort by hue:
-    # Function to convert hex color to RGB
-    def hex_to_rgb(hex_color):
-        hex_color = hex_color.lstrip('#')
-        return tuple(int(hex_color[i:i+2], 16) / 255 for i in (0, 2, 4))
+#     #Convert to the HSV color space and sort by hue:
+#     # Function to convert hex color to RGB
+#     def hex_to_rgb(hex_color):
+#         hex_color = hex_color.lstrip('#')
+#         return tuple(int(hex_color[i:i+2], 16) / 255 for i in (0, 2, 4))
 
-    # Function to convert RGB color to HSV
-    def rgb_to_hsv(rgb_color):
-        return colorsys.rgb_to_hsv(*rgb_color)
+#     # Function to convert RGB color to HSV
+#     def rgb_to_hsv(rgb_color):
+#         return colorsys.rgb_to_hsv(*rgb_color)
 
-    # Convert colors to HSV and create a list of (label, color, hsv) tuples
-    color_tuples = [(label, color, rgb_to_hsv(hex_to_rgb(color))) for label, color in colors_dict.items()]
+#     # Convert colors to HSV and create a list of (label, color, hsv) tuples
+#     color_tuples = [(label, color, rgb_to_hsv(hex_to_rgb(color))) for label, color in colors_dict.items()]
 
-    # Sort by hue
-    color_tuples.sort(key=lambda x: x[2][0])
+#     # Sort by hue
+#     color_tuples.sort(key=lambda x: x[2][0])
 
-    # Create labels and colors lists from sorted tuples
-    labels = [t[0] for t in color_tuples]
-    colors = [t[1] for t in color_tuples]
+#     # Create labels and colors lists from sorted tuples
+#     labels = [t[0] for t in color_tuples]
+#     colors = [t[1] for t in color_tuples]
 
-    # Create an array of angles evenly spaced around a circle
-    angles = np.linspace(0, 2 * np.pi, len(labels) + 1)
+#     # Create an array of angles evenly spaced around a circle
+#     angles = np.linspace(0, 2 * np.pi, len(labels) + 1)
 
-    # Create a trace for the polar chart
-    trace = go.Barpolar(
-        r=[1] * len(labels),  # All bars have the same length
-        theta=angles * 180 / np.pi,  # Convert angles to degrees
-        width=[np.diff(angles)[0]] * len(labels),  # All bars have the same width
-        marker=dict(color=colors),
-        text=labels,
-        hoverinfo='text',
-        showlegend=False
-    )
+#     # Create a trace for the polar chart
+#     trace = go.Barpolar(
+#         r=[1] * len(labels),  # All bars have the same length
+#         theta=angles * 180 / np.pi,  # Convert angles to degrees
+#         width=[np.diff(angles)[0]] * len(labels),  # All bars have the same width
+#         marker=dict(color=colors),
+#         text=labels,
+#         hoverinfo='text',
+#         showlegend=False
+#     )
 
-    # Create the layout for the plot
-    layout = go.Layout(
-        title='Color Wheel Representation',
-        polar=dict(
-            radialaxis=dict(visible=False),
-            angularaxis=dict(visible=False),
-        ),
-        paper_bgcolor='rgba(0,0,0,0)',  # Transparent background
-    )
+#     # Create the layout for the plot
+#     layout = go.Layout(
+#         title='Color Wheel Representation',
+#         polar=dict(
+#             radialaxis=dict(visible=False),
+#             angularaxis=dict(visible=False),
+#         ),
+#         paper_bgcolor='rgba(0,0,0,0)',  # Transparent background
+#     )
 
-    # Create the figure and add the trace
-    fig = go.Figure(data=[trace], layout=layout)
+#     # Create the figure and add the trace
+#     fig = go.Figure(data=[trace], layout=layout)
 
-    # write the figure to html
-    fig.write_html("../config/plotting_names_color_wheel.html")
+#     # write the figure to html
+#     fig.write_html("../config/plotting_names_color_wheel.html")
     
     
-def plot_color_grid(colors_dict):
+# def plot_color_grid(colors_dict):
         
-    # Determine grid size based on number of colors
-    n = len(colors_dict)
-    cols = round(math.sqrt(n))
-    rows = cols if cols * cols >= n else cols + 1
+#     # Determine grid size based on number of colors
+#     n = len(colors_dict)
+#     cols = round(math.sqrt(n))
+#     rows = cols if cols * cols >= n else cols + 1
 
-    # Create subplot matrix with invisible plots
-    fig = make_subplots(rows=rows, cols=cols)
+#     # Create subplot matrix with invisible plots
+#     fig = make_subplots(rows=rows, cols=cols)
 
-    # Create labels and colors lists
-    labels = list(colors_dict.keys())
-    colors = list(colors_dict.values())
+#     # Create labels and colors lists
+#     labels = list(colors_dict.keys())
+#     colors = list(colors_dict.values())
 
-    # Fill subplots with colors
-    for i in range(rows):
-        for j in range(cols):
-            index = i * cols + j
-            if index < n:
-                fig.add_trace(
-                    go.Scatter(x=[0, 1], y=[0, 1], mode='text',
-                            text=[labels[index]], showlegend=False,
-                            textposition='middle center'),
-                    row=i + 1, col=j + 1
-                )
-                fig.update_xaxes(showticklabels=False, showgrid=False, zeroline=False, visible=False, row=i + 1, col=j + 1)
-                fig.update_yaxes(showticklabels=False, showgrid=False, zeroline=False, visible=False, row=i + 1, col=j + 1)
-                fig.add_layout_image(
-                    dict(
-                        source="data:image/svg+xml;base64,CiAgPHN2ZyB3aWR0aD0iMCIgaGVpZ2h0PSIwIj4KICAgIDxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9IiN7fSIvPgogIDwvc3ZnPgo=".format(colors[index]),
-                        xref="x{}".format(index+1),
-                        yref="y{}".format(index+1),
-                        x=0,
-                        y=1,
-                        sizex=1,
-                        sizey=1,
-                        sizing="stretch",
-                        layer="below"
-                    )
-                )
-    # write the figure to html
-    fig.write_html("../config/plotting_names_color_grid.html")
+#     # Fill subplots with colors
+#     for i in range(rows):
+#         for j in range(cols):
+#             index = i * cols + j
+#             if index < n:
+#                 fig.add_trace(
+#                     go.Scatter(x=[0, 1], y=[0, 1], mode='text',
+#                             text=[labels[index]], showlegend=False,
+#                             textposition='middle center'),
+#                     row=i + 1, col=j + 1
+#                 )
+#                 fig.update_xaxes(showticklabels=False, showgrid=False, zeroline=False, visible=False, row=i + 1, col=j + 1)
+#                 fig.update_yaxes(showticklabels=False, showgrid=False, zeroline=False, visible=False, row=i + 1, col=j + 1)
+#                 fig.add_layout_image(
+#                     dict(
+#                         source="data:image/svg+xml;base64,CiAgPHN2ZyB3aWR0aD0iMCIgaGVpZ2h0PSIwIj4KICAgIDxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9IiN7fSIvPgogIDwvc3ZnPgo=".format(colors[index]),
+#                         xref="x{}".format(index+1),
+#                         yref="y{}".format(index+1),
+#                         x=0,
+#                         y=1,
+#                         sizex=1,
+#                         sizey=1,
+#                         sizing="stretch",
+#                         layer="below"
+#                     )
+#                 )
+#     # write the figure to html
+#     fig.write_html("../config/plotting_names_color_grid.html")
