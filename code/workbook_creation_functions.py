@@ -300,7 +300,7 @@ def area_plotting_specifications(workbook,plotting_specifications):
 
 def bar_plotting_specifications(workbook,plotting_specifications):
     # Create a another chart
-    line_chart = workbook.add_chart({'type': 'column', 'subtype': 'percent_stacked'})
+    line_chart = workbook.add_chart({'type': 'column', 'subtype': 'stacked'})#can make this percent_stacked to make it a percentage stacked bar chart!
     line_chart.set_size({
         'width': plotting_specifications['width_pixels'],
         'height': plotting_specifications['height_pixels']
