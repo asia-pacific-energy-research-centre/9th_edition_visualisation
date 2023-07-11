@@ -18,8 +18,8 @@ def data_checking_warning_or_error(message):
 #######################################################
 #CONFIG PREPARATION
 #create FILE_DATE_ID for use in file names
-# FILE_DATE_ID = datetime.now().strftime('%Y%m%d')
-FILE_DATE_ID = '20230706'
+FILE_DATE_ID = datetime.now().strftime('%Y%m%d')
+# FILE_DATE_ID = '20230706'
 total_plotting_names=['Total', 'TPES', 'Total primary energy supply','TFEC']
 MIN_YEAR = 2017
 #######################################################
@@ -64,7 +64,7 @@ colours_dict = colours_dict.set_index(colours_dict.columns[0]).to_dict()[colours
 ########################################################.
 for file in charts_mapping_files:
     #PREPARE DATA ########################################
-    charts_mapping = pd.read_pickle('../intermediate_data/data/economy_charts_mapping_9th_{}_{}.pkl'.format(economy, FILE_DATE_ID))
+    charts_mapping = pd.read_pickle(f'../intermediate_data/data/{file}')
     # 'sheet_name', 'table_number', 'chart_type', 'plotting_name',
     #    'scenario', 'economy', 'year', 'value', 'unit'
     #filter for MIN_YEAR
