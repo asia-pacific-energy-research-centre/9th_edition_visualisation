@@ -15,6 +15,8 @@ archive/*
 !master_config.xlsx
 !01_AUS_charts_2022-07-14-1530 - 8thEdition.xlsx
 #01_AUS_charts_2022-07-14-1530.xlsx is an important input for 1_prepare_8th_workbook.py
+
+env_9th_visualisation/*
 #######################################
 
 

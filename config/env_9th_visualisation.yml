@@ -1,4 +1,4 @@
-name: 9th_edition_visualisation
+name: env_9th_visualisation
 dependencies:
   - plotly
   - pandas
