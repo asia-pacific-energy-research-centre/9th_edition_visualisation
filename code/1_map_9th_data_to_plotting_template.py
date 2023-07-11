@@ -48,7 +48,7 @@ colors_df = pd.read_excel('../config/master_config.xlsx', sheet_name='colors')
 
 #take in the model_variables.xlsx file. This will be used to check that the unique variables in the columns in Variables sheet match the variables in the columns in the Data sheet (model_df_wide). If not, throw a descriptive error/warning.
 
-model_variables = pd.read_excel('../config/master_config.xlsx', sheet_name='Variables', header = 2)
+model_variables = pd.read_excel('../config/master_config.xlsx', sheet_name='9th_EBT_schema', header = 2)
 #%%
 ##############################################################################
 #########################
