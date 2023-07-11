@@ -18,7 +18,7 @@ import mapping_functions
 #create FILE_DATE_ID for use in file names
 FILE_DATE_ID = datetime.now().strftime('%Y%m%d')
 #read in data
-model_df_wide = pd.read_csv('../input_data/model_df_wide_20230420.csv')
+model_df_wide = pd.read_csv('../input_data/model_df_wide_20230710.csv')
 #%%
 ##############################################################################
 
@@ -46,9 +46,9 @@ colors_df = pd.read_excel('../config/master_config.xlsx', sheet_name='colors')
 #just need to double check all plotting names are in here
 ##############################################################################
 
-#take in the model_variables.xlsx file. This will be used to check that the unique variables in the columns in Variables sheet match the variables in the columns in the Data sheet (model_df_wide). If not, throw a descriptive error/warning.
+#take in the 9th_EBT_schema file. This will be used to check that the unique variables in the columns in Variables sheet match the variables in the columns in the Data sheet (model_df_wide). If not, throw a descriptive error/warning.
 
-model_variables = pd.read_excel('../config/master_config.xlsx', sheet_name='9th_EBT_schema', header = 2)
+model_variables = pd.read_excel('../config/9th_EBT_schema.xlsx', header = 2)
 #%%
 ##############################################################################
 #########################
