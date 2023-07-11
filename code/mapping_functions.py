@@ -2,14 +2,8 @@
 import pickle
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-from datetime import datetime
 
 import collections
-import plotly.graph_objects as go
-import colorsys
-import math
-from plotly.subplots import make_subplots
 STRICT_DATA_CHECKING = False
 def data_checking_warning_or_error(message):
     if STRICT_DATA_CHECKING:

@@ -1,8 +1,6 @@
 import pandas as pd
 import math
 import numpy as np
-import matplotlib.pyplot as plt
-from datetime import datetime
 STRICT_DATA_CHECKING = False
 def data_checking_warning_or_error(message):
     if STRICT_DATA_CHECKING:
