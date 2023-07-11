@@ -10,7 +10,7 @@ archive/*
 *.csv
 *.html
 *.pkl
-
+*.dll
 !.gitkeep
 !master_config.xlsx
 !01_AUS_charts_2022-07-14-1530 - 8thEdition.xlsx
