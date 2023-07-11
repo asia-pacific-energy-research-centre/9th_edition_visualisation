@@ -17,8 +17,24 @@ import mapping_functions
 
 #create FILE_DATE_ID for use in file names
 FILE_DATE_ID = datetime.now().strftime('%Y%m%d')
-#read in data
-model_df_wide = pd.read_csv('../input_data/model_df_wide_20230710.csv')
+
+#read in data in either Excel or CSV file format
+import glob
+
+file_pattern = '../input_data/model_df_wide_202*.*'
+file_paths = glob.glob(file_pattern)
+
+if len(file_paths) == 0:
+    print("No matching file found.")
+else:
+    file_path = file_paths[0]
+    if file_path.endswith('.xlsx') or file_path.endswith('.xls'):
+        model_df_wide = pd.read_excel(file_path)
+    elif file_path.endswith('.csv'):
+        model_df_wide = pd.read_csv(file_path)
+    else:
+        print("Unsupported file format.")
+
 #%%
 ##############################################################################
 
