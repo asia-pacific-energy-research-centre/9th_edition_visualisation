@@ -21,7 +21,7 @@ FILE_DATE_ID = datetime.now().strftime('%Y%m%d')
 #read in data in either Excel or CSV file format
 import glob
 
-file_pattern = '../input_data/model_df_wide_202*.*'
+file_pattern = '../input_data/*.*'
 file_paths = glob.glob(file_pattern)
 
 if len(file_paths) == 0:
