@@ -21,7 +21,7 @@ def data_checking_warning_or_error(message):
 FILE_DATE_ID = datetime.now().strftime('%Y%m%d')
 # FILE_DATE_ID = '20230706'
 total_plotting_names=['Total', 'TPES', 'Total primary energy supply','TFEC']
-MIN_YEAR = 2017
+MIN_YEAR = 2000
 #######################################################
 
 #read in titles, only, from charts mapping for each available economy for the FILE_DATE_ID. e.g. charts_mapping_9th_{economy_x}_{FILE_DATE_ID}.pkl. We will use each of these to create a workbook, for each economy
