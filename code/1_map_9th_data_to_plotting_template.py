@@ -17,7 +17,7 @@ import mapping_functions
 
 #create FILE_DATE_ID for use in file names
 FILE_DATE_ID = datetime.now().strftime('%Y%m%d')
-
+#%%
 #read in data in either Excel or CSV file format
 import glob
 
@@ -95,6 +95,7 @@ mapping_functions.test_plotting_names_match_colors_df(plotting_names,colors_df)
 
 #because we have issues with data being too large (mappings can possibly increase size of data too), we will run through each eocnomy in the model_df_wide and save it as a pickle separately.
 for economy_x in model_df_wide['economy'].unique():
+    breakpoint()
     model_df_wide_economy = model_df_wide[model_df_wide['economy'] == economy_x]
 
     
@@ -198,3 +199,5 @@ for economy_x in model_df_wide['economy'].unique():
     economy_new_charts_mapping.to_pickle(f'../intermediate_data/data/economy_charts_mapping_9th_{economy_x}_{FILE_DATE_ID}.pkl')
 
 #%%
+#economy_new_charts_mapping= pd.read_pickle(f'../intermediate_data/data/economy_charts_mapping_9th_19_THA_20230725.pkl')
+
