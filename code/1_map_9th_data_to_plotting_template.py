@@ -17,7 +17,7 @@ import mapping_functions
 
 #create FILE_DATE_ID for use in file names
 FILE_DATE_ID = datetime.now().strftime('%Y%m%d')
-
+#%%
 #read in data in either Excel or CSV file format
 import glob
 
@@ -95,12 +95,16 @@ mapping_functions.test_plotting_names_match_colors_df(plotting_names,colors_df)
 
 #because we have issues with data being too large (mappings can possibly increase size of data too), we will run through each eocnomy in the model_df_wide and save it as a pickle separately.
 for economy_x in model_df_wide['economy'].unique():
+    breakpoint()
     model_df_wide_economy = model_df_wide[model_df_wide['economy'] == economy_x]
 
-    
+    # Filtering out rows where 'subtotal' column is True
+    model_df_wide_economy = model_df_wide_economy[model_df_wide_economy['subtotal'] != True]
+
+
     #make model_df_wide_economy into model_df_tall
     #fgirst grab object copls as the index cols
-    index_cols = model_df_wide_economy.select_dtypes(include=['object']).columns
+    index_cols = model_df_wide_economy.select_dtypes(include=['object', 'bool']).columns
     #now melt the data
     model_df_tall = pd.melt(model_df_wide_economy, id_vars=index_cols, var_name='year', value_name='value')
     
@@ -157,7 +161,7 @@ for economy_x in model_df_wide['economy'].unique():
     #drop all cols excet ['scenarios','economy', 'year','value','fuels_plotting', 'sectors_plotting']
     plotting_df= plotting_df[['scenarios','economy', 'year','value','fuels_plotting', 'sectors_plotting']]
     #now join with charts mapping on fuel and sector plotting names to get the plotting names for the transformation sectors
-    economy_new_charts_mapping = new_charts_mapping.merge(plotting_df, how='left', on=['fuels_plotting', 'sectors_plotting'])
+    economy_new_charts_mapping = new_charts_mapping.merge(plotting_df, how='left', on=['fuels_plotting', 'sectors_plotting']) 
     
 
     economy_new_charts_mapping = economy_new_charts_mapping.groupby(['economy','table_number','sheet_name', 'chart_type', 'sectors_plotting', 'fuels_plotting', 'plotting_column', 'aggregate_column', 'scenarios', 'year', 'table_id']).sum().reset_index()
@@ -198,3 +202,5 @@ for economy_x in model_df_wide['economy'].unique():
     economy_new_charts_mapping.to_pickle(f'../intermediate_data/data/economy_charts_mapping_9th_{economy_x}_{FILE_DATE_ID}.pkl')
 
 #%%
+#economy_new_charts_mapping= pd.read_pickle(f'../intermediate_data/data/economy_charts_mapping_9th_19_THA_20230725.pkl')
+

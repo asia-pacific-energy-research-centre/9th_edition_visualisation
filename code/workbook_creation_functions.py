@@ -260,7 +260,7 @@ def area_plotting_specifications(workbook,plotting_specifications):
     area_chart.set_x_axis({
         # 'name': 'Year',
         'label_position': 'low',
-        'crossing': 19,
+        'crossing': 21,
         'major_tick_mark': 'none',
         'minor_tick_mark': 'none',
         'num_font': {'name': 'Segoe UI', 'size': 9, 'color': '#323232'},
@@ -369,7 +369,7 @@ def line_plotting_specifications(workbook,plotting_specifications):
     line_chart.set_x_axis({
         # 'name': 'Year',
         'label_position': 'low',
-        'crossing': 19,
+        'crossing': 21,
         'major_tick_mark': 'none',
         'minor_tick_mark': 'none',
         'num_font': {'name': 'Segoe UI', 'size': 9, 'color': '#323232'},
