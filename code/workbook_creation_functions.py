@@ -165,6 +165,7 @@ def create_bar_chart_table(table,year_cols_start,bar_years):
     #for every col after year_cols_start, filter for the years we want to keep only
     non_year_cols = table.columns[:year_cols_start]
     new_table = new_table[non_year_cols.to_list() + years_to_keep]
+    print(new_table)
     return new_table
 
 def identify_chart_positions(current_row,num_table_rows,space_under_tables,column_row, space_under_charts, plotting_specifications,chart_types):

@@ -77,7 +77,6 @@ model_variables = pd.read_excel('../config/9th_EBT_schema.xlsx', header = 2)
 #so for example, where we want to extract the reference for the sectors_plotting value Agriculture, we find the rightmost column that is not na (this is the msot specific column), set 'reference_sector' to that value in the most specific column, and then the column to the name of the most specific column
 
 new_sector_plotting_mappings, new_fuel_plotting_mappings = mapping_functions.format_plotting_mappings(sector_plotting_mappings, fuel_plotting_mappings)
-new_sector_plotting_mappings.to_csv(f'../intermediate_data/data/new_sector_plotting_mappings_{FILE_DATE_ID}.csv', index=False)
 
 new_charts_mapping = mapping_functions.format_charts_mapping(charts_mapping)
 mapping_functions.save_plotting_names_order(charts_mapping,FILE_DATE_ID)
@@ -147,9 +146,7 @@ for economy_x in model_df_wide['economy'].unique():
     #EXTRACT PLOTTING NAMES FROM MODEL DATA
     #and now these mappings can be joined to the model_df and used to extract the data needed for each plotting_name. it will create a df with only the fuel or sectors columns: fuels_plotting and sectors_plotting, which contains defintiions of all the possible combinations of fuels_plotting and sectors_plotting we could have.. i think.
 
-    model_df_tall.to_csv(f'../intermediate_data/data/model_df_tall_{economy_x}_{FILE_DATE_ID}.csv', index=False)
     model_df_tall_sectors = mapping_functions.merge_sector_mappings(model_df_tall, new_sector_plotting_mappings)
-    model_df_tall_sectors.to_csv(f'../intermediate_data/data/model_df_tall_sectors_{economy_x}_{FILE_DATE_ID}.csv', index=False)
     model_df_tall_sectors_fuels = mapping_functions.merge_fuel_mappings(model_df_tall_sectors, new_fuel_plotting_mappings)
 
     #call it plotting_df
