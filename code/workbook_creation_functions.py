@@ -69,7 +69,6 @@ def sort_table_rows_and_columns(table,table_id,plotting_names_order,aggregate_co
 
 def format_table(table,plotting_names_order,plotting_name_to_label_dict):
     #extract useful info from df before removing it (as we dont want to show it in the xlsx table)
-    breakpoint()
     aggregate_column = table['aggregate_column'].iloc[0]
     plotting_column = table['plotting_column'].iloc[0]
     chart_types = table['chart_type'].unique()

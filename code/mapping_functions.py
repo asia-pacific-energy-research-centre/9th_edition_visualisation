@@ -5,11 +5,6 @@ import numpy as np
 
 import collections
 STRICT_DATA_CHECKING = False
-def data_checking_warning_or_error(message):
-    if STRICT_DATA_CHECKING:
-        raise Exception(message)
-    else:
-        print(message)
         
 def format_plotting_mappings(sector_plotting_mappings, fuel_plotting_mappings):
     #will loop through the sector_plotting_mappings and fuel_plotting_mappings and create a new df where only the most specific sector/fuel columns is referenced as teh reference_column (which is the column from which to look for the refererence_sector/fuel when extracting the data for the plotting_sector/fuel). Each plotting_sector/fuel might have multiple reference_sector/fuels from any number of different reference columns.
@@ -51,9 +46,11 @@ def format_plotting_mappings(sector_plotting_mappings, fuel_plotting_mappings):
 
     #now check for nas in the entire dfs
     if new_sector_plotting_mappings.isna().sum().sum() > 0:
-        data_checking_warning_or_error('There are still some nas in the new_sector_plotting_mappings')
+        if STRICT_DATA_CHECKING:
+            raise('There are still some nas in the new_sector_plotting_mappings')
     if new_fuel_plotting_mappings.isna().sum().sum() > 0:
-        data_checking_warning_or_error('There are still some nas in the new_fuel_plotting_mappings')
+        if STRICT_DATA_CHECKING:
+            raise('There are still some nas in the new_fuel_plotting_mappings')
         
     return new_sector_plotting_mappings, new_fuel_plotting_mappings
 
@@ -99,7 +96,7 @@ def format_charts_mapping(charts_mapping):
     #then concat the two dfs together!
     breakpoint()
     ######################################################
-    #where sectors_plotting is na (therefore the plotting names will be sectors)
+    #where sectors_plotting is na (therefore the plotting names will be sectors):
     aggregated_by_sector = charts_mapping.dropna(subset=['sectors_plotting'])
     plotting_column = 'fuels_plotting'
     aggregate_column = 'sectors_plotting'
@@ -111,7 +108,8 @@ def format_charts_mapping(charts_mapping):
     #set 'plotting_column' to plotting_column
     aggregated_by_sector['plotting_column'] = plotting_column
     aggregated_by_sector['aggregate_column'] = aggregate_column
-    #where fuels_plotting is na (therefore the plotting names will be fuels)
+    
+    #where fuels_plotting is na (therefore the plotting names will be fuels):
     aggregated_by_fuels = charts_mapping.dropna(subset=['fuels_plotting'])
     plotting_column = 'sectors_plotting'
     aggregate_column = 'fuels_plotting'
@@ -183,7 +181,7 @@ def save_plotting_names_order(charts_mapping,FILE_DATE_ID):
     with open(f'../intermediate_data/config/plotting_names_order_{FILE_DATE_ID}.pkl', 'wb') as handle:
         pickle.dump(plotting_names_order, handle, protocol=pickle.HIGHEST_PROTOCOL)
     
-def check_data_matches_expectations(model_df_wide_economy, model_variables):
+def check_data_matches_expectations(model_df_wide_economy, model_variables,RAISE_ERROR=True):
     #drop first 2 rows (includes the columns row) and check the next row is a set of columns that match the object columns in the Data sheet
 
     #we first need to check that the columns in the Variables sheet match the columns in the Data sheet
@@ -202,6 +200,8 @@ def check_data_matches_expectations(model_df_wide_economy, model_variables):
         unique_variables_data = model_df_wide_economy[col].dropna().unique()
         unique_variables_data.sort()
         diff = np.setdiff1d(unique_variables, unique_variables_data)
+        data_sheet_missing_list = []
+        variables_missing_list = []
         if len(diff) > 0:
             #determine whether its missing from the Variables sheet or the Data sheet
             for variable in diff:
@@ -209,16 +209,25 @@ def check_data_matches_expectations(model_df_wide_economy, model_variables):
                 if col == 'economy':
                     continue
                 elif variable in unique_variables:
-                    data_checking_warning_or_error('The variable {} in the column {} is missing from the Data sheet'.format(variable, col))
+                    if RAISE_ERROR:
+                        raise Exception('The variable {} in the column {} is missing from the Data sheet'.format(variable, col))
+                    # print('The variable {} in the column {} is missing from the Data sheet'.format(variable, col))
+                    data_sheet_missing_list.append(variable)
                 else:
-                    data_checking_warning_or_error('The variable {} in the column {} is missing from the Data sheet'.format(variable, col))
+                    if RAISE_ERROR:
+                        raise Exception('The variable {} in the column {} is missing from the Variables sheet'.format(variable, col))
+                    # print('The variable {} in the column {} is missing from the Data sheet'.format(variable, col))
+                    variables_missing_list.append(variable)
+            if len(data_sheet_missing_list) > 0:
+                print('In the column {}, these variables are missing from the Data sheet {}'.format(col, data_sheet_missing_list))
+            if len(variables_missing_list) > 0:
+                print('In the column {}, these variables are missing from the Variables sheet {}'.format(col, variables_missing_list))
 
-def merge_sector_mappings(model_df_tall, new_sector_plotting_mappings):
+def merge_sector_mappings(model_df_tall, new_sector_plotting_mappings,sector_plotting_mappings,  RAISE_ERROR=True):
     #using the plotting mappings which were created in the format_plotting_mappings function, we need to merge these onto the model_df_tall using the reference_column and reference_sector columns, where the reference column specifies the column to find the reference sector in the model_df_tall
     new_model_df_tall = model_df_tall.copy()
     #empty it
     new_model_df_tall = new_model_df_tall[0:0]
-    
     #so join the new_sector_plotting_mappings to the model_df_tall
     for unique_col in new_sector_plotting_mappings.reference_column.unique():
         columns_data = new_sector_plotting_mappings[new_sector_plotting_mappings.reference_column == unique_col][['sectors_plotting', 'reference_sector']]
@@ -226,12 +235,20 @@ def merge_sector_mappings(model_df_tall, new_sector_plotting_mappings):
         columns_data = model_df_tall.merge(columns_data, how='inner', left_on=unique_col, right_on='reference_sector')#use inner so we only get the rows that match each other
         #concat to the new_model_df_tall
         new_model_df_tall = pd.concat([new_model_df_tall, columns_data])
+    
+    #and to be more precise, check the uniqe rows for the columns [[sectors_plotting	sectors	subsectors]] in the sectors_mappings are all in the new_new_model_df_tall
+    new_new_model_df_tall_unique = new_model_df_tall[['sectors_plotting', 'sectors', 'sub1sectors','sub2sectors']].drop_duplicates().replace('x', np.nan)
+    for row in sector_plotting_mappings[['sectors_plotting', 'sectors', 'sub1sectors','sub2sectors']].drop_duplicates():
+        if row not in new_new_model_df_tall_unique:
+            if RAISE_ERROR:
+                raise Exception('There are sectors_plotting values that have been lost in the merge. These are: ', row)
+            print('There are sectors_plotting values that have been lost in the merge. These are: ', row)
+        
     #now drop the sectors	sub1sectors	sub2sectors	sub3sectors	sub4sectors	 cols
     new_model_df_tall = new_model_df_tall.drop(columns=['sectors', 'sub1sectors', 'sub2sectors', 'sub3sectors', 'sub4sectors', 'reference_sector'])
-    
     return new_model_df_tall
 
-def merge_fuel_mappings(model_df_tall_sectors, new_fuel_plotting_mappings):
+def merge_fuel_mappings(model_df_tall_sectors, new_fuel_plotting_mappings,fuel_plotting_mappings, RAISE_ERROR=True):
     #using the plotting mappings which were created in the format_plotting_mappings function, we need to merge these onto the model_df_tall using the reference_column and reference_fuel columns, where the reference column specifies the column to find the reference fuel in the model_df_tall. This is the same as the merge_sector_mappings function, But importantly, the result from merge_sector_mappings is used instead of the model_df_tall, and so the output of this will contain the sectors_plotting column
     #now we join on the fuels mappigns:
     new_new_model_df_tall = model_df_tall_sectors.copy()
@@ -244,15 +261,31 @@ def merge_fuel_mappings(model_df_tall_sectors, new_fuel_plotting_mappings):
         columns_data = model_df_tall_sectors.merge(columns_data, how='inner', left_on=unique_col, right_on='reference_fuel')
         #concat to the new_model_df_tall
         new_new_model_df_tall = pd.concat([new_new_model_df_tall, columns_data])
+    
+    # #check that no fuels_plotting values have been lost
+    # missing_fuels = [fuel for fuel in new_fuel_plotting_mappings.fuels_plotting.unique() if fuel not in new_new_model_df_tall.fuels_plotting.unique()]
+    # if len(missing_fuels) > 0:
+    #     if RAISE_ERROR:
+    #         raise Exception('There are fuels_plotting values that have been lost in the merge. These are: ', missing_fuels)
+    #     print('There are fuels_plotting values that have been lost in the merge. These are: ', missing_fuels)
+        
+    #and to be more precise, check the uniqe rows for the columns [[fuels_plotting	fuels	subfuels]] in the fuels_mappings are all in the new_new_model_df_tall
+    new_new_model_df_tall_unique = new_new_model_df_tall[['fuels_plotting', 'fuels', 'subfuels']].drop_duplicates().replace('x', np.nan)
+    for row in fuel_plotting_mappings[['fuels_plotting', 'fuels', 'subfuels']].drop_duplicates():
+        if row not in new_new_model_df_tall_unique:
+            if RAISE_ERROR:
+                raise Exception('There are fuels_plotting values that have been lost in the merge. These are: ', row)
+            print('There are fuels_plotting values that have been lost in the merge. These are: ', row)
+
     #drop the fuels cols
     new_new_model_df_tall = new_new_model_df_tall.drop(columns=['fuels', 'subfuels','reference_fuel'])
+    
     #drop duplicates
     new_new_model_df_tall = new_new_model_df_tall.drop_duplicates()
-    
     return new_new_model_df_tall
 
 
-def merge_transformation_sector_mappings(model_df_tall, transformation_sector_mappings,new_fuel_plotting_mappings):
+def merge_transformation_sector_mappings(model_df_tall, transformation_sector_mappings,new_fuel_plotting_mappings, RAISE_ERROR=True):
     #the input_fuel col is a bool and determines whether we are looking for input or output fuels from the transformation sector. If input then the values need to be negative, if output then positive (We'll filter for this)
 
     #we will create a new dataframe which is the aggregation of the sectors in the transformation_sector_mappings dataframe, applied to the 9th modelling data. 
@@ -274,14 +307,29 @@ def merge_transformation_sector_mappings(model_df_tall, transformation_sector_ma
         columns_data = model_df_transformation.merge(columns_data, how='inner', left_on=unique_col, right_on='reference_fuel')
         #concat to the new_model_df_tall
         new_model_df_transformation = pd.concat([new_model_df_transformation, columns_data])
-
-    #drop the fuels cols
-    new_model_df_transformation = new_model_df_transformation.drop(columns=['fuels', 'subfuels','reference_fuel'])
     
     #now separaten into input and output dfs using the boolean and whtehr value is positive or negative
     input_transformation = new_model_df_transformation[(new_model_df_transformation['input_fuel'] == True) & (new_model_df_transformation['value'] < 0)]
 
     output_transformation = new_model_df_transformation[(new_model_df_transformation['input_fuel'] == False) & (new_model_df_transformation['value'] > 0)]
+    breakpoint()
+    
+    #check that no sectors_plotting values from transformation_sector_mappings have been lost
+    # missing_sectors = [sector for sector in transformation_sector_mappings.sectors_plotting.unique() if sector not in new_model_df_transformation.sectors_plotting.unique()]
+    # if len(missing_sectors) > 0:
+    #     if RAISE_ERROR:
+    #         raise Exception('There are transformation_sector_mappings values that have been lost in the merge. These are: ', missing_sectors)
+    #     print('There are transformation_sector_mappings values that have been lost in the merge. These are: ', missing_sectors)
+    
+    #and to be more precise, check the uniqe rows for the columns [[sectors_plotting	sectors	sub1sectors]] in the transformation_sector_mappings are all in the new_model_df_transformation
+    new_model_df_transformation_unique = new_model_df_transformation[['sectors_plotting', 'sectors', 'sub1sectors']].drop_duplicates().replace('x', np.nan)
+    for row in transformation_sector_mappings[['sectors_plotting', 'sectors', 'sub1sectors']].drop_duplicates():
+        if row not in new_model_df_transformation_unique:
+            if RAISE_ERROR:
+                raise Exception('There are transformation_sector_mappings values that have been lost in the merge. These are: ', row)
+            print('There are transformation_sector_mappings values that have been lost in the merge. These are: ', row)
+    #drop the fuels cols
+    new_model_df_transformation = new_model_df_transformation.drop(columns=['fuels', 'subfuels','reference_fuel'])
     
     return input_transformation, output_transformation
 
@@ -294,14 +342,17 @@ def merge_transformation_sector_mappings(model_df_tall, transformation_sector_ma
 #             missing_data = pd.concat([missing_data, na_data[na_data.table_id == table_id]])
 #     return missing_data, economy_new_charts_mapping
 
-def check_for_duplicates_in_plotting_names(new_sector_plotting_mappings, new_fuel_plotting_mappings):
-    #merge the two dataframes on their plotting names (sectors_plotting and fuels_plotting)
+def check_for_duplicates_in_plotting_names(new_sector_plotting_mappings, new_fuel_plotting_mappings, RAISE_ERROR=True):
+    #this is important because??
     
     plotting_names = new_sector_plotting_mappings['sectors_plotting'].unique().tolist() + new_fuel_plotting_mappings['fuels_plotting'].unique().tolist()
     #identify if there are any duplicates in the plotting names
     duplicates = [item for item, count in collections.Counter(plotting_names).items() if count > 1]
     if len(duplicates) > 0:
-        raise Exception('There are plotting names that are duplicated between fuels and sectors. Please check the following plotting names: ', duplicates)
+        if RAISE_ERROR:
+            raise Exception('There are plotting names that are duplicated between fuels and sectors. Please check the following plotting names: ', duplicates)
+        else:
+            print('There are plotting names that are duplicated between fuels and sectors. You might want to check the following plotting names: ', duplicates)
 
     return set(plotting_names)
     

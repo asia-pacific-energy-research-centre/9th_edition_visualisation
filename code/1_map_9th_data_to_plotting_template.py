@@ -17,6 +17,7 @@ import mapping_functions
 
 #create FILE_DATE_ID for use in file names
 FILE_DATE_ID = datetime.now().strftime('%Y%m%d')
+RAISE_ERROR = False
 #%%
 #read in data in either Excel or CSV file format
 import glob
@@ -83,7 +84,7 @@ mapping_functions.save_plotting_names_order(charts_mapping,FILE_DATE_ID)
 
 #CHECKING
 #check that there are no plotting names that are duplcaited between fuels and sectors:
-plotting_names = mapping_functions.check_for_duplicates_in_plotting_names(new_sector_plotting_mappings, new_fuel_plotting_mappings)
+plotting_names = mapping_functions.check_for_duplicates_in_plotting_names(new_sector_plotting_mappings, new_fuel_plotting_mappings, RAISE_ERROR=RAISE_ERROR)
 mapping_functions.test_charts_mapping(new_charts_mapping)
 mapping_functions.test_plotting_names_match_charts_mapping(plotting_names,new_charts_mapping)  
 mapping_functions.test_plotting_names_match_colors_df(plotting_names,colors_df)
@@ -95,7 +96,6 @@ mapping_functions.test_plotting_names_match_colors_df(plotting_names,colors_df)
 
 #because we have issues with data being too large (mappings can possibly increase size of data too), we will run through each eocnomy in the model_df_wide and save it as a pickle separately.
 for economy_x in model_df_wide['economy'].unique():
-    breakpoint()
     model_df_wide_economy = model_df_wide[model_df_wide['economy'] == economy_x]
 
     
@@ -133,15 +133,15 @@ for economy_x in model_df_wide['economy'].unique():
 
     ##############################################################################
     
-    mapping_functions.check_data_matches_expectations(model_df_wide_economy, model_variables)
+    mapping_functions.check_data_matches_expectations(model_df_wide_economy, model_variables, RAISE_ERROR=False)
     
     #############################
     #EXTRACT PLOTTING NAMES FROM MODEL DATA
     #and now these mappings can be joined to the model_df and used to extract the data needed for each plotting_name. it will create a df with only the fuel or sectors columns: fuels_plotting and sectors_plotting, which contains defintiions of all the possible combinations of fuels_plotting and sectors_plotting we could have.. i think.
 
-    model_df_tall_sectors = mapping_functions.merge_sector_mappings(model_df_tall, new_sector_plotting_mappings)
+    model_df_tall_sectors = mapping_functions.merge_sector_mappings(model_df_tall, new_sector_plotting_mappings,sector_plotting_mappings, RAISE_ERROR=RAISE_ERROR)
         
-    model_df_tall_sectors_fuels = mapping_functions.merge_fuel_mappings(model_df_tall_sectors, new_fuel_plotting_mappings)
+    model_df_tall_sectors_fuels = mapping_functions.merge_fuel_mappings(model_df_tall_sectors, new_fuel_plotting_mappings,fuel_plotting_mappings, RAISE_ERROR=RAISE_ERROR)
 
     #call it plotting_df
     plotting_df = model_df_tall_sectors_fuels.copy()
@@ -150,7 +150,7 @@ for economy_x in model_df_wide['economy'].unique():
     #next step will include creating new datasets which create aggregations of data to match some of the categories plotted in the 8th edition. 
     #for example we need an aggregation of the transformation sector input and output values to create entries for Power, Refining or Hydrogen
 
-    input_transformation, output_transformation = mapping_functions.merge_transformation_sector_mappings(model_df_tall, transformation_sector_mappings,new_fuel_plotting_mappings)
+    input_transformation, output_transformation = mapping_functions.merge_transformation_sector_mappings(model_df_tall, transformation_sector_mappings,new_fuel_plotting_mappings,RAISE_ERROR=RAISE_ERROR)
     
     #Thats it. We will stack this with the other dataframes later on. 
     plotting_df = pd.concat([plotting_df, input_transformation, output_transformation])
@@ -162,7 +162,7 @@ for economy_x in model_df_wide['economy'].unique():
     
 
     economy_new_charts_mapping = economy_new_charts_mapping.groupby(['economy','table_number','sheet_name', 'chart_type', 'sectors_plotting', 'fuels_plotting', 'plotting_column', 'aggregate_column', 'scenarios', 'year', 'table_id']).sum().reset_index()
-
+    breakpoint()
     #############################
     #now we can extract the data for each graph we need to produce (as stated in the charts_mapping)
     
