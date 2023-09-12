@@ -7,15 +7,62 @@ def data_checking_warning_or_error(message):
         raise Exception(message)
     else:
         print(message)
-        
-def create_charts(table, chart_types,plotting_specifications,workbook,num_table_rows, plotting_column, sheet, current_row,space_under_tables,column_row, year_cols_start, num_cols, colours_dict,total_plotting_names):
+
+# Getting the max values for each sheet and chart type to make the charts' y-axis consistent
+max_values_dict = {}
+def extract_max_values(data):
+    # Filter out rows with 'TFEC' in the 'sector' column before grouping
+    filtered_data = data[data['sectors_plotting'].str.contains('TFEC') == False]
+    
+    grouped_data = filtered_data.groupby(['sheet_name', 'chart_type', 'scenario', 'year']).agg({'value': 'sum'}).reset_index()
+    
+    unique_sheets = grouped_data['sheet_name'].unique()
+    unique_chart_types = grouped_data['chart_type'].unique()
+    
+    for sheet in unique_sheets:
+        for chart_type in unique_chart_types:
+            if chart_type == 'line':
+                subset = data[(data['sheet_name'] == sheet) & (data['chart_type'] == chart_type) & (data['sectors_plotting'].str.contains('TFEC') == False)]
+                max_value = subset['value'].max()
+            else:
+                subset = grouped_data[(grouped_data['sheet_name'] == sheet) & (grouped_data['chart_type'] == chart_type)]
+                max_value = subset['value'].max()
+            
+            if max_value is not None and not np.isnan(max_value):
+                # Adding 10% of the max value for padding
+                y_axis_max = max_value + (0.05 * max_value)
+                
+                if y_axis_max <= 0:
+                    y_axis_max = max_value + abs(0.05 * max_value)
+
+                try:
+                    # Calculate the order of magnitude of the max value
+                    order_of_magnitude = 10 ** math.floor(math.log10(y_axis_max))
+                    
+                    # Calculate a rounding step based on the order of magnitude
+                    rounding_step = order_of_magnitude / 2
+                    
+                    # Round up to the nearest rounding step
+                    y_axis_max = math.ceil(y_axis_max / rounding_step) * rounding_step
+                except ValueError:
+                    y_axis_max = 10  # You can choose a suitable fallback value here
+            else:
+                y_axis_max = None
+            
+            max_values_dict[(sheet, chart_type)] = y_axis_max
+    
+    return max_values_dict
+
+
+def create_charts(table, chart_types, plotting_specifications, workbook, num_table_rows, plotting_column, sheet, current_row, space_under_tables, column_row, year_cols_start, num_cols, colours_dict, total_plotting_names):
     #depending on the chart type, create different charts. then add them to the worksheet according to their positions
     charts_to_plot = []
     plotting_column_index = table.columns.get_loc(plotting_column)
     for chart in chart_types:
         if chart == 'line':
             #configure the chart
-            line_chart = line_plotting_specifications(workbook,plotting_specifications)
+            y_axis_max = max_values_dict.get((sheet, 'line'))
+            line_chart = line_plotting_specifications(workbook, plotting_specifications, y_axis_max)
             line_chart = create_line_chart(num_table_rows, table, plotting_column, sheet, current_row,space_under_tables,column_row, plotting_column_index, year_cols_start, num_cols, colours_dict, line_chart,total_plotting_names)
             if not line_chart:
                 #if chart is False then dont plot the chart and carry on.
@@ -23,7 +70,8 @@ def create_charts(table, chart_types,plotting_specifications,workbook,num_table_
             charts_to_plot.append(line_chart)
         elif chart == 'area':
             #configure the chart
-            area_chart = area_plotting_specifications(workbook,plotting_specifications)
+            y_axis_max = max_values_dict.get((sheet, 'area'))
+            area_chart = area_plotting_specifications(workbook, plotting_specifications, y_axis_max)
             area_chart = create_area_chart(num_table_rows, table, plotting_column, sheet, current_row,space_under_tables,column_row, plotting_column_index, year_cols_start, num_cols, colours_dict, area_chart,total_plotting_names)
             if not area_chart:
                 #if chart is False then dont plot the chart and carry on.
@@ -31,7 +79,8 @@ def create_charts(table, chart_types,plotting_specifications,workbook,num_table_
             charts_to_plot.append(area_chart)
         elif chart == 'bar':            
             #configure the chart
-            bar_chart = bar_plotting_specifications(workbook,plotting_specifications)
+            y_axis_max = max_values_dict.get((sheet, 'bar'))
+            bar_chart = bar_plotting_specifications(workbook, plotting_specifications, y_axis_max)
             bar_chart = create_bar_chart(num_table_rows, table, plotting_column, sheet, current_row, space_under_tables,column_row,plotting_column_index, year_cols_start, len(table.columns), colours_dict, bar_chart, total_plotting_names)
             if not bar_chart:
                 #if chart is False then dont plot the chart and carry on.
@@ -115,6 +164,7 @@ def create_bar_chart_table(table,year_cols_start,bar_years):
     #for every col after year_cols_start, filter for the years we want to keep only
     non_year_cols = table.columns[:year_cols_start]
     new_table = new_table[non_year_cols.to_list() + years_to_keep]
+    print(new_table)
     return new_table
 
 def identify_chart_positions(current_row,num_table_rows,space_under_tables,column_row, space_under_charts, plotting_specifications,chart_types):
@@ -243,7 +293,7 @@ def create_bar_chart(num_table_rows, table, plotting_column, sheet, current_row,
 #######################################
 #CHART CONFIGS
 #######################################
-def area_plotting_specifications(workbook,plotting_specifications):
+def area_plotting_specifications(workbook, plotting_specifications, y_axis_max):
 
     # Create an area charts config
     area_chart = workbook.add_chart({'type': 'area', 'subtype': 'stacked'})
@@ -259,7 +309,7 @@ def area_plotting_specifications(workbook,plotting_specifications):
     area_chart.set_x_axis({
         # 'name': 'Year',
         'label_position': 'low',
-        'crossing': 19,
+        'crossing': 21,
         'major_tick_mark': 'none',
         'minor_tick_mark': 'none',
         'num_font': {'name': 'Segoe UI', 'size': 9, 'color': '#323232'},
@@ -272,16 +322,15 @@ def area_plotting_specifications(workbook,plotting_specifications):
         'major_tick_mark': 'none', 
         'minor_tick_mark': 'none',
         'label_position': 'low',
-        # 'name': 'PJ',
         'num_font': {'name': 'Segoe UI', 'size': 9, 'color': '#323232'},
         'num_format': '# ### ### ##0',
         'major_gridlines': {
             'visible': True,
             'line': {'color': '#bebebe'}
         },
-        'line': {'color': '#323232',
-                    'width': 1,
-                    'dash_type': 'square_dot'}
+        'line': {'color': '#323232', 'width': 1, 'dash_type': 'square_dot'},
+        'min': 0,
+        'max': y_axis_max,  # Set the max value for y-axis
     })
         
     area_chart.set_legend({
@@ -295,7 +344,7 @@ def area_plotting_specifications(workbook,plotting_specifications):
 
     return area_chart
 
-def bar_plotting_specifications(workbook,plotting_specifications):
+def bar_plotting_specifications(workbook, plotting_specifications, y_axis_max):
     # Create a another chart
     line_chart = workbook.add_chart({'type': 'column', 'subtype': 'stacked'})#can make this percent_stacked to make it a percentage stacked bar chart!
     line_chart.set_size({
@@ -320,13 +369,16 @@ def bar_plotting_specifications(workbook,plotting_specifications):
     line_chart.set_y_axis({
         'major_tick_mark': 'none', 
         'minor_tick_mark': 'none',
-        # 'name': 'PJ',
+        'label_position': 'low',
         'num_font': {'name': 'Segoe UI', 'size': 9, 'color': '#323232'},
+        'num_format': '# ### ### ##0',
         'major_gridlines': {
             'visible': True,
             'line': {'color': '#bebebe'}
         },
-        'line': {'color': '#bebebe'}
+        'line': {'color': '#bebebe'},
+        'min': 0,
+        'max': y_axis_max,  # Set the max value for y-axis
     })
         
     line_chart.set_legend({
@@ -352,8 +404,8 @@ def bar_plotting_specifications(workbook,plotting_specifications):
     #         })
 
     return line_chart
- 
-def line_plotting_specifications(workbook,plotting_specifications):
+
+def line_plotting_specifications(workbook, plotting_specifications, y_axis_max):
     # Create a FED line chart with higher level aggregation
     line_chart = workbook.add_chart({'type': 'line'})
     line_chart.set_size({
@@ -368,7 +420,7 @@ def line_plotting_specifications(workbook,plotting_specifications):
     line_chart.set_x_axis({
         # 'name': 'Year',
         'label_position': 'low',
-        'crossing': 19,
+        'crossing': 21,
         'major_tick_mark': 'none',
         'minor_tick_mark': 'none',
         'num_font': {'name': 'Segoe UI', 'size': 9, 'color': '#323232'},
@@ -381,16 +433,15 @@ def line_plotting_specifications(workbook,plotting_specifications):
         'major_tick_mark': 'none', 
         'minor_tick_mark': 'none',
         'label_position': 'low',
-        # 'name': 'PJ',
         'num_font': {'name': 'Segoe UI', 'size': 9, 'color': '#323232'},
         'num_format': '# ### ### ##0',
         'major_gridlines': {
             'visible': True,
             'line': {'color': '#bebebe'}
         },
-        'line': {'color': '#323232',
-                 'width': 1,
-                 'dash_type': 'square_dot'}
+        'line': {'color': '#323232', 'width': 1, 'dash_type': 'square_dot'},
+        'min': 0,
+        'max': y_axis_max,  # Set the max value for y-axis
     })
         
     line_chart.set_legend({

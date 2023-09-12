@@ -96,15 +96,23 @@ mapping_functions.test_plotting_names_match_colors_df(plotting_names,colors_df)
 
 #because we have issues with data being too large (mappings can possibly increase size of data too), we will run through each eocnomy in the model_df_wide and save it as a pickle separately.
 for economy_x in model_df_wide['economy'].unique():
+    breakpoint()
     model_df_wide_economy = model_df_wide[model_df_wide['economy'] == economy_x]
 
-    
     #make model_df_wide_economy into model_df_tall
     #fgirst grab object copls as the index cols
-    index_cols = model_df_wide_economy.select_dtypes(include=['object']).columns
+    index_cols = model_df_wide_economy.select_dtypes(include=['object', 'bool']).columns
     #now melt the data
     model_df_tall = pd.melt(model_df_wide_economy, id_vars=index_cols, var_name='year', value_name='value')
-    
+
+    # Convert year to int
+    model_df_tall['year'] = model_df_tall['year'].astype(int)
+
+    # Filter to only take the lowest level values
+    model_df_tall = model_df_tall[((model_df_tall['year'] <= 2020) & (model_df_tall['subtotal_historic'] == False)) | ((model_df_tall['year'] > 2020) & (model_df_tall['subtotal'] == False))]
+
+    # Dropping unnecessary columns
+    model_df_tall = model_df_tall.drop(columns=['subtotal_historic', 'subtotal_predicted', 'subtotal'])
 
     #data details:
     #Columns: model_df_wide_economy.columns
@@ -139,9 +147,9 @@ for economy_x in model_df_wide['economy'].unique():
     #EXTRACT PLOTTING NAMES FROM MODEL DATA
     #and now these mappings can be joined to the model_df and used to extract the data needed for each plotting_name. it will create a df with only the fuel or sectors columns: fuels_plotting and sectors_plotting, which contains defintiions of all the possible combinations of fuels_plotting and sectors_plotting we could have.. i think.
 
-    model_df_tall_sectors = mapping_functions.merge_sector_mappings(model_df_tall, new_sector_plotting_mappings,sector_plotting_mappings, RAISE_ERROR=RAISE_ERROR)
+    model_df_tall_sectors = mapping_functions.merge_sector_mappings(model_df_tall, new_sector_plotting_mappings)
         
-    model_df_tall_sectors_fuels = mapping_functions.merge_fuel_mappings(model_df_tall_sectors, new_fuel_plotting_mappings,fuel_plotting_mappings, RAISE_ERROR=RAISE_ERROR)
+    model_df_tall_sectors_fuels = mapping_functions.merge_fuel_mappings(model_df_tall_sectors, new_fuel_plotting_mappings)
 
     #call it plotting_df
     plotting_df = model_df_tall_sectors_fuels.copy()
@@ -158,7 +166,7 @@ for economy_x in model_df_wide['economy'].unique():
     #drop all cols excet ['scenarios','economy', 'year','value','fuels_plotting', 'sectors_plotting']
     plotting_df= plotting_df[['scenarios','economy', 'year','value','fuels_plotting', 'sectors_plotting']]
     #now join with charts mapping on fuel and sector plotting names to get the plotting names for the transformation sectors
-    economy_new_charts_mapping = new_charts_mapping.merge(plotting_df, how='left', on=['fuels_plotting', 'sectors_plotting'])
+    economy_new_charts_mapping = new_charts_mapping.merge(plotting_df, how='left', on=['fuels_plotting', 'sectors_plotting']) 
     
 
     economy_new_charts_mapping = economy_new_charts_mapping.groupby(['economy','table_number','sheet_name', 'chart_type', 'sectors_plotting', 'fuels_plotting', 'plotting_column', 'aggregate_column', 'scenarios', 'year', 'table_id']).sum().reset_index()

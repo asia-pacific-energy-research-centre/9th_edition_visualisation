@@ -73,7 +73,11 @@ for file in charts_mapping_files:
     charts_mapping['value'] = charts_mapping['value'].round(1)
     #replace nas with 0
     charts_mapping['value'] = charts_mapping['value'].fillna(0)
-    
+
+    charts_mapping.to_csv('../output/charts_mapping.csv', index=False)
+    max_values_dict = workbook_creation_functions.extract_max_values(charts_mapping)
+    print(max_values_dict)
+
     economy = charts_mapping.economy.unique()[0]
 
     #so firstly, extract the unique sheets we will create:
@@ -87,12 +91,13 @@ for file in charts_mapping_files:
     sheet_dfs = {}
     for sheet in sheets:
 
-        
+
         sheet_dfs[sheet] = ()
 
         sheet_data = charts_mapping.loc[charts_mapping['sheet_name'] == sheet]
         #drop economy and sheet_name from sheet_data
         sheet_data = sheet_data.drop(['economy','sheet_name'], axis=1)
+
         #pivot the data and create order of cols so it is fsater to create tables
         sheet_data = sheet_data.pivot(index=['table_number', 'chart_type', 'sectors_plotting', 'fuels_plotting', 'plotting_column', 'aggregate_column', 'scenario', 'unit', 'table_id'], columns='year', values='value')
         sheet_data = sheet_data.reset_index()
@@ -161,6 +166,7 @@ for file in charts_mapping_files:
                 pass
             ########################
             table, chart_types, table_id, plotting_column, year_cols_start,num_cols = workbook_creation_functions.format_table(table,plotting_names_order,plotting_name_to_label_dict)
+            
             #make the cols for plotting_column and the one before it a bit wider so the text fits
             plotting_column_index = table.columns.get_loc(plotting_column)
             aggregate_column_index = plotting_column_index - 1
