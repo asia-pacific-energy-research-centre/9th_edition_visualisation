@@ -96,7 +96,6 @@ mapping_functions.test_plotting_names_match_colors_df(plotting_names,colors_df)
 
 #because we have issues with data being too large (mappings can possibly increase size of data too), we will run through each eocnomy in the model_df_wide and save it as a pickle separately.
 for economy_x in model_df_wide['economy'].unique():
-    breakpoint()
     model_df_wide_economy = model_df_wide[model_df_wide['economy'] == economy_x]
 
     #make model_df_wide_economy into model_df_tall
@@ -146,10 +145,10 @@ for economy_x in model_df_wide['economy'].unique():
     #############################
     #EXTRACT PLOTTING NAMES FROM MODEL DATA
     #and now these mappings can be joined to the model_df and used to extract the data needed for each plotting_name. it will create a df with only the fuel or sectors columns: fuels_plotting and sectors_plotting, which contains defintiions of all the possible combinations of fuels_plotting and sectors_plotting we could have.. i think.
-
+    breakpoint()
     model_df_tall_sectors = mapping_functions.merge_sector_mappings(model_df_tall, new_sector_plotting_mappings,sector_plotting_mappings, RAISE_ERROR=RAISE_ERROR)
         
-    model_df_tall_sectors_fuels = mapping_functions.merge_fuel_mappings(model_df_tall_sectors, new_fuel_plotting_mappings,fuel_plotting_mappings, RAISE_ERROR=RAISE_ERROR)
+    model_df_tall_sectors_fuels = mapping_functions.merge_fuel_mappings(model_df_tall_sectors, new_fuel_plotting_mappings,fuel_plotting_mappings, RAISE_ERROR=RAISE_ERROR)#losing access to 19_total because of filtering for lowest level values. not sure how to avoid
 
     #call it plotting_df
     plotting_df = model_df_tall_sectors_fuels.copy()

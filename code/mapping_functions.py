@@ -236,14 +236,17 @@ def merge_sector_mappings(model_df_tall, new_sector_plotting_mappings,sector_plo
         #concat to the new_model_df_tall
         new_model_df_tall = pd.concat([new_model_df_tall, columns_data])
     
-    #and to be more precise, check the uniqe rows for the columns [[sectors_plotting	sectors	subsectors]] in the sectors_mappings are all in the new_new_model_df_tall
-    new_new_model_df_tall_unique = new_model_df_tall[['sectors_plotting', 'sectors', 'sub1sectors','sub2sectors']].drop_duplicates().replace('x', np.nan)
-    for row in sector_plotting_mappings[['sectors_plotting', 'sectors', 'sub1sectors','sub2sectors']].drop_duplicates():
-        if row not in new_new_model_df_tall_unique:
-            if RAISE_ERROR:
-                raise Exception('There are sectors_plotting values that have been lost in the merge. These are: ', row)
-            print('There are sectors_plotting values that have been lost in the merge. These are: ', row)
-        
+    #and to be more precise, check the uniqe rows for the columns [[sectors_plotting	sectors	subsectors]] in the sectors_mappings are all in the new_new_model_df_tall    
+    new_df = new_model_df_tall[['sectors_plotting', 'sectors', 'sub1sectors','sub2sectors']].drop_duplicates().replace('x', np.nan)
+    mapping = sector_plotting_mappings[['sectors_plotting', 'sectors', 'sub1sectors','sub2sectors']].drop_duplicates()
+    # Merge the dataframes and add an indicator column
+    merged_df = pd.merge(new_df, mapping, on=['sectors_plotting', 'sectors', 'sub1sectors','sub2sectors'], how='outer', indicator=True)
+    # Find rows that are only in mapping
+    missing_in_new_model = merged_df[merged_df['_merge'] == 'right_only']
+    if len(missing_in_new_model) > 0:
+        if RAISE_ERROR:
+            raise Exception('There are sectors_plotting values that have been lost in the merge. These are: ', missing_in_new_model)
+        print('There are sectors_plotting values that have been lost in the merge. These are: ', missing_in_new_model)
     #now drop the sectors	sub1sectors	sub2sectors	sub3sectors	sub4sectors	 cols
     new_model_df_tall = new_model_df_tall.drop(columns=['sectors', 'sub1sectors', 'sub2sectors', 'sub3sectors', 'sub4sectors', 'reference_sector'])
     return new_model_df_tall
@@ -261,22 +264,19 @@ def merge_fuel_mappings(model_df_tall_sectors, new_fuel_plotting_mappings,fuel_p
         columns_data = model_df_tall_sectors.merge(columns_data, how='inner', left_on=unique_col, right_on='reference_fuel')
         #concat to the new_model_df_tall
         new_new_model_df_tall = pd.concat([new_new_model_df_tall, columns_data])
-    
-    # #check that no fuels_plotting values have been lost
-    # missing_fuels = [fuel for fuel in new_fuel_plotting_mappings.fuels_plotting.unique() if fuel not in new_new_model_df_tall.fuels_plotting.unique()]
-    # if len(missing_fuels) > 0:
-    #     if RAISE_ERROR:
-    #         raise Exception('There are fuels_plotting values that have been lost in the merge. These are: ', missing_fuels)
-    #     print('There are fuels_plotting values that have been lost in the merge. These are: ', missing_fuels)
-        
     #and to be more precise, check the uniqe rows for the columns [[fuels_plotting	fuels	subfuels]] in the fuels_mappings are all in the new_new_model_df_tall
-    new_new_model_df_tall_unique = new_new_model_df_tall[['fuels_plotting', 'fuels', 'subfuels']].drop_duplicates().replace('x', np.nan)
-    for row in fuel_plotting_mappings[['fuels_plotting', 'fuels', 'subfuels']].drop_duplicates():
-        if row not in new_new_model_df_tall_unique:
-            if RAISE_ERROR:
-                raise Exception('There are fuels_plotting values that have been lost in the merge. These are: ', row)
-            print('There are fuels_plotting values that have been lost in the merge. These are: ', row)
-
+    breakpoint()
+    new_df = new_new_model_df_tall[['fuels_plotting', 'fuels', 'subfuels']].drop_duplicates().replace('x', np.nan)
+    mapping = fuel_plotting_mappings[['fuels_plotting', 'fuels', 'subfuels']].drop_duplicates()
+    # Merge the dataframes and add an indicator column
+    merged_df = pd.merge(new_df, mapping, on=['fuels_plotting', 'fuels', 'subfuels'], how='outer', indicator=True)
+    # Find rows that are only in mapping
+    missing_in_new_model = merged_df[merged_df['_merge'] == 'right_only']
+    if len(missing_in_new_model) > 0:
+        if RAISE_ERROR:
+            raise Exception('There are fuels_plotting values that have been lost in the merge. These are: ', missing_in_new_model)
+        print('There are fuels_plotting values that have been lost in the merge. These are: ', missing_in_new_model)#This could be because they dont match any original categories, or *unlikely* they arent used by any of the sectors referenced in sectors plotting
+    
     #drop the fuels cols
     new_new_model_df_tall = new_new_model_df_tall.drop(columns=['fuels', 'subfuels','reference_fuel'])
     
@@ -315,19 +315,17 @@ def merge_transformation_sector_mappings(model_df_tall, transformation_sector_ma
     breakpoint()
     
     #check that no sectors_plotting values from transformation_sector_mappings have been lost
-    # missing_sectors = [sector for sector in transformation_sector_mappings.sectors_plotting.unique() if sector not in new_model_df_transformation.sectors_plotting.unique()]
-    # if len(missing_sectors) > 0:
-    #     if RAISE_ERROR:
-    #         raise Exception('There are transformation_sector_mappings values that have been lost in the merge. These are: ', missing_sectors)
-    #     print('There are transformation_sector_mappings values that have been lost in the merge. These are: ', missing_sectors)
+    new_df = new_model_df_transformation[['sectors_plotting', 'sectors', 'sub1sectors']].drop_duplicates().replace('x', np.nan)
+    mapping = transformation_sector_mappings[['sectors_plotting', 'sectors', 'sub1sectors']].drop_duplicates() 
+    # Merge the dataframes and add an indicator column
+    merged_df = pd.merge(new_df, mapping, on=['sectors_plotting', 'sectors', 'sub1sectors'], how='outer', indicator=True)
+    # Find rows that are only in mapping
+    missing_in_new_model = merged_df[merged_df['_merge'] == 'right_only']
+    if len(missing_in_new_model) > 0:
+        if RAISE_ERROR:
+            raise Exception('There are sectors_plotting values that have been lost in the merge. These are: ', missing_in_new_model)
+        print('There are sectors_plotting values that have been lost in the merge. These are: ', missing_in_new_model)
     
-    #and to be more precise, check the uniqe rows for the columns [[sectors_plotting	sectors	sub1sectors]] in the transformation_sector_mappings are all in the new_model_df_transformation
-    new_model_df_transformation_unique = new_model_df_transformation[['sectors_plotting', 'sectors', 'sub1sectors']].drop_duplicates().replace('x', np.nan)
-    for row in transformation_sector_mappings[['sectors_plotting', 'sectors', 'sub1sectors']].drop_duplicates():
-        if row not in new_model_df_transformation_unique:
-            if RAISE_ERROR:
-                raise Exception('There are transformation_sector_mappings values that have been lost in the merge. These are: ', row)
-            print('There are transformation_sector_mappings values that have been lost in the merge. These are: ', row)
     #drop the fuels cols
     new_model_df_transformation = new_model_df_transformation.drop(columns=['fuels', 'subfuels','reference_fuel'])
     
