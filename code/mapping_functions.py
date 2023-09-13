@@ -94,7 +94,7 @@ def format_charts_mapping(charts_mapping):
     
     #for group 3, drop the column in fuels_plotting or sectors_plotting that is na. set 'plotting name' to the name of the col that is not na (eg. plotting_name  = 'fuels_plotting' if the column fuels plotting is not na). then melt the dataframe so that the group 3 columns are all in one col, with the name of the col with na's. drop the col names (the digits) and drop nas from the new col
     #then concat the two dfs together!
-    breakpoint()
+    
     ######################################################
     #where sectors_plotting is na (therefore the plotting names will be sectors):
     aggregated_by_sector = charts_mapping.dropna(subset=['sectors_plotting'])
@@ -265,7 +265,7 @@ def merge_fuel_mappings(model_df_tall_sectors, new_fuel_plotting_mappings,fuel_p
         #concat to the new_model_df_tall
         new_new_model_df_tall = pd.concat([new_new_model_df_tall, columns_data])
     #and to be more precise, check the uniqe rows for the columns [[fuels_plotting	fuels	subfuels]] in the fuels_mappings are all in the new_new_model_df_tall
-    breakpoint()
+    
     new_df = new_new_model_df_tall[['fuels_plotting', 'fuels', 'subfuels']].drop_duplicates().replace('x', np.nan)
     mapping = fuel_plotting_mappings[['fuels_plotting', 'fuels', 'subfuels']].drop_duplicates()
     # Merge the dataframes and add an indicator column
@@ -312,7 +312,7 @@ def merge_transformation_sector_mappings(model_df_tall, transformation_sector_ma
     input_transformation = new_model_df_transformation[(new_model_df_transformation['input_fuel'] == True) & (new_model_df_transformation['value'] < 0)]
 
     output_transformation = new_model_df_transformation[(new_model_df_transformation['input_fuel'] == False) & (new_model_df_transformation['value'] > 0)]
-    breakpoint()
+    
     
     #check that no sectors_plotting values from transformation_sector_mappings have been lost
     new_df = new_model_df_transformation[['sectors_plotting', 'sectors', 'sub1sectors']].drop_duplicates().replace('x', np.nan)

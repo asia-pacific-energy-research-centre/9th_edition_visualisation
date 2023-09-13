@@ -19,7 +19,7 @@ def data_checking_warning_or_error(message):
 #CONFIG PREPARATION
 #create FILE_DATE_ID for use in file names
 FILE_DATE_ID = datetime.now().strftime('%Y%m%d')
-# FILE_DATE_ID = '20230706'
+# FILE_DATE_ID = '20230912'
 total_plotting_names=['Total', 'TPES', 'Total primary energy supply','TFEC']
 MIN_YEAR = 2000
 #######################################################
@@ -181,7 +181,9 @@ for file in charts_mapping_files:
             worksheet.set_row(current_row, None, header_format)
             ########################
             #if chart_type len is 1 and it is a bar chart, we need to edit the table to work for bar charts:
+            
             if len(chart_types) == 1 and 'bar' in chart_types:   
+                breakpoint()
                 table = workbook_creation_functions.create_bar_chart_table(table,year_cols_start,plotting_specifications['bar_years'])
             ########################
             #write table to sheet
@@ -191,11 +193,7 @@ for file in charts_mapping_files:
             ########################
             #identify and format charts we need to create
             chart_positions = workbook_creation_functions.identify_chart_positions(current_row,num_table_rows,space_under_tables,column_row, space_under_charts, plotting_specifications,chart_types)
-            try:
-                charts_to_plot = workbook_creation_functions.create_charts(table, chart_types,plotting_specifications,workbook,num_table_rows, plotting_column, sheet, current_row, space_under_tables, column_row, year_cols_start, num_cols, colours_dict,total_plotting_names)
-            except:
-                breakpoint()
-                charts_to_plot = workbook_creation_functions.create_charts(table, chart_types,plotting_specifications,workbook,num_table_rows, plotting_column, sheet, current_row, space_under_tables, column_row, year_cols_start, num_cols, colours_dict,total_plotting_names)
+            charts_to_plot = workbook_creation_functions.create_charts(table, chart_types,plotting_specifications,workbook,num_table_rows, plotting_column, sheet, current_row, space_under_tables, column_row, year_cols_start, num_cols, colours_dict,total_plotting_names)
             ########################
 
             #write charts to sheet

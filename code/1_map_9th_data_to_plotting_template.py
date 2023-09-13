@@ -145,7 +145,7 @@ for economy_x in model_df_wide['economy'].unique():
     #############################
     #EXTRACT PLOTTING NAMES FROM MODEL DATA
     #and now these mappings can be joined to the model_df and used to extract the data needed for each plotting_name. it will create a df with only the fuel or sectors columns: fuels_plotting and sectors_plotting, which contains defintiions of all the possible combinations of fuels_plotting and sectors_plotting we could have.. i think.
-    breakpoint()
+    
     model_df_tall_sectors = mapping_functions.merge_sector_mappings(model_df_tall, new_sector_plotting_mappings,sector_plotting_mappings, RAISE_ERROR=RAISE_ERROR)
         
     model_df_tall_sectors_fuels = mapping_functions.merge_fuel_mappings(model_df_tall_sectors, new_fuel_plotting_mappings,fuel_plotting_mappings, RAISE_ERROR=RAISE_ERROR)#losing access to 19_total because of filtering for lowest level values. not sure how to avoid
@@ -169,7 +169,7 @@ for economy_x in model_df_wide['economy'].unique():
     
 
     economy_new_charts_mapping = economy_new_charts_mapping.groupby(['economy','table_number','sheet_name', 'chart_type', 'sectors_plotting', 'fuels_plotting', 'plotting_column', 'aggregate_column', 'scenarios', 'year', 'table_id']).sum().reset_index()
-    breakpoint()
+    
     #############################
     #now we can extract the data for each graph we need to produce (as stated in the charts_mapping)
     
@@ -200,6 +200,8 @@ for economy_x in model_df_wide['economy'].unique():
     economy_new_charts_mapping['unit'] = 'Petajoules'
     #rename scenarios to scenario
     economy_new_charts_mapping.rename(columns={'scenarios':'scenario'}, inplace=True)
+    #set the year column to int
+    economy_new_charts_mapping.year = economy_new_charts_mapping.year.astype(int)
     #############################
     #save data to pickle
     #and sav economy_new_charts_mapping to pickle since its useful
