@@ -8,9 +8,9 @@ def data_checking_warning_or_error(message):
     else:
         print(message)
 
-# Getting the max values for each sheet and chart type to make the charts' y-axis consistent
-max_values_dict = {}
-def extract_max_values(data):
+
+def extract_max_values(data, max_values_dict):
+
     # Filter out rows with 'TFEC' in the 'sector' column before grouping
     filtered_data = data[data['sectors_plotting'].str.contains('TFEC') == False]
     
@@ -29,7 +29,7 @@ def extract_max_values(data):
                 max_value = subset['value'].max()
             
             if max_value is not None and not np.isnan(max_value):
-                # Adding 10% of the max value for padding
+                # Adding 5% of the max value for padding
                 y_axis_max = max_value + (0.05 * max_value)
                 
                 if y_axis_max <= 0:
@@ -54,7 +54,7 @@ def extract_max_values(data):
     return max_values_dict
 
 
-def create_charts(table, chart_types, plotting_specifications, workbook, num_table_rows, plotting_column, sheet, current_row, space_under_tables, column_row, year_cols_start, num_cols, colours_dict, total_plotting_names):
+def create_charts(table, chart_types, plotting_specifications, workbook, num_table_rows, plotting_column, sheet, current_row, space_under_tables, column_row, year_cols_start, num_cols, colours_dict, total_plotting_names, max_values_dict):
     #depending on the chart type, create different charts. then add them to the worksheet according to their positions
     charts_to_plot = []
     plotting_column_index = table.columns.get_loc(plotting_column)

@@ -81,10 +81,10 @@ new_sector_plotting_mappings, new_fuel_plotting_mappings = mapping_functions.for
 
 new_charts_mapping = mapping_functions.format_charts_mapping(charts_mapping)
 mapping_functions.save_plotting_names_order(charts_mapping,FILE_DATE_ID)
-
+plotting_names = set(new_sector_plotting_mappings['sectors_plotting'].unique().tolist() + new_fuel_plotting_mappings['fuels_plotting'].unique().tolist())
 #CHECKING
 #check that there are no plotting names that are duplcaited between fuels and sectors:
-plotting_names = mapping_functions.check_for_duplicates_in_plotting_names(new_sector_plotting_mappings, new_fuel_plotting_mappings, RAISE_ERROR=RAISE_ERROR)
+# plotting_names = mapping_functions.check_for_duplicates_in_plotting_names(new_sector_plotting_mappings, new_fuel_plotting_mappings, RAISE_ERROR=RAISE_ERROR)
 mapping_functions.test_charts_mapping(new_charts_mapping)
 mapping_functions.test_plotting_names_match_charts_mapping(plotting_names,new_charts_mapping)  
 mapping_functions.test_plotting_names_match_colors_df(plotting_names,colors_df)

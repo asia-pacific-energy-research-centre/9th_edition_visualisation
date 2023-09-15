@@ -75,7 +75,10 @@ for file in charts_mapping_files:
     charts_mapping['value'] = charts_mapping['value'].fillna(0)
 
     charts_mapping.to_csv('../output/charts_mapping.csv', index=False)
-    max_values_dict = workbook_creation_functions.extract_max_values(charts_mapping)
+    
+    # Getting the max values for each sheet and chart type to make the charts' y-axis consistent
+    max_values_dict = {}
+    max_values_dict = workbook_creation_functions.extract_max_values(charts_mapping, max_values_dict)
     print(max_values_dict)
 
     economy = charts_mapping.economy.unique()[0]
@@ -193,7 +196,7 @@ for file in charts_mapping_files:
             ########################
             #identify and format charts we need to create
             chart_positions = workbook_creation_functions.identify_chart_positions(current_row,num_table_rows,space_under_tables,column_row, space_under_charts, plotting_specifications,chart_types)
-            charts_to_plot = workbook_creation_functions.create_charts(table, chart_types,plotting_specifications,workbook,num_table_rows, plotting_column, sheet, current_row, space_under_tables, column_row, year_cols_start, num_cols, colours_dict,total_plotting_names)
+            charts_to_plot = workbook_creation_functions.create_charts(table, chart_types,plotting_specifications,workbook,num_table_rows, plotting_column, sheet, current_row, space_under_tables, column_row, year_cols_start, num_cols, colours_dict,total_plotting_names, max_values_dict)
             ########################
 
             #write charts to sheet

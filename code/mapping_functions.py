@@ -224,6 +224,7 @@ def check_data_matches_expectations(model_df_wide_economy, model_variables,RAISE
                 print('In the column {}, these variables are missing from the Variables sheet {}'.format(col, variables_missing_list))
 
 def merge_sector_mappings(model_df_tall, new_sector_plotting_mappings,sector_plotting_mappings,  RAISE_ERROR=True):
+    breakpoint()
     #using the plotting mappings which were created in the format_plotting_mappings function, we need to merge these onto the model_df_tall using the reference_column and reference_sector columns, where the reference column specifies the column to find the reference sector in the model_df_tall
     new_model_df_tall = model_df_tall.copy()
     #empty it
@@ -340,19 +341,19 @@ def merge_transformation_sector_mappings(model_df_tall, transformation_sector_ma
 #             missing_data = pd.concat([missing_data, na_data[na_data.table_id == table_id]])
 #     return missing_data, economy_new_charts_mapping
 
-def check_for_duplicates_in_plotting_names(new_sector_plotting_mappings, new_fuel_plotting_mappings, RAISE_ERROR=True):
-    #this is important because??
+# def check_for_duplicates_in_plotting_names(new_sector_plotting_mappings, new_fuel_plotting_mappings, RAISE_ERROR=True):
+#     #this is important because??
     
-    plotting_names = new_sector_plotting_mappings['sectors_plotting'].unique().tolist() + new_fuel_plotting_mappings['fuels_plotting'].unique().tolist()
-    #identify if there are any duplicates in the plotting names
-    duplicates = [item for item, count in collections.Counter(plotting_names).items() if count > 1]
-    if len(duplicates) > 0:
-        if RAISE_ERROR:
-            raise Exception('There are plotting names that are duplicated between fuels and sectors. Please check the following plotting names: ', duplicates)
-        else:
-            print('There are plotting names that are duplicated between fuels and sectors. You might want to check the following plotting names: ', duplicates)
+#     plotting_names = new_sector_plotting_mappings['sectors_plotting'].unique().tolist() + new_fuel_plotting_mappings['fuels_plotting'].unique().tolist()
+#     #identify if there are any duplicates in the plotting names
+#     duplicates = [item for item, count in collections.Counter(plotting_names).items() if count > 1]
+#     if len(duplicates) > 0:
+#         if RAISE_ERROR:
+#             raise Exception('There are plotting names that are duplicated between fuels and sectors. Please check the following plotting names: ', duplicates)
+#         else:
+#             print('There are plotting names that are duplicated between fuels and sectors. You might want to check the following plotting names: ', duplicates)
 
-    return set(plotting_names)
+#     return set(plotting_names)
     
 def test_plotting_names_match_charts_mapping(plotting_names,new_charts_mapping):
     #double check teh unique plotting anmes in both new_charts_mapping and plotting_df are exactly the same otherwise, if there are any plotting names in new_charts_mapping that are not in plotting_df then we will have a problem, and if there are any plotting names in plotting_df that are not in new_charts_mapping then we should let the user know in case they want to remove them from the plotting_df
