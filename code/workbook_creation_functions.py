@@ -12,8 +12,9 @@ def data_checking_warning_or_error(message):
 def extract_max_values(data, max_values_dict):
 
     # Filter out rows with 'TFEC' in the 'sector' column before grouping
-    filtered_data = data[data['sectors_plotting'].str.contains('TFEC') == False]
-    
+    filtered_data = data[(data['sectors_plotting'].str.contains('TFEC')) | (data['fuels_plotting'].str.contains('TFEC'))]
+
+
     grouped_data = filtered_data.groupby(['sheet_name', 'chart_type', 'scenario', 'year']).agg({'value': 'sum'}).reset_index()
     
     unique_sheets = grouped_data['sheet_name'].unique()
