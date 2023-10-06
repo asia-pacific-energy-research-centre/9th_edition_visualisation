@@ -282,7 +282,7 @@ def merge_fuel_mappings(model_df_tall_sectors, new_fuel_plotting_mappings,fuel_p
     new_new_model_df_tall = new_new_model_df_tall.drop(columns=['fuels', 'subfuels','reference_fuel'])
     
     #drop duplicates
-    new_new_model_df_tall = new_new_model_df_tall.drop_duplicates()
+    #new_new_model_df_tall = new_new_model_df_tall.drop_duplicates() #this is not needed because the merge above will have dropped duplicates and it will drop duplicate values and that is not needed
     return new_new_model_df_tall
 
 

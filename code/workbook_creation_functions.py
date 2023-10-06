@@ -9,21 +9,31 @@ def data_checking_warning_or_error(message):
         print(message)
 
 
-def extract_max_values(data, max_values_dict):
+def extract_max_values(data, max_values_dict, total_plotting_names):
+    table_number = 1  # Change this to the table number you want to extract max values for
 
-    # Filter out rows with 'TFEC' in the 'sector' column before grouping
-    filtered_data = data[(data['sectors_plotting'].str.contains('TFEC')) | (data['fuels_plotting'].str.contains('TFEC'))]
-
+    # Filter out rows with specified names in the 'sectors_plotting' or 'fuels_plotting' columns before grouping
+    filtered_data = data[
+        ~data['sectors_plotting'].isin(total_plotting_names) &
+        ~data['fuels_plotting'].isin(total_plotting_names) &
+        (data['table_number'] == table_number)  # Add this line to filter by table_number
+    ]
 
     grouped_data = filtered_data.groupby(['sheet_name', 'chart_type', 'scenario', 'year']).agg({'value': 'sum'}).reset_index()
     
-    unique_sheets = grouped_data['sheet_name'].unique()
-    unique_chart_types = grouped_data['chart_type'].unique()
+    unique_sheets = data['sheet_name'].unique()
+    unique_chart_types = data['chart_type'].unique()
     
     for sheet in unique_sheets:
         for chart_type in unique_chart_types:
             if chart_type == 'line':
-                subset = data[(data['sheet_name'] == sheet) & (data['chart_type'] == chart_type) & (data['sectors_plotting'].str.contains('TFEC') == False)]
+                subset = data[
+                    (data['sheet_name'] == sheet) & 
+                    (data['chart_type'] == chart_type) & 
+                    ~data['sectors_plotting'].isin(total_plotting_names) &
+                    ~data['fuels_plotting'].isin(total_plotting_names) &
+                    (data['table_number'] == table_number)  # Add this line to filter by table_number
+                ]
                 max_value = subset['value'].max()
             else:
                 subset = grouped_data[(grouped_data['sheet_name'] == sheet) & (grouped_data['chart_type'] == chart_type)]
@@ -53,6 +63,8 @@ def extract_max_values(data, max_values_dict):
             max_values_dict[(sheet, chart_type)] = y_axis_max
     
     return max_values_dict
+
+
 
 
 def create_charts(table, chart_types, plotting_specifications, workbook, num_table_rows, plotting_column, sheet, current_row, space_under_tables, column_row, year_cols_start, num_cols, colours_dict, total_plotting_names, max_values_dict):
@@ -165,7 +177,6 @@ def create_bar_chart_table(table,year_cols_start,bar_years):
     #for every col after year_cols_start, filter for the years we want to keep only
     non_year_cols = table.columns[:year_cols_start]
     new_table = new_table[non_year_cols.to_list() + years_to_keep]
-    print(new_table)
     return new_table
 
 def identify_chart_positions(current_row,num_table_rows,space_under_tables,column_row, space_under_charts, plotting_specifications,chart_types):

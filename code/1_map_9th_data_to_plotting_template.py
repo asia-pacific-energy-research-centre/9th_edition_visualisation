@@ -22,8 +22,18 @@ RAISE_ERROR = False
 #read in data in either Excel or CSV file format
 import glob
 
-file_pattern = '../input_data/*.*'
-file_paths = glob.glob(file_pattern)
+USE_SINGLE_ECONOMY = True
+SINGLE_ECONOMY = '08_JPN'
+
+if USE_SINGLE_ECONOMY:
+    # Define the path pattern for the results data files
+    results_data_path = 'data/demand_results_data/'+SINGLE_ECONOMY+'/*'
+    print(results_data_path)
+    file_pattern = '../input_data/'+SINGLE_ECONOMY+'/*.*'
+    file_paths = glob.glob(file_pattern)
+else:
+    file_pattern = '../input_data/*.*'
+    file_paths = glob.glob(file_pattern)
 
 if len(file_paths) == 0:
     print("No matching file found.")

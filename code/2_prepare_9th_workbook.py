@@ -6,6 +6,7 @@ import pickle
 import pandas as pd
 from datetime import datetime
 import os
+import shutil
 import ast
 import workbook_creation_functions
 STRICT_DATA_CHECKING = False
@@ -20,7 +21,7 @@ def data_checking_warning_or_error(message):
 #create FILE_DATE_ID for use in file names
 FILE_DATE_ID = datetime.now().strftime('%Y%m%d')
 # FILE_DATE_ID = '20230912'
-total_plotting_names=['Total', 'TPES', 'Total primary energy supply','TFEC']
+total_plotting_names=['Total', 'TPES', 'Total primary energy supply','TFEC', 'TFC']
 MIN_YEAR = 2000
 #######################################################
 
@@ -74,11 +75,11 @@ for file in charts_mapping_files:
     #replace nas with 0
     charts_mapping['value'] = charts_mapping['value'].fillna(0)
 
-    charts_mapping.to_csv('../output/charts_mapping.csv', index=False)
+    #charts_mapping.to_csv('../output/charts_mapping.csv', index=False)
     
     # Getting the max values for each sheet and chart type to make the charts' y-axis consistent
     max_values_dict = {}
-    max_values_dict = workbook_creation_functions.extract_max_values(charts_mapping, max_values_dict)
+    max_values_dict = workbook_creation_functions.extract_max_values(charts_mapping, max_values_dict, total_plotting_names)
     print(max_values_dict)
 
     economy = charts_mapping.economy.unique()[0]
@@ -89,6 +90,12 @@ for file in charts_mapping_files:
     #create a unit dictionary to map units to the correct sheet, if there are multiple units per sheet then concatenate them 
     # #NOTE THAT THIS DOESNT WORK WITH THE WAY UNITS ARE IMPLEMENTED IN THE CHARTS MAPPING, BUT THE ITNENTION IS THAT ONCE WE START PLOTTING DIFFERENT UNITS THEN THIS WILL BE SOLVED IN THE CHARTS MAPPING, NOT HERE (SO THIS CODE WILL STAY THE SAME)
     unit_dict = charts_mapping[['sheet_name','unit']].drop_duplicates().groupby('sheet_name')['unit'].apply(lambda x: ', '.join(x)).to_dict()
+
+    # Custom order list
+    custom_order = ['Buildings', 'Industry', 'Transport', 'Agriculture', 'Non-energy', 'TFC by fuel']
+
+    # Sort the sheets according to the custom order
+    sheets = sorted(sheets, key=lambda x: custom_order.index(x) if x in custom_order else len(custom_order))
 
     #then create a dictionary of the sheets and the dataframes we will use to populate them:
     sheet_dfs = {}
@@ -123,7 +130,32 @@ for file in charts_mapping_files:
 
     #every table has the format:'table_number', 'chart_type', 'sectors_plotting', 'fuels_plotting', 'plotting_column', 'aggregate_column', 'scenario', 'unit', ...YEARS... where years is a list of the years columns in the table (eg. 2019, 2020, 2021, 2022, 2023, 2024, 2025)
 
-    writer = pd.ExcelWriter('../output/output_workbooks/' + economy + '_charts_' + FILE_DATE_ID + '.xlsx', engine = 'xlsxwriter')
+    # Set the path for the economy folder
+    economy_folder = '../output/output_workbooks/' + economy
+
+    # Check if the folder for the economy exists
+    if not os.path.exists(economy_folder):
+        os.makedirs(economy_folder)  # If not, create it
+    else:
+        # If it exists, check if there is an 'old' folder within it
+        old_folder = os.path.join(economy_folder, 'old')
+        if not os.path.exists(old_folder):
+            os.makedirs(old_folder)  # If not, create it
+
+        for file_name in os.listdir(economy_folder):
+            if file_name != 'old':  # Avoid moving the 'old' folder
+                file_path = os.path.join(economy_folder, file_name)
+                old_file_path = os.path.join(old_folder, file_name)
+                
+                # If the file already exists in the 'old' folder, remove it
+                if os.path.exists(old_file_path):
+                    os.remove(old_file_path)
+                    
+                # Then move the file to the 'old' folder
+                shutil.move(file_path, old_folder)
+
+
+    writer = pd.ExcelWriter(os.path.join(economy_folder, economy + '_charts_' + FILE_DATE_ID + '.xlsx'), engine='xlsxwriter')
     workbook = writer.book
     #format the workbook
     # Comma format and header format    #NOTE I DONT KNOW IF ACTUALLY IMPLEMEMNTED all of THESE BUT THEY COULD BE USEFUL!    
@@ -208,8 +240,3 @@ for file in charts_mapping_files:
     writer.close()
 
 #%%
-
-
-
-
-# %%
