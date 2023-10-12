@@ -10,96 +10,104 @@ def data_checking_warning_or_error(message):
 
 
 def extract_max_values(data, max_values_dict, total_plotting_names):
-    table_number = 1  # Change this to the table number you want to extract max values for
 
-    # Filter out rows with specified names in the 'sectors_plotting' or 'fuels_plotting' columns before grouping
-    filtered_data = data[
-        ~data['sectors_plotting'].isin(total_plotting_names) &
-        ~data['fuels_plotting'].isin(total_plotting_names) &
-        (data['table_number'] == table_number)  # Add this line to filter by table_number
-    ]
-
-    grouped_data = filtered_data.groupby(['sheet_name', 'chart_type', 'scenario', 'year']).agg({'value': 'sum'}).reset_index()
-    
     unique_sheets = data['sheet_name'].unique()
     unique_chart_types = data['chart_type'].unique()
-    
+    unique_table_ids = data['table_id'].unique()
+
     for sheet in unique_sheets:
         for chart_type in unique_chart_types:
-            if chart_type == 'line':
+            for table_id in unique_table_ids:
+                # Creating a subset excluding the scenario
                 subset = data[
-                    (data['sheet_name'] == sheet) & 
-                    (data['chart_type'] == chart_type) & 
-                    ~data['sectors_plotting'].isin(total_plotting_names) &
-                    ~data['fuels_plotting'].isin(total_plotting_names) &
-                    (data['table_number'] == table_number)  # Add this line to filter by table_number
+                    (data['sheet_name'] == sheet) &
+                    (data['chart_type'] == chart_type) &
+                    (data['table_id'] == table_id)
                 ]
-                max_value = subset['value'].max()
-            else:
-                subset = grouped_data[(grouped_data['sheet_name'] == sheet) & (grouped_data['chart_type'] == chart_type)]
-                max_value = subset['value'].max()
-            
-            if max_value is not None and not np.isnan(max_value):
-                # Adding 5% of the max value for padding
-                y_axis_max = max_value + (0.05 * max_value)
-                
-                if y_axis_max <= 0:
-                    y_axis_max = max_value + abs(0.05 * max_value)
 
-                try:
-                    # Calculate the order of magnitude of the max value
-                    order_of_magnitude = 10 ** math.floor(math.log10(y_axis_max))
-                    
-                    # Calculate a rounding step based on the order of magnitude
-                    rounding_step = order_of_magnitude / 2
-                    
-                    # Round up to the nearest rounding step
-                    y_axis_max = math.ceil(y_axis_max / rounding_step) * rounding_step
-                except ValueError:
-                    y_axis_max = 10  # You can choose a suitable fallback value here
-            else:
-                y_axis_max = None
-            
-            max_values_dict[(sheet, chart_type)] = y_axis_max
-    
+                if chart_type == 'line':
+                    max_value = subset['value'].max()
+                else:  # For 'bar' and 'area' chart types
+                    # This part will group by scenario to calculate max values for both reference and target,
+                    # and then take the overall max to use for both scenarios.
+                    max_values = []
+                    for scenario in subset['scenario'].unique():
+                        scenario_subset = subset[subset['scenario'] == scenario]
+
+                        unique_sectors = scenario_subset['sectors_plotting'].unique()
+                        for sector in unique_sectors:
+                            sector_data = scenario_subset[scenario_subset['sectors_plotting'] == sector]
+
+                            if any(sector_data['fuels_plotting'].isin(total_plotting_names)):
+                                max_values.append(sector_data['value'].max())
+                            else:
+                                max_values.append(sector_data.groupby('year')['value'].sum().max())
+
+                    max_value = max(max_values) if max_values else None
+
+                if max_value is not None and not np.isnan(max_value):
+                    y_axis_max = max_value + (0.05 * max_value)
+                    if y_axis_max <= 0:
+                        y_axis_max = 0
+
+                    try:
+                        order_of_magnitude = 10 ** math.floor(math.log10(y_axis_max))
+                        rounding_step = order_of_magnitude / 2
+                        y_axis_max = math.ceil(y_axis_max / rounding_step) * rounding_step
+                    except ValueError:
+                        y_axis_max = 10
+                else:
+                    y_axis_max = None
+
+                key = (sheet, chart_type, table_id)
+                max_values_dict[key] = y_axis_max
+
+    # Remove items with None values
+    max_values_dict = {k: v for k, v in max_values_dict.items() if v is not None}
+
     return max_values_dict
 
 
 
 
-def create_charts(table, chart_types, plotting_specifications, workbook, num_table_rows, plotting_column, sheet, current_row, space_under_tables, column_row, year_cols_start, num_cols, colours_dict, total_plotting_names, max_values_dict):
-    #depending on the chart type, create different charts. then add them to the worksheet according to their positions
+
+def create_charts(table, chart_types, plotting_specifications, workbook, num_table_rows, plotting_column, table_id, sheet, current_row, space_under_tables, column_row, year_cols_start, num_cols, colours_dict, total_plotting_names, max_values_dict):
+    # Depending on the chart type, create different charts. Then add them to the worksheet according to their positions
     charts_to_plot = []
     plotting_column_index = table.columns.get_loc(plotting_column)
     for chart in chart_types:
+        # Get the y_axis_max from max_values_dict by including the table_id in the key
+        y_axis_max = max_values_dict.get((sheet, chart, table_id))
+        if y_axis_max is None:
+            continue  # Skip the chart creation if y_axis_max is None
+
         if chart == 'line':
-            #configure the chart
-            y_axis_max = max_values_dict.get((sheet, 'line'))
+            # Configure the chart with the updated y_axis_max
             line_chart = line_plotting_specifications(workbook, plotting_specifications, y_axis_max)
-            line_chart = create_line_chart(num_table_rows, table, plotting_column, sheet, current_row,space_under_tables,column_row, plotting_column_index, year_cols_start, num_cols, colours_dict, line_chart,total_plotting_names)
+            line_chart = create_line_chart(num_table_rows, table, plotting_column, sheet, current_row, space_under_tables, column_row, plotting_column_index, year_cols_start, num_cols, colours_dict, line_chart, total_plotting_names)
             if not line_chart:
-                #if chart is False then dont plot the chart and carry on.
                 continue
             charts_to_plot.append(line_chart)
+
         elif chart == 'area':
-            #configure the chart
-            y_axis_max = max_values_dict.get((sheet, 'area'))
+            # Configure the chart with the updated y_axis_max
             area_chart = area_plotting_specifications(workbook, plotting_specifications, y_axis_max)
-            area_chart = create_area_chart(num_table_rows, table, plotting_column, sheet, current_row,space_under_tables,column_row, plotting_column_index, year_cols_start, num_cols, colours_dict, area_chart,total_plotting_names)
+            area_chart = create_area_chart(num_table_rows, table, plotting_column, sheet, current_row, space_under_tables, column_row, plotting_column_index, year_cols_start, num_cols, colours_dict, area_chart, total_plotting_names)
             if not area_chart:
-                #if chart is False then dont plot the chart and carry on.
                 continue
             charts_to_plot.append(area_chart)
-        elif chart == 'bar':            
-            #configure the chart
-            y_axis_max = max_values_dict.get((sheet, 'bar'))
+
+        elif chart == 'bar':
+            # Configure the chart with the updated y_axis_max
             bar_chart = bar_plotting_specifications(workbook, plotting_specifications, y_axis_max)
-            bar_chart = create_bar_chart(num_table_rows, table, plotting_column, sheet, current_row, space_under_tables,column_row,plotting_column_index, year_cols_start, len(table.columns), colours_dict, bar_chart, total_plotting_names)
+            bar_chart = create_bar_chart(num_table_rows, table, plotting_column, sheet, current_row, space_under_tables, column_row, plotting_column_index, year_cols_start, len(table.columns), colours_dict, bar_chart, total_plotting_names)
             if not bar_chart:
-                #if chart is False then dont plot the chart and carry on.
                 continue
             charts_to_plot.append(bar_chart)
+
     return charts_to_plot
+
+
 
 # def prepare_bar_chart_table_and_chart(table,year_cols_start, plotting_specifications, workbook, num_table_rows, plotting_column, sheet, current_row,space_under_tables, column_row, colours_dict,writer,charts_to_plot,total_plotting_names):
 #     plotting_column_index = table.columns.get_loc(plotting_column)

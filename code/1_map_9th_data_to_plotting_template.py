@@ -22,18 +22,13 @@ RAISE_ERROR = False
 #read in data in either Excel or CSV file format
 import glob
 
+# Constants and configurations
 USE_SINGLE_ECONOMY = True
-SINGLE_ECONOMY = '08_JPN'
+SINGLE_ECONOMY = '19_THA'
 
-if USE_SINGLE_ECONOMY:
-    # Define the path pattern for the results data files
-    results_data_path = 'data/demand_results_data/'+SINGLE_ECONOMY+'/*'
-    print(results_data_path)
-    file_pattern = '../input_data/'+SINGLE_ECONOMY+'/*.*'
-    file_paths = glob.glob(file_pattern)
-else:
-    file_pattern = '../input_data/*.*'
-    file_paths = glob.glob(file_pattern)
+# File pattern based on the chosen configuration
+file_pattern = f'../input_data/{SINGLE_ECONOMY}/*.*' if USE_SINGLE_ECONOMY else '../input_data/*.*'
+file_paths = glob.glob(file_pattern)
 
 if len(file_paths) == 0:
     print("No matching file found.")
@@ -213,9 +208,13 @@ for economy_x in model_df_wide['economy'].unique():
     #set the year column to int
     economy_new_charts_mapping.year = economy_new_charts_mapping.year.astype(int)
     #############################
-    #save data to pickle
-    #and sav economy_new_charts_mapping to pickle since its useful
-    economy_new_charts_mapping.to_pickle(f'../intermediate_data/data/economy_charts_mapping_9th_{economy_x}_{FILE_DATE_ID}.pkl')
+    # Save the processed data to a pickle file
+    if USE_SINGLE_ECONOMY and economy_x == SINGLE_ECONOMY:
+        economy_new_charts_mapping.to_pickle(f'../intermediate_data/data/economy_charts_mapping_9th_{economy_x}_{FILE_DATE_ID}.pkl')
+        print(f"Data for {economy_x} saved.")
+    elif not USE_SINGLE_ECONOMY:
+        economy_new_charts_mapping.to_pickle(f'../intermediate_data/data/economy_charts_mapping_9th_{economy_x}_{FILE_DATE_ID}.pkl')
+        print(f"Data for {economy_x} saved.")
 
 #%%
 #economy_new_charts_mapping= pd.read_pickle(f'../intermediate_data/data/economy_charts_mapping_9th_19_THA_20230725.pkl')

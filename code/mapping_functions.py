@@ -311,6 +311,7 @@ def merge_transformation_sector_mappings(model_df_tall, transformation_sector_ma
     
     #now separaten into input and output dfs using the boolean and whtehr value is positive or negative
     input_transformation = new_model_df_transformation[(new_model_df_transformation['input_fuel'] == True) & (new_model_df_transformation['value'] < 0)]
+    input_transformation['value'] = input_transformation['value'] * -1
 
     output_transformation = new_model_df_transformation[(new_model_df_transformation['input_fuel'] == False) & (new_model_df_transformation['value'] > 0)]
     
