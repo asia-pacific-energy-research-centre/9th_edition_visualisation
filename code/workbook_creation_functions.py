@@ -1,6 +1,7 @@
 import pandas as pd
 import math
 import numpy as np
+import ast
 STRICT_DATA_CHECKING = False
 def data_checking_warning_or_error(message):
     if STRICT_DATA_CHECKING:
@@ -18,32 +19,26 @@ def extract_max_values(data, max_values_dict, total_plotting_names):
     for sheet in unique_sheets:
         for chart_type in unique_chart_types:
             for table_id in unique_table_ids:
+                
+                # if table_id == 'Industry_3' and chart_type == 'area' and sheet == 'Industry':
+                #     breakpoint()
                 # Creating a subset excluding the scenario
                 subset = data[
                     (data['sheet_name'] == sheet) &
                     (data['chart_type'] == chart_type) &
                     (data['table_id'] == table_id)
                 ]
-
+                if subset.empty:
+                    continue
                 if chart_type == 'line':
                     max_value = subset['value'].max()
                 else:  # For 'bar' and 'area' chart types
-                    # This part will group by scenario to calculate max values for both reference and target,
-                    # and then take the overall max to use for both scenarios.
-                    max_values = []
-                    for scenario in subset['scenario'].unique():
-                        scenario_subset = subset[subset['scenario'] == scenario]
-
-                        unique_sectors = scenario_subset['sectors_plotting'].unique()
-                        for sector in unique_sectors:
-                            sector_data = scenario_subset[scenario_subset['sectors_plotting'] == sector]
-
-                            if any(sector_data['fuels_plotting'].isin(total_plotting_names)):
-                                max_values.append(sector_data['value'].max())
-                            else:
-                                max_values.append(sector_data.groupby('year')['value'].sum().max())
-
-                    max_value = max(max_values) if max_values else None
+                    #need to set any summary rows to 0 first. otherwise they will be included in the max value
+                    if subset.aggregate_column.iloc[0] == 'fuels_plotting':
+                        subset.loc[subset['sectors_plotting'].isin(total_plotting_names), 'value'] = 0
+                    elif subset.aggregate_column.iloc[0] == 'sectors_plotting':
+                        subset.loc[subset['fuels_plotting'].isin(total_plotting_names), 'value'] = 0
+                    max_value = subset.groupby(['year', 'scenario'])['value'].sum().max()
 
                 if max_value is not None and not np.isnan(max_value):
                     y_axis_max = max_value + (0.05 * max_value)
@@ -77,6 +72,8 @@ def create_charts(table, chart_types, plotting_specifications, workbook, num_tab
     plotting_column_index = table.columns.get_loc(plotting_column)
     for chart in chart_types:
         # Get the y_axis_max from max_values_dict by including the table_id in the key
+        # if table_id == 'Industry_3':
+        #     breakpoint()
         y_axis_max = max_values_dict.get((sheet, chart, table_id))
         if y_axis_max is None:
             continue  # Skip the chart creation if y_axis_max is None
@@ -84,7 +81,8 @@ def create_charts(table, chart_types, plotting_specifications, workbook, num_tab
         if chart == 'line':
             # Configure the chart with the updated y_axis_max
             line_chart = line_plotting_specifications(workbook, plotting_specifications, y_axis_max)
-            line_chart = create_line_chart(num_table_rows, table, plotting_column, sheet, current_row, space_under_tables, column_row, plotting_column_index, year_cols_start, num_cols, colours_dict, line_chart, total_plotting_names)
+            line_thickness = plotting_specifications['line_thickness']
+            line_chart = create_line_chart(num_table_rows, table, plotting_column, sheet, current_row, space_under_tables, column_row, plotting_column_index, year_cols_start, num_cols, colours_dict, line_chart, total_plotting_names, line_thickness)
             if not line_chart:
                 continue
             charts_to_plot.append(line_chart)
@@ -141,7 +139,7 @@ def format_table(table,plotting_names_order,plotting_name_to_label_dict):
     #extract useful info from df before removing it (as we dont want to show it in the xlsx table)
     aggregate_column = table['aggregate_column'].iloc[0]
     plotting_column = table['plotting_column'].iloc[0]
-    chart_types = table['chart_type'].unique()
+    chart_types = np.sort(table['chart_type'].unique())
     table_id = table['table_id'].iloc[0]
     
     #make sure that we only have data for one of the cahrt ttypes. The data should be the same since its based on the same table, so jsut take the first one
@@ -187,7 +185,7 @@ def create_bar_chart_table(table,year_cols_start,bar_years):
     new_table = new_table[non_year_cols.to_list() + years_to_keep]
     return new_table
 
-def identify_chart_positions(current_row,num_table_rows,space_under_tables,column_row, space_under_charts, plotting_specifications,chart_types):
+def identify_chart_positions(current_row,num_table_rows,space_under_tables,column_row, space_above_charts,space_under_charts, plotting_specifications,chart_types):
     table_start_row = current_row - num_table_rows - space_under_tables - column_row
     #get table id and extract the chart types and, if there are more than one charts, their positions
     chart_positions = []
@@ -197,10 +195,10 @@ def identify_chart_positions(current_row,num_table_rows,space_under_tables,colum
         index_of_chart = np.where(chart_types == chart)[0][0]
         #default column width is 59 pixels. so take the chart width in pixels, divide by 59 and round up to get the number of columns to space for a chart
         num_cols_to_space = math.ceil(plotting_specifications['width_pixels']/59)
-        col_number = 2 + (index_of_chart * num_cols_to_space)
+        col_number = 4 + (index_of_chart * num_cols_to_space)
         #convert col number to letter. It will be the index of the letter in the alphabet 
         column_letter = get_column_letter(col_number)
-        chart_positions.append(column_letter + str(table_start_row - plotting_specifications['height'] + space_under_charts))
+        chart_positions.append(column_letter + str(table_start_row - plotting_specifications['height'] + space_above_charts - space_under_charts))
 
     return chart_positions
 
@@ -261,7 +259,7 @@ def create_area_chart(num_table_rows, table, plotting_column, sheet, current_row
     else:
         return area_chart
     
-def create_line_chart(num_table_rows, table, plotting_column, sheet, current_row,space_under_tables,column_row, plotting_column_index, year_cols_start, num_cols, colours_dict, line_chart, total_plotting_names):
+def create_line_chart(num_table_rows, table, plotting_column, sheet, current_row,space_under_tables,column_row, plotting_column_index, year_cols_start, num_cols, colours_dict, line_chart, total_plotting_names, line_thickness):
     table_start_row = current_row - num_table_rows - space_under_tables - column_row #add one for columns
     # Extract the series of data for the chart from the excels sheets data.
     for row_i in range(num_table_rows):
@@ -276,7 +274,7 @@ def create_line_chart(num_table_rows, table, plotting_column, sheet, current_row
                 'name':       [sheet, table_start_row + row_i + 1, plotting_column_index],
                 'categories': [sheet, table_start_row, year_cols_start, table_start_row, num_cols - 1],
                 'values':     [sheet, table_start_row + row_i + 1, year_cols_start, table_start_row + row_i + 1, num_cols - 1],
-                'line':       {'color': table[plotting_column].map(colours_dict).iloc[row_i], 'width': 1}
+                'line':       {'color': table[plotting_column].map(colours_dict).iloc[row_i], 'width': line_thickness}
             })   
     #double check if chart is empty, if so let user know and skip the chart
     if len(line_chart.series) == 0:
@@ -485,4 +483,36 @@ def line_plotting_specifications(workbook, plotting_specifications, y_axis_max):
 
     return line_chart
 
+def order_sheets(workbook, plotting_specifications, sheets):
+    #order the sheets in the workbook accoridng to the custom order in master_config>plotting_specifications>sheet_order
+    sheet_order = ast.literal_eval(plotting_specifications['sheet_order'])
+    #since sh
+    worksheet_order = []
+    for sheet in sheet_order:
+        if sheet in sheets:
+            worksheet_order.append(sheet)
+    
+    workbook.worksheets_objs.sort(key=lambda x: worksheet_order.index(x.get_name()))#should add a check here to make sure all sheets are in the workbook
+    return workbook
 
+
+def get_plotting_name(row):
+    if row['plotting_column'] == 'fuels_plotting':
+        return row['fuels_plotting']
+    elif row['plotting_column'] == 'sectors_plotting':
+        return row['sectors_plotting']
+    else:
+        raise Exception('plotting_column must be either fuels_plotting or sectors_plotting')
+    
+
+def check_plotting_names_in_colours_dict(charts_mapping, colours_dict):
+    #cehck that all unique plotting names are in colours_dict, otherwise we will get an error when we try to save the workbook to excel
+    unique_plotting_names = colours_dict.keys()
+    plotting_names_in_charts_mapping = charts_mapping.copy()
+    #create plotting_name column by using the plotting_column to extract the plotting_name from eitehr fuels_plotting or sectors_plotting cols
+    plotting_names_in_charts_mapping['plotting_name'] = plotting_names_in_charts_mapping.apply(lambda x: get_plotting_name(x), axis=1)
+    plotting_names_in_charts_mapping = plotting_names_in_charts_mapping['plotting_name'].unique()
+    plotting_names_not_in_colours_dict = [x for x in plotting_names_in_charts_mapping if x not in unique_plotting_names]
+    if len(plotting_names_not_in_colours_dict) > 0:
+        raise Exception('The following plotting names are not in colours_dict: {}'.format(plotting_names_not_in_colours_dict))
+    

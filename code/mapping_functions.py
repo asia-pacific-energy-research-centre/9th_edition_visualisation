@@ -43,7 +43,7 @@ def format_plotting_mappings(sector_plotting_mappings, fuel_plotting_mappings):
 
         #remove these rows from the sector_plotting_mappings so that we don't double count them
         fuel_plotting_mappings = fuel_plotting_mappings[fuel_plotting_mappings[col].isna()]
-
+ 
     #now check for nas in the entire dfs
     if new_sector_plotting_mappings.isna().sum().sum() > 0:
         if STRICT_DATA_CHECKING:
@@ -224,7 +224,6 @@ def check_data_matches_expectations(model_df_wide_economy, model_variables,RAISE
                 print('In the column {}, these variables are missing from the Variables sheet {}'.format(col, variables_missing_list))
 
 def merge_sector_mappings(model_df_tall, new_sector_plotting_mappings,sector_plotting_mappings,  RAISE_ERROR=True):
-    breakpoint()
     #using the plotting mappings which were created in the format_plotting_mappings function, we need to merge these onto the model_df_tall using the reference_column and reference_sector columns, where the reference column specifies the column to find the reference sector in the model_df_tall
     new_model_df_tall = model_df_tall.copy()
     #empty it
@@ -310,11 +309,10 @@ def merge_transformation_sector_mappings(model_df_tall, transformation_sector_ma
         new_model_df_transformation = pd.concat([new_model_df_transformation, columns_data])
     
     #now separaten into input and output dfs using the boolean and whtehr value is positive or negative
-    input_transformation = new_model_df_transformation[(new_model_df_transformation['input_fuel'] == True) & (new_model_df_transformation['value'] < 0)]
+    input_transformation = new_model_df_transformation[(new_model_df_transformation['input_fuel'] == True) & (new_model_df_transformation['value'] <= 0)]
     input_transformation['value'] = input_transformation['value'] * -1
 
-    output_transformation = new_model_df_transformation[(new_model_df_transformation['input_fuel'] == False) & (new_model_df_transformation['value'] > 0)]
-    
+    output_transformation = new_model_df_transformation[(new_model_df_transformation['input_fuel'] == False) & (new_model_df_transformation['value'] >= 0)]
     
     #check that no sectors_plotting values from transformation_sector_mappings have been lost
     new_df = new_model_df_transformation[['sectors_plotting', 'sectors', 'sub1sectors']].drop_duplicates().replace('x', np.nan)

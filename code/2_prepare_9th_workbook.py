@@ -98,8 +98,9 @@ for file in charts_mapping_files:
         # Getting the max values for each sheet and chart type to make the charts' y-axis consistent
         max_values_dict = {}
         max_values_dict = workbook_creation_functions.extract_max_values(charts_mapping, max_values_dict, total_plotting_names)
-        print(max_values_dict)
-
+        
+        workbook_creation_functions.check_plotting_names_in_colours_dict(charts_mapping, colours_dict)
+        
         economy = charts_mapping.economy.unique()[0]
 
         #so firstly, extract the unique sheets we will create:
@@ -119,7 +120,6 @@ for file in charts_mapping_files:
         sheet_dfs = {}
         for sheet in sheets:
 
-
             sheet_dfs[sheet] = ()
 
             sheet_data = charts_mapping.loc[charts_mapping['sheet_name'] == sheet]
@@ -128,6 +128,8 @@ for file in charts_mapping_files:
 
             #pivot the data and create order of cols so it is fsater to create tables
             sheet_data = sheet_data.pivot(index=['table_number', 'chart_type', 'sectors_plotting', 'fuels_plotting', 'plotting_column', 'aggregate_column', 'scenario', 'unit', 'table_id'], columns='year', values='value')
+            # #potentially here we get nas from missing years for certain rows, so replace with 0
+            # sheet_data = sheet_data.fillna(0)#decided against it because it seems the nas are useful
             sheet_data = sheet_data.reset_index()
 
             #sort by table_number
@@ -172,7 +174,6 @@ for file in charts_mapping_files:
                     # Then move the file to the 'old' folder
                     shutil.move(file_path, old_folder)
 
-
         writer = pd.ExcelWriter(os.path.join(economy_folder, economy + '_charts_' + FILE_DATE_ID + '.xlsx'), engine='xlsxwriter')
         workbook = writer.book
         #format the workbook
@@ -191,7 +192,8 @@ for file in charts_mapping_files:
             worksheet = workbook.get_worksheet_by_name(sheet)
 
             space_under_tables = 1
-            space_under_charts = 2
+            space_above_charts = 2
+            space_under_charts = 3
             space_under_titles = 1
             column_row = 1
             current_scenario = ''
@@ -236,7 +238,6 @@ for file in charts_mapping_files:
                 #if chart_type len is 1 and it is a bar chart, we need to edit the table to work for bar charts:
                 
                 if len(chart_types) == 1 and 'bar' in chart_types:   
-                    breakpoint()
                     table = workbook_creation_functions.create_bar_chart_table(table,year_cols_start,plotting_specifications['bar_years'])
                 ########################
                 #write table to sheet
@@ -245,7 +246,8 @@ for file in charts_mapping_files:
                 num_table_rows = len(table.index)
                 ########################
                 #identify and format charts we need to create
-                chart_positions = workbook_creation_functions.identify_chart_positions(current_row,num_table_rows,space_under_tables,column_row, space_under_charts, plotting_specifications,chart_types)
+                chart_positions = workbook_creation_functions.identify_chart_positions(current_row,num_table_rows,space_under_tables,column_row, space_above_charts, space_under_charts, plotting_specifications,chart_types)
+                
                 charts_to_plot = workbook_creation_functions.create_charts(table, chart_types, plotting_specifications, workbook,num_table_rows, plotting_column, table_id, sheet, current_row, space_under_tables, column_row, year_cols_start, num_cols, colours_dict,total_plotting_names, max_values_dict)
                 ########################
 
@@ -254,7 +256,11 @@ for file in charts_mapping_files:
                     chart_position = chart_positions[i]
                     worksheet.insert_chart(chart_position, chart)
 
+    workbook = workbook_creation_functions.order_sheets(workbook, plotting_specifications, sheets)
     #save the workbook
     writer.close()
+    
+#%%
+# {('Agriculture', 'area', 'Agriculture_1'): 200.0, ('Agriculture', 'line', 'Agriculture_1'): 200.0, ('Agriculture', 'bar', 'Agriculture_2'): 200.0, ('Buildings', 'area', 'Buildings_1'): 1500.0, ('Buildings', 'area', 'Buildings_2'): 6000.0, ('Coal', 'area', 'Coal_1'): 850.0, ('Coal', 'bar', 'Coal_2'): 850.0, ('Electricity', 'area', 'Electricity_1'): 3500.0, ('FED by sector', 'line', 'FED by sector_1'): 6000.0, ('FED by sector', 'bar', 'FED by sector_2'): 6000.0, ('Fuel consumption power sector', 'line', 'Fuel consumption power sector_1'): 4000.0, ('Hydrogen', 'area', 'Hydrogen_1'): 70.0, ('Hydrogen', 'line', 'Hydrogen_1'): 70.0, ('Hydrogen', 'bar', 'Hydrogen_2'): 70.0, ('Industry', 'area', 'Industry_1'): 3000.0, ('Industry', 'area', 'Industry_3'): 2000.0, ('Industry', 'bar', 'Industry_4'): 2000.0, ('Non-energy', 'area', 'Non-energy_1'): 900.0, ('Production', 'area', 'Production_1'): 15000.0, ('Production', 'line', 'Production_1'): 15000.0, ('Production', 'bar', 'Production_2'): 15000.0, ('Refining', 'line', 'Refining_1'): 3000.0, ('Refining', 'line', 'Refining_2'): 1500.0, ('Refining', 'bar', 'Refining_3'): 3500.0, ('Renewable fuels', 'area', 'Renewable fuels_1'): 25.0, ('Renewable fuels', 'bar', 'Renewable fuels_2'): 25.0, ('Renewable fuels VER2', 'area', 'Renewable fuels VER2_1'): 25.0, ('Renewable fuels VER2', 'bar', 'Renewable fuels VER2_2'): 25.0, ('Supply', 'area', 'Supply_1'): 15000.0, ('Supply', 'line', 'Supply_1'): 15000.0, ('Supply', 'bar', 'Supply_2'): 3500.0, ('Supply CN', 'area', 'Supply CN_1'): 4000.0, ('Supply CN', 'area', 'Supply CN_3'): 15000.0, ('Supply CN', 'area', 'Supply CN_4'): 15000.0, ('Supply CN', 'area', 'Supply CN_5'): 15000.0, ('Supply CN', 'line', 'Supply CN_3'): 15000.0, ('Supply CN', 'line', 'Supply CN_4'): 15000.0, ('Supply CN', 'line', 'Supply CN_5'): 6000.0, ('Supply CN', 'bar', 'Supply CN_2'): 4000.0, ('Supply REF', 'area', 'Supply REF_1'): 4000.0, ('Supply REF', 'area', 'Supply REF_3'): 15000.0, ('Supply REF', 'area', 'Supply REF_4'): 15000.0, ('Supply REF', 'area', 'Supply REF_5'): 15000.0, ('Supply REF', 'line', 'Supply REF_3'): 15000.0, ('Supply REF', 'line', 'Supply REF_4'): 15000.0, ('Supply REF', 'line', 'Supply REF_5'): 6000.0, ('Supply REF', 'bar', 'Supply REF_2'): 4000.0, ('TFC by fuel', 'area', 'TFC by fuel_1'): 6000.0, ('TPES Coal by type', 'line', 'TPES Coal by type_1'): 300.0, ('TPES Coal by type', 'line', 'TPES Coal by type_2'): 250.0, ('TPES Coal by type', 'line', 'TPES Coal by type_3'): 250.0, ('Transport', 'area', 'Transport_1'): 2500.0, ('Transport', 'area', 'Transport_3'): 6000.0, ('Transport', 'line', 'Transport_1'): 2500.0, ('Transport', 'bar', 'Transport_2'): 2500.0, ('Transport', 'bar', 'Transport_4'): 6000.0}
 
 #%%

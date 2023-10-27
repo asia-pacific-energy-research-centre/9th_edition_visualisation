@@ -21,7 +21,7 @@ RAISE_ERROR = False
 #%%
 #read in data in either Excel or CSV file format
 import glob
-
+ 
 # Constants and configurations
 USE_SINGLE_ECONOMY = True
 SINGLE_ECONOMY = '19_THA'
@@ -161,12 +161,16 @@ for economy_x in model_df_wide['economy'].unique():
     #TRANSFORMATION MAPPING
     #next step will include creating new datasets which create aggregations of data to match some of the categories plotted in the 8th edition. 
     #for example we need an aggregation of the transformation sector input and output values to create entries for Power, Refining or Hydrogen
-
+    # breakpoint()#we get nas in the transformation sector mappings. why??
     input_transformation, output_transformation = mapping_functions.merge_transformation_sector_mappings(model_df_tall, transformation_sector_mappings,new_fuel_plotting_mappings,RAISE_ERROR=RAISE_ERROR)
+    # #identify where fuels_plotting is Solar and year is 2003:
+    # input_transformation.loc[(input_transformation.fuels_plotting == 'Solar') & (input_transformation.year == 2003)]
+    # #look for wehre subfuels is 12_01_of_which_photovoltaics and year is 2003
+    # model_df_tall.loc[(model_df_tall.subfuels == '12_01_of_which_photovoltaics') & (model_df_tall.year == 2003)]
     
     #Thats it. We will stack this with the other dataframes later on. 
     plotting_df = pd.concat([plotting_df, input_transformation, output_transformation])
-    
+    breakpoint()
     #drop all cols excet ['scenarios','economy', 'year','value','fuels_plotting', 'sectors_plotting']
     plotting_df= plotting_df[['scenarios','economy', 'year','value','fuels_plotting', 'sectors_plotting']]
     #now join with charts mapping on fuel and sector plotting names to get the plotting names for the transformation sectors
@@ -180,7 +184,7 @@ for economy_x in model_df_wide['economy'].unique():
     
     #for each unique sheet, table combination in new_charts_mapping, extract the values from the cols plotting names cols which specifies the data we need to grab from the new plotting_df. Note that this doesnt define whether the plotting name is from secotrs or fuels, but as long as the plotting names are unique it shouldnt matter (which they should be)
     
-    missing_data = economy_new_charts_mapping[economy_new_charts_mapping['value'].isnull()]
+    missing_data = economy_new_charts_mapping[economy_new_charts_mapping['value'].isna()]
     economy_new_charts_mapping = economy_new_charts_mapping.dropna(subset=['value'])
     
     #TEST WE COULD DELETE
