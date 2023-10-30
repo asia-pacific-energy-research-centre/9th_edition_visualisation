@@ -10,7 +10,7 @@ def data_checking_warning_or_error(message):
         print(message)
 
 
-def extract_max_values(data, max_values_dict, total_plotting_names):
+def extract_max_and_min_values(data, max_and_min_values_dict, total_plotting_names):
 
     unique_sheets = data['sheet_name'].unique()
     unique_chart_types = data['chart_type'].unique()
@@ -19,10 +19,6 @@ def extract_max_values(data, max_values_dict, total_plotting_names):
     for sheet in unique_sheets:
         for chart_type in unique_chart_types:
             for table_id in unique_table_ids:
-                
-                # if table_id == 'Industry_3' and chart_type == 'area' and sheet == 'Industry':
-                #     breakpoint()
-                # Creating a subset excluding the scenario
                 subset = data[
                     (data['sheet_name'] == sheet) &
                     (data['chart_type'] == chart_type) &
@@ -30,57 +26,94 @@ def extract_max_values(data, max_values_dict, total_plotting_names):
                 ]
                 if subset.empty:
                     continue
-                if chart_type == 'line':
-                    max_value = subset['value'].max()
-                else:  # For 'bar' and 'area' chart types
-                    #need to set any summary rows to 0 first. otherwise they will be included in the max value
-                    if subset.aggregate_column.iloc[0] == 'fuels_plotting':
-                        subset.loc[subset['sectors_plotting'].isin(total_plotting_names), 'value'] = 0
-                    elif subset.aggregate_column.iloc[0] == 'sectors_plotting':
-                        subset.loc[subset['fuels_plotting'].isin(total_plotting_names), 'value'] = 0
-                    max_value = subset.groupby(['year', 'scenario'])['value'].sum().max()
 
-                if max_value is not None and not np.isnan(max_value):
-                    y_axis_max = max_value + (0.05 * max_value)
-                    if y_axis_max <= 0:
-                        y_axis_max = 0
-
-                    try:
-                        order_of_magnitude = 10 ** math.floor(math.log10(y_axis_max))
-                        rounding_step = order_of_magnitude / 2
-                        y_axis_max = math.ceil(y_axis_max / rounding_step) * rounding_step
-                    except ValueError:
-                        y_axis_max = 10
+                if subset.aggregate_column.iloc[0] == 'fuels_plotting':
+                    subset.loc[subset['sectors_plotting'].isin(total_plotting_names), 'value'] = 0
+                elif subset.aggregate_column.iloc[0] == 'sectors_plotting':
+                    subset.loc[subset['fuels_plotting'].isin(total_plotting_names), 'value'] = 0
+                    
+                postive_values = subset[subset['value'] >= 0].copy()
+                negative_values = subset[subset['value'] <= 0].copy()
+                if len(postive_values) > 0:
+                    max_value = postive_values.groupby(['year', 'scenario'])['value'].sum().max()
+                    if chart_type == 'line':#we dont want to sum the values for line charts
+                        max_value = postive_values['value'].max()
                 else:
-                    y_axis_max = None
+                    max_value = 0
+                if len(negative_values) > 0:
+                    min_value = negative_values.groupby(['year', 'scenario'])['value'].sum().min()
+                    if chart_type == 'line':#we dont want to sum the values for line charts
+                        min_value = negative_values['value'].min()
+                else:
+                    min_value = 0
 
-                key = (sheet, chart_type, table_id)
-                max_values_dict[key] = y_axis_max
+                if chart_type == 'area' and min_value < 0 and max_value > 0:
+                    #area plots dont really work when we have negative and positive values. so let user know but dont raise an error
+                    print('WARNING: Area chart for ' + sheet + ' with table_id ' + str(table_id) + ' has both negative and positive values. This will not work well. Please consider changing the chart type to line or bar')
+                        
+                # Calculate max y-axis value for the chart
+                if max_value is not None and not np.isnan(max_value):
+                    if max_value == 0:
+                        y_axis_max = 0
+                    elif max_value > 0:
+                        y_axis_max = calculate_y_axis_value(max_value)
+                    else:
+                        y_axis_max = None
+                    key_max = (sheet, chart_type, table_id, "max")
+                    max_and_min_values_dict[key_max] = y_axis_max
+
+                # Calculate min y-axis value for the chart
+                if min_value is not None and not np.isnan(min_value):
+                    if min_value == 0:
+                        y_axis_min = 0
+                    elif min_value < 0:
+                        y_axis_min = calculate_y_axis_value(min_value)
+                    else:
+                        y_axis_min = None
+                    key_min = (sheet, chart_type, table_id, "min")
+                    max_and_min_values_dict[key_min] = y_axis_min
 
     # Remove items with None values
-    max_values_dict = {k: v for k, v in max_values_dict.items() if v is not None}
+    max_and_min_values_dict = {k: v for k, v in max_and_min_values_dict.items() if v is not None}
 
-    return max_values_dict
+    return max_and_min_values_dict
 
+def calculate_y_axis_value(value):
+    # Adjust the value by 5% in the appropriate direction
+    if value > 0:
+        y_axis_value = value + (0.05 * value)
+    else:
+        y_axis_value = value - (0.05 * value)
 
+    # Use absolute value to handle the logarithm for negatives
+    order_of_magnitude = 10 ** math.floor(math.log10(abs(y_axis_value)))
+    rounding_step = order_of_magnitude / 2
 
+    # If the value is positive, round up. If negative, round down.
+    if y_axis_value > 0:
+        y_axis_value = math.ceil(y_axis_value / rounding_step) * rounding_step
+    else:
+        y_axis_value = math.floor(y_axis_value / rounding_step) * rounding_step
+    return y_axis_value
 
-
-def create_charts(table, chart_types, plotting_specifications, workbook, num_table_rows, plotting_column, table_id, sheet, current_row, space_under_tables, column_row, year_cols_start, num_cols, colours_dict, total_plotting_names, max_values_dict):
+def create_charts(table, chart_types, plotting_specifications, workbook, num_table_rows, plotting_column, table_id, sheet, current_row, space_under_tables, column_row, year_cols_start, num_cols, colours_dict, total_plotting_names, max_and_min_values_dict):
     # Depending on the chart type, create different charts. Then add them to the worksheet according to their positions
     charts_to_plot = []
     plotting_column_index = table.columns.get_loc(plotting_column)
     for chart in chart_types:
-        # Get the y_axis_max from max_values_dict by including the table_id in the key
+        # Get the y_axis_max from max_and_min_values_dict by including the table_id in the key
         # if table_id == 'Industry_3':
         #     breakpoint()
-        y_axis_max = max_values_dict.get((sheet, chart, table_id))
+        y_axis_max = max_and_min_values_dict.get((sheet, chart, table_id, "max"))
+        y_axis_min = max_and_min_values_dict.get((sheet, chart, table_id, "min"))
         if y_axis_max is None:
             continue  # Skip the chart creation if y_axis_max is None
-
+        if y_axis_min is None:
+            breakpoint()
+            raise Exception("y_axis_min is None. We werent expecting this. perhaps its ok but need to check")
         if chart == 'line':
             # Configure the chart with the updated y_axis_max
-            line_chart = line_plotting_specifications(workbook, plotting_specifications, y_axis_max)
+            line_chart = line_plotting_specifications(workbook, plotting_specifications, y_axis_max, y_axis_min)
             line_thickness = plotting_specifications['line_thickness']
             line_chart = create_line_chart(num_table_rows, table, plotting_column, sheet, current_row, space_under_tables, column_row, plotting_column_index, year_cols_start, num_cols, colours_dict, line_chart, total_plotting_names, line_thickness)
             if not line_chart:
@@ -88,16 +121,16 @@ def create_charts(table, chart_types, plotting_specifications, workbook, num_tab
             charts_to_plot.append(line_chart)
 
         elif chart == 'area':
-            # Configure the chart with the updated y_axis_max
-            area_chart = area_plotting_specifications(workbook, plotting_specifications, y_axis_max)
+            # Configure the chart with the updated y_axis_max, y_axis_min
+            area_chart = area_plotting_specifications(workbook, plotting_specifications, y_axis_max, y_axis_min)
             area_chart = create_area_chart(num_table_rows, table, plotting_column, sheet, current_row, space_under_tables, column_row, plotting_column_index, year_cols_start, num_cols, colours_dict, area_chart, total_plotting_names)
             if not area_chart:
                 continue
             charts_to_plot.append(area_chart)
 
         elif chart == 'bar':
-            # Configure the chart with the updated y_axis_max
-            bar_chart = bar_plotting_specifications(workbook, plotting_specifications, y_axis_max)
+            # Configure the chart with the updated y_axis_max and y_axis_min
+            bar_chart = bar_plotting_specifications(workbook, plotting_specifications, y_axis_max, y_axis_min)
             bar_chart = create_bar_chart(num_table_rows, table, plotting_column, sheet, current_row, space_under_tables, column_row, plotting_column_index, year_cols_start, len(table.columns), colours_dict, bar_chart, total_plotting_names)
             if not bar_chart:
                 continue
@@ -311,7 +344,7 @@ def create_bar_chart(num_table_rows, table, plotting_column, sheet, current_row,
 #######################################
 #CHART CONFIGS
 #######################################
-def area_plotting_specifications(workbook, plotting_specifications, y_axis_max):
+def area_plotting_specifications(workbook, plotting_specifications, y_axis_max, y_axis_min):
 
     # Create an area charts config
     area_chart = workbook.add_chart({'type': 'area', 'subtype': 'stacked'})
@@ -347,7 +380,7 @@ def area_plotting_specifications(workbook, plotting_specifications, y_axis_max):
             'line': {'color': '#bebebe'}
         },
         'line': {'color': '#323232', 'width': 1, 'dash_type': 'square_dot'},
-        'min': 0,
+        'min': y_axis_min,
         'max': y_axis_max,  # Set the max value for y-axis
     })
         
@@ -362,7 +395,7 @@ def area_plotting_specifications(workbook, plotting_specifications, y_axis_max):
 
     return area_chart
 
-def bar_plotting_specifications(workbook, plotting_specifications, y_axis_max):
+def bar_plotting_specifications(workbook, plotting_specifications, y_axis_max, y_axis_min):
     # Create a another chart
     line_chart = workbook.add_chart({'type': 'column', 'subtype': 'stacked'})#can make this percent_stacked to make it a percentage stacked bar chart!
     line_chart.set_size({
@@ -395,7 +428,7 @@ def bar_plotting_specifications(workbook, plotting_specifications, y_axis_max):
             'line': {'color': '#bebebe'}
         },
         'line': {'color': '#bebebe'},
-        'min': 0,
+        'min': y_axis_min,
         'max': y_axis_max,  # Set the max value for y-axis
     })
         
@@ -423,7 +456,7 @@ def bar_plotting_specifications(workbook, plotting_specifications, y_axis_max):
 
     return line_chart
 
-def line_plotting_specifications(workbook, plotting_specifications, y_axis_max):
+def line_plotting_specifications(workbook, plotting_specifications, y_axis_max, y_axis_min):
     # Create a FED line chart with higher level aggregation
     line_chart = workbook.add_chart({'type': 'line'})
     line_chart.set_size({
@@ -458,7 +491,7 @@ def line_plotting_specifications(workbook, plotting_specifications, y_axis_max):
             'line': {'color': '#bebebe'}
         },
         'line': {'color': '#323232', 'width': 1, 'dash_type': 'square_dot'},
-        'min': 0,
+        'min': y_axis_min,
         'max': y_axis_max,  # Set the max value for y-axis
     })
         

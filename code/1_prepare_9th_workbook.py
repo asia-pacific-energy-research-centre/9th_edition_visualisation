@@ -9,33 +9,32 @@ import os
 import shutil
 import ast
 import workbook_creation_functions
-import importlib
+from map_9th_data_to_plotting_template import map_9th_data_to_plotting_template_handler
 def data_checking_warning_or_error(message):
     if STRICT_DATA_CHECKING:
         raise Exception(message)
     else:
         print(message)
 
-# Try to import USE_SINGLE_ECONOMY and SINGLE_ECONOMY from the first module
-module_name = "map_9th_data_to_plotting_template"  # Changed the module name
-try:
-    module = importlib.import_module(module_name)
-    USE_SINGLE_ECONOMY = module.USE_SINGLE_ECONOMY
-    SINGLE_ECONOMY = module.SINGLE_ECONOMY
-except ImportError:
-    print(f"Failed to import {module_name}. Setting default values.")
-    USE_SINGLE_ECONOMY = False
-    SINGLE_ECONOMY = None
+
+USE_ECONOMY_ID = False
+ECONOMY_ID = '19_THA'
 
 #######################################################
 #CONFIG PREPARATION
 #create FILE_DATE_ID for use in file names
 FILE_DATE_ID = datetime.now().strftime('%Y%m%d')
+
 # FILE_DATE_ID = '20230912'
 total_plotting_names=['Total', 'TPES', 'Total primary energy supply','TFEC', 'TFC']
 MIN_YEAR = 2000
 #######################################################
-
+#%%
+map_data = True
+if map_data:
+    map_9th_data_to_plotting_template_handler(FILE_DATE_ID, ECONOMY_ID, RAISE_ERROR=False, USE_ECONOMY_ID=USE_ECONOMY_ID)
+#%%
+#######################################################
 #read in titles, only, from charts mapping for each available economy for the FILE_DATE_ID. e.g. charts_mapping_9th_{economy_x}_{FILE_DATE_ID}.pkl. We will use each of these to create a workbook, for each economy
 charts_mapping_files = [x for x in os.listdir('../intermediate_data/data/') if 'charts_mapping_9th' in x]
 charts_mapping_files = [x for x in charts_mapping_files if 'pkl' in x]
@@ -80,7 +79,7 @@ for file in charts_mapping_files:
     economy_code = file.split('_')[3]  
     
     # Check if the single economy mode is enabled and if the current economy matches the selected economy
-    if not USE_SINGLE_ECONOMY or (USE_SINGLE_ECONOMY and economy_code == SINGLE_ECONOMY):
+    if not USE_ECONOMY_ID or (USE_ECONOMY_ID and economy_code == ECONOMY_ID):
         
         #PREPARE DATA ########################################
         charts_mapping = pd.read_pickle(f'../intermediate_data/data/{file}')
@@ -96,8 +95,8 @@ for file in charts_mapping_files:
         #charts_mapping.to_csv('../output/charts_mapping.csv', index=False)
         
         # Getting the max values for each sheet and chart type to make the charts' y-axis consistent
-        max_values_dict = {}
-        max_values_dict = workbook_creation_functions.extract_max_values(charts_mapping, max_values_dict, total_plotting_names)
+        max_and_min_values_dict = {}
+        max_and_min_values_dict = workbook_creation_functions.extract_max_and_min_values(charts_mapping, max_and_min_values_dict, total_plotting_names)
         
         workbook_creation_functions.check_plotting_names_in_colours_dict(charts_mapping, colours_dict)
         
@@ -247,20 +246,19 @@ for file in charts_mapping_files:
                 ########################
                 #identify and format charts we need to create
                 chart_positions = workbook_creation_functions.identify_chart_positions(current_row,num_table_rows,space_under_tables,column_row, space_above_charts, space_under_charts, plotting_specifications,chart_types)
-                
-                charts_to_plot = workbook_creation_functions.create_charts(table, chart_types, plotting_specifications, workbook,num_table_rows, plotting_column, table_id, sheet, current_row, space_under_tables, column_row, year_cols_start, num_cols, colours_dict,total_plotting_names, max_values_dict)
+                # print('max_and_min_values_dict', max_and_min_values_dict, 'for sheet', sheet)
+                charts_to_plot = workbook_creation_functions.create_charts(table, chart_types, plotting_specifications, workbook,num_table_rows, plotting_column, table_id, sheet, current_row, space_under_tables, column_row, year_cols_start, num_cols, colours_dict,total_plotting_names, max_and_min_values_dict)
                 ########################
 
                 #write charts to sheet
                 for i, chart in enumerate(charts_to_plot):
                     chart_position = chart_positions[i]
                     worksheet.insert_chart(chart_position, chart)
-
-    workbook = workbook_creation_functions.order_sheets(workbook, plotting_specifications, sheets)
-    #save the workbook
-    writer.close()
+        
+        workbook = workbook_creation_functions.order_sheets(workbook, plotting_specifications, sheets)
+        #save the workbook
+        writer.close()
     
 #%%
-# {('Agriculture', 'area', 'Agriculture_1'): 200.0, ('Agriculture', 'line', 'Agriculture_1'): 200.0, ('Agriculture', 'bar', 'Agriculture_2'): 200.0, ('Buildings', 'area', 'Buildings_1'): 1500.0, ('Buildings', 'area', 'Buildings_2'): 6000.0, ('Coal', 'area', 'Coal_1'): 850.0, ('Coal', 'bar', 'Coal_2'): 850.0, ('Electricity', 'area', 'Electricity_1'): 3500.0, ('FED by sector', 'line', 'FED by sector_1'): 6000.0, ('FED by sector', 'bar', 'FED by sector_2'): 6000.0, ('Fuel consumption power sector', 'line', 'Fuel consumption power sector_1'): 4000.0, ('Hydrogen', 'area', 'Hydrogen_1'): 70.0, ('Hydrogen', 'line', 'Hydrogen_1'): 70.0, ('Hydrogen', 'bar', 'Hydrogen_2'): 70.0, ('Industry', 'area', 'Industry_1'): 3000.0, ('Industry', 'area', 'Industry_3'): 2000.0, ('Industry', 'bar', 'Industry_4'): 2000.0, ('Non-energy', 'area', 'Non-energy_1'): 900.0, ('Production', 'area', 'Production_1'): 15000.0, ('Production', 'line', 'Production_1'): 15000.0, ('Production', 'bar', 'Production_2'): 15000.0, ('Refining', 'line', 'Refining_1'): 3000.0, ('Refining', 'line', 'Refining_2'): 1500.0, ('Refining', 'bar', 'Refining_3'): 3500.0, ('Renewable fuels', 'area', 'Renewable fuels_1'): 25.0, ('Renewable fuels', 'bar', 'Renewable fuels_2'): 25.0, ('Renewable fuels VER2', 'area', 'Renewable fuels VER2_1'): 25.0, ('Renewable fuels VER2', 'bar', 'Renewable fuels VER2_2'): 25.0, ('Supply', 'area', 'Supply_1'): 15000.0, ('Supply', 'line', 'Supply_1'): 15000.0, ('Supply', 'bar', 'Supply_2'): 3500.0, ('Supply CN', 'area', 'Supply CN_1'): 4000.0, ('Supply CN', 'area', 'Supply CN_3'): 15000.0, ('Supply CN', 'area', 'Supply CN_4'): 15000.0, ('Supply CN', 'area', 'Supply CN_5'): 15000.0, ('Supply CN', 'line', 'Supply CN_3'): 15000.0, ('Supply CN', 'line', 'Supply CN_4'): 15000.0, ('Supply CN', 'line', 'Supply CN_5'): 6000.0, ('Supply CN', 'bar', 'Supply CN_2'): 4000.0, ('Supply REF', 'area', 'Supply REF_1'): 4000.0, ('Supply REF', 'area', 'Supply REF_3'): 15000.0, ('Supply REF', 'area', 'Supply REF_4'): 15000.0, ('Supply REF', 'area', 'Supply REF_5'): 15000.0, ('Supply REF', 'line', 'Supply REF_3'): 15000.0, ('Supply REF', 'line', 'Supply REF_4'): 15000.0, ('Supply REF', 'line', 'Supply REF_5'): 6000.0, ('Supply REF', 'bar', 'Supply REF_2'): 4000.0, ('TFC by fuel', 'area', 'TFC by fuel_1'): 6000.0, ('TPES Coal by type', 'line', 'TPES Coal by type_1'): 300.0, ('TPES Coal by type', 'line', 'TPES Coal by type_2'): 250.0, ('TPES Coal by type', 'line', 'TPES Coal by type_3'): 250.0, ('Transport', 'area', 'Transport_1'): 2500.0, ('Transport', 'area', 'Transport_3'): 6000.0, ('Transport', 'line', 'Transport_1'): 2500.0, ('Transport', 'bar', 'Transport_2'): 2500.0, ('Transport', 'bar', 'Transport_4'): 6000.0}
 
 #%%
