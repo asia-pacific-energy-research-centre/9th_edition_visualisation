@@ -17,8 +17,8 @@ def data_checking_warning_or_error(message):
         print(message)
 
 
-USE_ECONOMY_ID = False
-ECONOMY_ID = '19_THA'
+USE_ECONOMY_ID = True
+ECONOMY_ID = '19_THA'#'20_USA'#08_JPN
 
 #######################################################
 #CONFIG PREPARATION
@@ -76,7 +76,7 @@ colours_dict = colours_dict.set_index(colours_dict.columns[0]).to_dict()[colours
 # Start of the process
 for file in charts_mapping_files:
     # Extract the economy code from the file name
-    economy_code = file.split('_')[3]  
+    economy_code = file.split('_')[4] + '_'+file.split('_')[5]  #this should be changed to be more robust, but for now it works
     
     # Check if the single economy mode is enabled and if the current economy matches the selected economy
     if not USE_ECONOMY_ID or (USE_ECONOMY_ID and economy_code == ECONOMY_ID):
