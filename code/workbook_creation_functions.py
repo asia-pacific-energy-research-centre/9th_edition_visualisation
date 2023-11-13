@@ -172,6 +172,9 @@ def format_table(table,plotting_names_order,plotting_name_to_label_dict):
     #extract useful info from df before removing it (as we dont want to show it in the xlsx table)
     aggregate_column = table['aggregate_column'].iloc[0]
     plotting_column = table['plotting_column'].iloc[0]
+    aggregate_column_name = table['aggregate_column_name'].iloc[0]
+    plotting_column_name = table['plotting_column_name'].iloc[0]
+    
     chart_types = np.sort(table['chart_type'].unique())
     table_id = table['table_id'].iloc[0]
     
@@ -179,7 +182,7 @@ def format_table(table,plotting_names_order,plotting_name_to_label_dict):
     table = table[table['chart_type']==chart_types[0]]
     
     #then drop these columns
-    table = table.drop(columns = ['aggregate_column', 'plotting_column', 'chart_type','table_id'])
+    table = table.drop(columns = ['aggregate_column_name', 'plotting_column_name', 'chart_type','table_id'])
     
     #format some cols:
     num_cols = len(table.columns)
@@ -195,10 +198,20 @@ def format_table(table,plotting_names_order,plotting_name_to_label_dict):
         table.rename(columns = {plotting_column:'Fuel', aggregate_column:'Sector'}, inplace = True)
         plotting_column = 'Fuel'
         aggregate_column = 'Sector'
-    else:
+    elif plotting_column == 'sectors_plotting':
         table.rename(columns = {plotting_column:'Sector', aggregate_column:'Fuel'}, inplace = True)
         plotting_column = 'Sector'
         aggregate_column = 'Fuel'
+    elif plotting_column == 'emissions_plotting':#emissions plotting should probably be by sector and fuels?
+        pass
+        # table.rename(columns = {plotting_column:'Fuel', aggregate_column:'Sector'}, inplace = True)
+        # plotting_column = 'Emission'
+        # aggregate_column = 'Sector'
+    elif plotting_column == 'capacity_plotting':#i guess this can just be based on sectors?
+        pass
+        # table.rename(columns = {plotting_column:'Sector', aggregate_column:'Fuel'}, inplace = True)
+        # plotting_column = 'Sector'
+        # aggregate_column = 'Fuel'
         
     #convert plotting column and aggregate columns names to labels if any of them need converting:
     table[plotting_column] = table[plotting_column].map(plotting_name_to_label_dict)#todo test i dont delete data here
@@ -529,7 +542,7 @@ def order_sheets(workbook, plotting_specifications, sheets):
     return workbook
 
 
-def get_plotting_name(row):
+def get_plotting_name(row):#TODO MAKE THIS WORK FOR EMISSIONS AND CAPACITY
     if row['plotting_column'] == 'fuels_plotting':
         return row['fuels_plotting']
     elif row['plotting_column'] == 'sectors_plotting':

@@ -126,7 +126,7 @@ for file in charts_mapping_files:
             sheet_data = sheet_data.drop(['economy','sheet_name'], axis=1)
 
             #pivot the data and create order of cols so it is fsater to create tables
-            sheet_data = sheet_data.pivot(index=['table_number', 'chart_type', 'sectors_plotting', 'fuels_plotting', 'plotting_column', 'aggregate_column', 'scenario', 'unit', 'table_id'], columns='year', values='value')
+            sheet_data = sheet_data.pivot(index=['source', 'table_number', 'chart_type','plotting_column_name', 'plotting_column','aggregate_column_name', 'aggregate_column', 'scenario', 'unit', 'table_id'], columns='year', values='value')
             # #potentially here we get nas from missing years for certain rows, so replace with 0
             # sheet_data = sheet_data.fillna(0)#decided against it because it seems the nas are useful
             sheet_data = sheet_data.reset_index()

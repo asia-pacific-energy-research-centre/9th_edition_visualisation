@@ -1,7 +1,7 @@
 
 #import data from input_data/model_df_wide_20230420.csv. This is the data from the concatenation of all data for the 9th edition modelling (created in https://github.com/asia-pacific-energy-research-centre/Outlook9th_EBT). 
 #this data is used to create the data that is used in the charts, which is saved in intermediate_data/data/data_mapped_to_plotting_names_9th.pkl
-
+#%%
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -9,6 +9,7 @@ from datetime import datetime
 import os
 import sys
 import glob
+import re
 STRICT_DATA_CHECKING = False
 def data_checking_warning_or_error(message):
     if STRICT_DATA_CHECKING:
@@ -19,7 +20,7 @@ def data_checking_warning_or_error(message):
 import mapping_functions
       
 
-def map_9th_data_to_plotting_template_handler(FILE_DATE_ID, ECONOMY_ID, RAISE_ERROR=False, USE_ECONOMY_ID=True):
+def map_9th_data_to_plotting_template_handler(FILE_DATE_ID, ECONOMY_ID, RAISE_ERROR=False, sources = ['energy', 'capacity', 'emissions']):
     """Maps the 9th edition data to the plotting template. Many of the functions in this file are from mapping_functions.py
 
     Args:
@@ -33,9 +34,6 @@ def map_9th_data_to_plotting_template_handler(FILE_DATE_ID, ECONOMY_ID, RAISE_ER
                                       If set to True, the function will halt on encountering any inconsistencies. 
                                       Defaults to False.
                                       
-        USE_ECONOMY_ID (bool, optional): Flag to indicate whether to use ECONOMY_ID to filter input files. 
-                                         If set to False, will iterate through all files in the input directory.
-                                         Defaults to True.
                
     Raises:
         Exception: If no files are found or if multiple files are found for a single economy when USE_ECONOMY_ID is True.
@@ -45,39 +43,58 @@ def map_9th_data_to_plotting_template_handler(FILE_DATE_ID, ECONOMY_ID, RAISE_ER
         - DataFrames are manipulated in wide and tall formats for ease of computation.
         - Validation checks are done to ensure data integrity and schema conformity.
     """
-
     
-    def load_data_to_df(file_path, df_list):
-        if file_path.endswith(('.xlsx', '.xls')):
-            df_list.append(pd.read_excel(file_path))
-        elif file_path.endswith('.csv'):
-            df_list.append(pd.read_csv(file_path))
-        else:
-            print(f"Unsupported file format for {file_path}")
-
-    # Initialize variables
-    all_file_paths = []
-    all_model_df_wides = []
-    file_pattern = '../input_data/'
-
-    # Fetch file paths based on the configuration
-    if USE_ECONOMY_ID:
-        all_file_paths = glob.glob(f'{file_pattern}{ECONOMY_ID}/*.*')
-    else:
-        for root, dirs, files in os.walk(file_pattern):
+    def find_and_load_latest_data_for_all_sources(ECONOMY_ID, sources):
+        # Initialize variables
+        all_file_paths = []
+        all_model_df_wides = []
+        folder =f'../input_data/{ECONOMY_ID}/'
+        all_model_df_wides_dict = {}
+        # Fetch file paths based on the configuration
+    
+        for root, dirs, files in os.walk(folder):
             all_file_paths.extend(glob.glob(os.path.join(root, "*.*")))
 
-    # Check if files are found
-    if not all_file_paths:
-        raise Exception(f"No file found for {file_pattern}")
+        # Check if files are found
+        if not all_file_paths:
+            raise Exception(f"No file found for {folder}")
 
-    # Load data into DataFrames
-    for file_path in all_file_paths:
-        load_data_to_df(file_path, all_model_df_wides)
+        #find latest files for each source:
+        all_files_with_source = []
+        for source in sources:
+            all_file_paths_source = [file_path for file_path in all_file_paths if source in os.path.basename(file_path)]
+            all_files_with_source = all_files_with_source + all_file_paths_source
+            if len(all_file_paths_source) == 0:
+                print(f'No file found for {source}')
+            #find file with latest file date id using find_most_recent_file_date_id(files)
+            file_path = find_most_recent_file_date_id(all_file_paths_source)
+            all_model_df_wides_dict[source] = file_path
+            if file_path is None:
+                print(f'No latest date id was idenitfied for {source} files')
+            
+        # Check if there are any files_missing_source
+        files_missing_source = [file_path for file_path in all_file_paths if file_path not in all_files_with_source]
+        if len(files_missing_source) > 0:
+            print(f'The following files were not identified as an energy, capacity or emissions file: {files_missing_source}')
+        
+        def load_data_to_df(file_path, df_list):
+            if file_path.endswith(('.xlsx', '.xls')):
+                df_list.append(pd.read_excel(file_path))
+            elif file_path.endswith('.csv'):
+                df_list.append(pd.read_csv(file_path))
+            else:
+                breakpoint()
+                raise Exception(f"Unsupported file format for {file_path}")
 
-    # Check if multiple files exist for a single economy
-    if USE_ECONOMY_ID and len(all_model_df_wides) > 1:
-        raise Exception(f'More than one file found for {file_pattern}. Only one output workbook can be created per economy.')
+        # Load data into DataFrames and
+        for source in all_model_df_wides_dict.keys():
+            file_path = all_model_df_wides_dict[source]
+            load_data_to_df(file_path, all_model_df_wides_dict[source])
+            
+        return all_model_df_wides_dict
+    
+    all_model_df_wides_dict = find_and_load_latest_data_for_all_sources(ECONOMY_ID, sources)
+            
     ##############################################################################
 
     #import mappings:
@@ -89,6 +106,12 @@ def map_9th_data_to_plotting_template_handler(FILE_DATE_ID, ECONOMY_ID, RAISE_ER
     # sector_plotting_mappings.columns Index(['sectors_plotting', 'sectors', 'sub1sectors', 'sub2sectors'], dtype='object')
 
     fuel_plotting_mappings = pd.read_excel('../config/master_config.xlsx', sheet_name='fuels_plotting')
+    
+    capacity_plotting_mappings = pd.read_excel('../config/master_config.xlsx', sheet_name='capacity_plotting')
+    
+    emissions_fuel_plotting_mappings = pd.read_excel('../config/master_config.xlsx', sheet_name='emissions_fuel_plotting')
+    
+    emissions_sector_plotting_mappings = pd.read_excel('../config/master_config.xlsx', sheet_name='emissions_sector_plotting')
     # fuel_plotting_mappings.columns Index(['fuels_plotting', 'fuels', 'subfuels'], dtype='object')
 
     transformation_sector_mappings = pd.read_excel('../config/master_config.xlsx', sheet_name='transformation_sector_mappings')
@@ -117,12 +140,47 @@ def map_9th_data_to_plotting_template_handler(FILE_DATE_ID, ECONOMY_ID, RAISE_ER
     #FORMAT THE MAPPINGS
     #for fuel and sector mappings we will extract the most sepcific reference for each row and then record it's column in a column called 'column'.
     #so for example, where we want to extract the reference for the sectors_plotting value Agriculture, we find the rightmost column that is not na (this is the msot specific column), set 'reference_sector' to that value in the most specific column, and then the column to the name of the most specific column
-
-    new_sector_plotting_mappings, new_fuel_plotting_mappings = mapping_functions.format_plotting_mappings(sector_plotting_mappings, fuel_plotting_mappings)
-
-    new_charts_mapping = mapping_functions.format_charts_mapping(charts_mapping)
+    all_plotting_mapping_dicts = {'sector_energy': {'df': sector_plotting_mappings, 
+                                       'columns': ['sub2sectors', 'sub1sectors', 'sectors'],
+                                       'source': 'energy',
+                                       'plotting_name_column': 'sectors_plotting'},
+                            'fuel_energy': {'df': fuel_plotting_mappings,
+                                        'columns': ['subfuels', 'fuels'],
+                                        'source': 'energy',
+                                        'plotting_name_column': 'fuels_plotting'},
+                            'emissions_sector': {'df': emissions_sector_plotting_mappings,
+                                        'columns': ['fuels', 'subfuels'],
+                                        'source': 'emissions',
+                                        'plotting_name_column': 'emissions_sector_plotting'},
+                            'emissions_fuel': {'df': emissions_fuel_plotting_mappings,
+                                        'columns': ['fuels', 'subfuels'],
+                                        'source': 'emissions',
+                                        'plotting_name_column': 'emissions_fuel_plotting'},
+                            'capacity': {'df': capacity_plotting_mappings,
+                                        'columns': ['sub2sectors', 'sub1sectors', 'sectors'],
+                                        'source': 'capacity',
+                                        'plotting_name_column': 'capacity_plotting'}
+                            }    
+    plotting_names = []
+    for plotting_mapping in all_plotting_mapping_dicts.keys():
+        plotting_mapping_dict = all_plotting_mapping_dicts[plotting_mapping]
+        columns =  plotting_mapping_dict['columns']
+        df = plotting_mapping_dict['df']
+        source = plotting_mapping_dict['source']
+        plotting_name_column = plotting_mapping_dict['plotting_name_column']
+        df = mapping_functions.format_plotting_mappings(df, columns, source, plotting_name_column)
+        all_plotting_mapping_dicts[plotting_mapping]['df'] = df
+        plotting_names = plotting_names + df['plotting_name'].unique().tolist() 
+        
+    plotting_names = set(plotting_names)
+    source_and_aggregate_name_column_to_plotting_name_column_mapping_dict = {}
+    source_and_aggregate_name_column_to_plotting_name_column_mapping_dict['energy'] = {'sectors_plotting':'fuels_plotting', 'fuels_plotting':'sectors_plotting'}
+    source_and_aggregate_name_column_to_plotting_name_column_mapping_dict['capacity'] = {'capacity_plotting':'capacity_plotting'}
+    source_and_aggregate_name_column_to_plotting_name_column_mapping_dict['emissions'] = {'emissions_sector_plotting':'emissions_fuel_plotting', 'emissions_fuel_plotting':'emissions_sector_plotting'}
+    
+    new_charts_mapping = mapping_functions.format_charts_mapping(charts_mapping, source_and_aggregate_name_column_to_plotting_name_column_mapping_dict)
     mapping_functions.save_plotting_names_order(charts_mapping,FILE_DATE_ID)
-    plotting_names = set(new_sector_plotting_mappings['sectors_plotting'].unique().tolist() + new_fuel_plotting_mappings['fuels_plotting'].unique().tolist())
+    #new_sector_plotting_mappings['sectors_plotting'].unique().tolist() + new_fuel_plotting_mappings['fuels_plotting'].unique().tolist())
     #CHECKING
     #check that there are no plotting names that are duplcaited between fuels and sectors:
     # plotting_names = mapping_functions.check_for_duplicates_in_plotting_names(new_sector_plotting_mappings, new_fuel_plotting_mappings, RAISE_ERROR=RAISE_ERROR)
@@ -134,27 +192,34 @@ def map_9th_data_to_plotting_template_handler(FILE_DATE_ID, ECONOMY_ID, RAISE_ER
     #############################
     #PROCESS THE DATA
     #############################
-    for model_df_wide in all_model_df_wides:
+    
+    for source in all_model_df_wides_dict.keys():
+        filename = all_model_df_wides_dict[source][0]
+        model_df_wide = all_model_df_wides_dict[source][1]
         #because we have issues with data being too large (mappings can possibly increase size of data too), we will run through each eocnomy in the model_df_wide and save it as a pickle separately.
         # for economy_x in model_df_wide['economy'].unique():
         #     model_df_wide_economy = model_df_wide[model_df_wide['economy'] == economy_x]
+        
+        #check if the data is for energy, capacity or emissions by checking the name of the file (if it contains energy, capacity or emissions in the filename)
+        
         #NOTE THAT WE ARE ASSUMING THAT EACH MODEL DF WILL ONLY CONTAIN ONE ECONOMY. THIS IS TRUE FOR THE 9TH EDITION BUT MAY NOT BE TRUE FOR FUTURE EDITIONS
         economy_x = model_df_wide['economy'].unique()[0]
-        
+        model_df_wide['source'] = source
         #make model_df_wide_economy into model_df_tall
         #fgirst grab object copls as the index cols
         index_cols = model_df_wide.select_dtypes(include=['object', 'bool']).columns
         #now melt the data
         model_df_tall = pd.melt(model_df_wide, id_vars=index_cols, var_name='year', value_name='value')
-
         # Convert year to int
         model_df_tall['year'] = model_df_tall['year'].astype(int)
 
-        # Filter to only take the lowest level values
-        model_df_tall = model_df_tall[((model_df_tall['year'] <= 2020) & (model_df_tall['subtotal_historic'] == False)) | ((model_df_tall['year'] > 2020) & (model_df_tall['subtotal'] == False))]
+        # Filter to only take the lowest level values. these differ based on if the data was based on the ESTO data file or actually projected data (since the projections are based on what sectors/fuels the modellers wanted to model, which can be more or less detailed than the ESTO data)
+        # model_df_tall = model_df_tall[((model_df_tall['year'] <= 2020) & (model_df_tall['subtotal_layout'] == False)) | ((model_df_tall['year'] > 2020) & (model_df_tall['subtotal_results'] == False))]
+        #drop where either subtotal_layout or subtotal_results is true
+        model_df_tall = model_df_tall[(model_df_tall['subtotal_layout'] == False) & (model_df_tall['subtotal_results'] == False)]
 
         # Dropping unnecessary columns
-        model_df_tall = model_df_tall.drop(columns=['subtotal_historic', 'subtotal_predicted', 'subtotal'])
+        model_df_tall = model_df_tall.drop(columns=['subtotal_layout', 'subtotal_results'])
 
         #data details:
         #Columns: model_df_wide.columns
@@ -188,34 +253,61 @@ def map_9th_data_to_plotting_template_handler(FILE_DATE_ID, ECONOMY_ID, RAISE_ER
         #############################
         #EXTRACT PLOTTING NAMES FROM MODEL DATA
         #and now these mappings can be joined to the model_df and used to extract the data needed for each plotting_name. it will create a df with only the fuel or sectors columns: fuels_plotting and sectors_plotting, which contains defintiions of all the possible combinations of fuels_plotting and sectors_plotting we could have.. i think.
-        
-        model_df_tall_sectors = mapping_functions.merge_sector_mappings(model_df_tall, new_sector_plotting_mappings,sector_plotting_mappings, RAISE_ERROR=RAISE_ERROR)
+        if source.isin(['energy', 'emissions']):
+            #energy and emissions are mapped to both sector and fuel columns so we needed to identify the most specific sector and fuel columns for each row and then join on them. this requires two processes below:
+            new_sector_plotting_mappings = all_plotting_mapping_dicts['sector'+'_'+source]['df']
+            model_df_tall_sectors = mapping_functions.merge_sector_mappings(model_df_tall, new_sector_plotting_mappings,sector_plotting_mappings, source, RAISE_ERROR=RAISE_ERROR)
+            breakpoint()
             
-        model_df_tall_sectors_fuels = mapping_functions.merge_fuel_mappings(model_df_tall_sectors, new_fuel_plotting_mappings,fuel_plotting_mappings, RAISE_ERROR=RAISE_ERROR)#losing access to 19_total because of filtering for lowest level values. not sure how to avoid
-
-        #call it plotting_df
-        plotting_df = model_df_tall_sectors_fuels.copy()
+            new_fuel_plotting_mappings = all_plotting_mapping_dicts['fuel'+'_'+source]['df']
+            model_df_tall_sectors_fuels = mapping_functions.merge_fuel_mappings(model_df_tall_sectors, new_fuel_plotting_mappings,fuel_plotting_mappings, source, RAISE_ERROR=RAISE_ERROR)#losing access to 19_total because of filtering for lowest level values. not sure how to avoid
+            # model_df_tall = model_df_tall_sectors_fuels.copy()
+            breakpoint()
+        elif source == 'capacity':
+            #capacity is just based off sectors so its relatively simple
+            new_capacity_plotting_mappings = all_plotting_mapping_dicts['capacity']['df']
+            model_df_tall_capacity = mapping_functions.merge_capacity_mappings(model_df_tall, new_capacity_plotting_mappings,capacity_plotting_mappings, source, RAISE_ERROR=RAISE_ERROR)
+            breakpoint()
+            # model_df_tall = model_df_tall_capacity.copy()
+        
+        # new_emissions_plotting_mappings = all_plotting_mapping_dicts['emissions']['df']
+        # model_df_tall_emissions = mapping_functions.merge_emissions_mappings(model_df_tall, new_emissions_plotting_mappings,emissions_plotting_mappings, RAISE_ERROR=RAISE_ERROR)
+        # breakpoint()
+        
+        # #call it plotting_df
+        # plotting_df = model_df_tall_sectors_fuels.copy()
         #############################
         #TRANSFORMATION MAPPING
         #next step will include creating new datasets which create aggregations of data to match some of the categories plotted in the 8th edition. 
         #for example we need an aggregation of the transformation sector input and output values to create entries for Power, Refining or Hydrogen
         # breakpoint()#we get nas in the transformation sector mappings. why??
-        input_transformation, output_transformation = mapping_functions.merge_transformation_sector_mappings(model_df_tall, transformation_sector_mappings,new_fuel_plotting_mappings,RAISE_ERROR=RAISE_ERROR)
+        if source.isin(['energy']):
+            input_transformation, output_transformation = mapping_functions.merge_transformation_sector_mappings(model_df_tall, transformation_sector_mappings,new_fuel_plotting_mappings,RAISE_ERROR=RAISE_ERROR)
+            #concat all the dataframes together?
+            plotting_df = pd.concat([model_df_tall_sectors_fuels, input_transformation, output_transformation])
+        elif source == 'capacity':
+            plotting_df = model_df_tall_capacity.copy()
+        elif source == 'emissions':
+            plotting_df = model_df_tall_sectors_fuels.copy()
+        else:
+            breakpoint()
+            raise Exception('source is not valid')  
+        
         # #identify where fuels_plotting is Solar and year is 2003:
         # input_transformation.loc[(input_transformation.fuels_plotting == 'Solar') & (input_transformation.year == 2003)]
         # #look for wehre subfuels is 12_01_of_which_photovoltaics and year is 2003
         # model_df_tall.loc[(model_df_tall.subfuels == '12_01_of_which_photovoltaics') & (model_df_tall.year == 2003)]
         
         #Thats it. We will stack this with the other dataframes later on. 
-        plotting_df = pd.concat([plotting_df, input_transformation, output_transformation])
+        # plotting_df = pd.concat([plotting_df, input_transformation, output_transformation])
         
         #drop all cols excet ['scenarios','economy', 'year','value','fuels_plotting', 'sectors_plotting']
-        plotting_df= plotting_df[['scenarios','economy', 'year','value','fuels_plotting', 'sectors_plotting']]
+        # plotting_df= plotting_df[['scenarios','economy', 'year','value','fuels_plotting', 'sectors_plotting']]
+        # plotting_df = plotting_df[['scenarios','economy', 'year','value','aggregate_name_column', 'aggregate_name', 'plotting_name_column', 'plotting_name']]#is this right? should plotting name not be something different, it seems to be the same as aggregate name. should it not be reference name or reference column
         #now join with charts mapping on fuel and sector plotting names to get the plotting names for the transformation sectors
-        economy_new_charts_mapping = new_charts_mapping.merge(plotting_df, how='left', on=['fuels_plotting', 'sectors_plotting']) 
+        economy_new_charts_mapping = new_charts_mapping.merge(plotting_df, how='left', on=['aggregate_name_column', 'aggregate_name', 'plotting_name_column', 'plotting_name']) #is this gonna be right
         
-
-        economy_new_charts_mapping = economy_new_charts_mapping.groupby(['economy','table_number','sheet_name', 'chart_type', 'sectors_plotting', 'fuels_plotting', 'plotting_column', 'aggregate_column', 'scenarios', 'year', 'table_id']).sum().reset_index()
+        economy_new_charts_mapping = economy_new_charts_mapping.groupby(['source', 'economy','table_number','sheet_name', 'chart_type', 'plotting_name_column', 'plotting_name','aggregate_name_column', 'aggregate_name', 'scenarios', 'year', 'table_id']).sum().reset_index()
         
         #############################
         #now we can extract the data for each graph we need to produce (as stated in the charts_mapping)
@@ -228,30 +320,63 @@ def map_9th_data_to_plotting_template_handler(FILE_DATE_ID, ECONOMY_ID, RAISE_ER
         #TEST WE COULD DELETE
         #now we have a dataframe called missing_data which contains the data we dont have mapped, yet. This shouldnt happen and i think i dont need this code. but i will leave it here for now just in case.
         if len(missing_data) > 0:
-            data_checking_warning_or_error(('There are ' + str(len(missing_data)) + ' missing values in the plotting_df. These are for: ', missing_data[['table_id']].drop_duplicates()))
-        else:
-            print('There are no missing values in the plotting_df')
-
+            data_checking_warning_or_error(f'There are {str(len(missing_data))} missing values in the plotting_df for {source}. These are for: {missing_data[["table_id"]].drop_duplicates()}')
         
         #check for duplicates. not sure why there are duplicates, but there are. so drop them
         #I DONT THINK THESE ARE AN ISSUE, THEY JUST NEED TO BE SUMMED UP?
         if len(economy_new_charts_mapping[economy_new_charts_mapping.duplicated()]) > 0:
-            print('There are ' + str(len(economy_new_charts_mapping[economy_new_charts_mapping.duplicated()])) + ' duplicates in the economy_new_charts_mapping dataframe')
+            print('There are ' + str(len(economy_new_charts_mapping[economy_new_charts_mapping.duplicated()])) + ' duplicates in the economy_new_charts_mapping dataframe for ' + source)
             economy_new_charts_mapping = economy_new_charts_mapping.drop_duplicates()
-        else:
-            print('There are no duplicates in the economy_new_charts_mapping dataframe')
         
         #TEST WE COULD DELETE over
         #TEMP:
         #set unit to 'Petajoules'. for now we dont have any other units so can set it here but may have to change this later, depending on how we deal with that new data (eg activity data.)
-        economy_new_charts_mapping['unit'] = 'Petajoules'
+        unit_dict = {'energy': 'Petajoules', 'capacity': 'GW', 'emissions': 'MtCO2e'}
+        economy_new_charts_mapping['unit'] = economy_new_charts_mapping['source'].map(unit_dict)
         #rename scenarios to scenario
         economy_new_charts_mapping.rename(columns={'scenarios':'scenario'}, inplace=True)
         #set the year column to int
         economy_new_charts_mapping.year = economy_new_charts_mapping.year.astype(int)
         #############################
         # Save the processed data to a pickle file
-        economy_new_charts_mapping.to_pickle(f'../intermediate_data/data/economy_charts_mapping_9th_{economy_x}_{FILE_DATE_ID}.pkl')
-        print(f"Data for {economy_x} saved.")
+        economy_new_charts_mapping.to_pickle(f'../intermediate_data/data/charts_mapping_{source}_{economy_x}_{FILE_DATE_ID}.pkl')
+        print(f"Data for {economy_x} {source} saved.")
 
+def find_most_recent_file_date_id(files):
+    """Find the most recent file in a directory based on the date ID in the filename."""
 
+    # Initialize variables to keep track of the most recent file and date
+    most_recent_date = datetime.min
+    most_recent_file = None
+
+    # Define a regex pattern for the date ID (format YYYYMMDD)
+    date_pattern = re.compile(r'(\d{8})')
+    
+    # Loop through the files to find the most recent one
+    for file in files:
+        # Use regex search to find the date ID in the filename
+        match = date_pattern.search(file)
+        if match:
+            date_id = match.group(1)
+            # Parse the date ID into a datetime object
+            try:
+                file_date = datetime.strptime(date_id, '%Y%m%d')
+                # If this file's date is more recent, update the most recent variables
+                if file_date > most_recent_date:
+                    most_recent_date = file_date
+                    most_recent_file = file
+            except ValueError:
+                # If the date ID is not in the expected format, skip this file
+                continue
+
+    # Output the most recent file
+    if most_recent_file:
+        print(f"The most recent file is: {most_recent_file} with the date ID {most_recent_date.strftime('%Y%m%d')}")
+    else:
+        print("No files found with a valid date ID.")
+    return most_recent_file
+#%%
+FILE_DATE_ID = '20231110'
+ECONOMY_ID = '19_THA'
+map_9th_data_to_plotting_template_handler(FILE_DATE_ID, ECONOMY_ID, RAISE_ERROR=False, USE_ECONOMY_ID=True)
+#%%
