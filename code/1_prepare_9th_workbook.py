@@ -243,7 +243,7 @@ for file in charts_mapping_files:
                 table.to_excel(writer, sheet_name = sheet, index = False, startrow = current_row)
                 current_row += len(table.index) + space_under_tables + column_row
                 num_table_rows = len(table.index)
-                ########################
+                ######################## 
                 #identify and format charts we need to create
                 chart_positions = workbook_creation_functions.identify_chart_positions(current_row,num_table_rows,space_under_tables,column_row, space_above_charts, space_under_charts, plotting_specifications,chart_types)
                 # print('max_and_min_values_dict', max_and_min_values_dict, 'for sheet', sheet)
