@@ -6,7 +6,7 @@ import numpy as np
 import collections
 STRICT_DATA_CHECKING = False
         
-def format_plotting_mappings(plotting_mappings_df, columns, source, plotting_name_column, strict_data_checking=False):
+def format_plotting_mappings(plotting_mappings_df, columns, plotting_name_column, strict_data_checking=False):
     # Initialize the new plotting mappings data frame with the necessary columns
     new_plotting_mappings = pd.DataFrame(columns=['plotting_name','plotting_name_column', 'reference_name', 'reference_name_column'])
 
@@ -19,7 +19,8 @@ def format_plotting_mappings(plotting_mappings_df, columns, source, plotting_nam
             'plotting_name': valid_rows[plotting_name_column],
             'plotting_name_column': plotting_name_column,
             'reference_name': valid_rows[col],
-            'reference_name_column': col
+            'reference_name_column': col,
+            'source': valid_rows['source']
         })#plotting_name ?
 
         # Append the new rows to the new plotting mappings data frame
@@ -27,9 +28,6 @@ def format_plotting_mappings(plotting_mappings_df, columns, source, plotting_nam
 
         # Remove the processed rows to avoid double counting
         plotting_mappings_df = plotting_mappings_df[plotting_mappings_df[col].isna()]
-
-    #label the soruce
-    new_plotting_mappings['source'] = source
     
     # Check for NAs in the entire data frame
     if new_plotting_mappings.isna().sum().sum() > 0 and strict_data_checking:
@@ -205,7 +203,7 @@ def check_missing_plotting_name_values_when_merging_mappings_to_modelled_data(co
         print('There are plotting_name values for {} that have been lost in the merge. These are: {}'.format(plotting_name_column, missing_in_new_model))#This could be because they dont match any original categories, or *unlikely* they arent used by any of the sectors referenced in sectors plotting
     breakpoint()
     
-def merge_sector_mappings(model_df_tall, new_sector_plotting_mappings, sector_plotting_mappings, source, RAISE_ERROR=True):
+def merge_sector_mappings(model_df_tall, new_sector_plotting_mappings, sector_plotting_mappings, RAISE_ERROR=True):
     new_model_df_tall = model_df_tall.copy()
     new_model_df_tall = new_model_df_tall[0:0]  # Empty it
     for unique_col in new_sector_plotting_mappings['reference_name_column'].unique():#i think reference column will always be 'sectors_plotting' . maybve can remove this
@@ -237,7 +235,7 @@ def merge_sector_mappings(model_df_tall, new_sector_plotting_mappings, sector_pl
     return new_model_df_tall
 
 
-def merge_fuel_mappings(model_df_tall_sectors, new_fuel_plotting_mappings,fuel_plotting_mappings, source, RAISE_ERROR=True):
+def merge_fuel_mappings(model_df_tall_sectors, new_fuel_plotting_mappings,fuel_plotting_mappings, RAISE_ERROR=True):
     #using the plotting mappings which were created in the format_plotting_mappings function, we need to merge these onto the model_df_tall using the reference_name_column and reference_fuel columns, where the reference column specifies the column to find the reference fuel in the model_df_tall. This is the same as the merge_sector_mappings function, But importantly, the result from merge_sector_mappings is used instead of the model_df_tall, and so the output of this will contain the sectors_plotting column
     #now we join on the fuels mappigns:
     new_new_model_df_tall = model_df_tall_sectors.copy()
@@ -308,8 +306,6 @@ def merge_transformation_sector_mappings(model_df_tall, transformation_sector_ma
     new_model_df_transformation = new_model_df_transformation.drop(columns=['fuels', 'subfuels','reference_fuel'])
     
     return input_transformation, output_transformation
-
-def merge_emissions_mappings
 
 def merge_capacity_mappings(model_df_tall, new_capacity_plotting_mappings, capacity_plotting_mappings, RAISE_ERROR=True):
     """grab data from the original model df_tall for capacity. since we are reporting capacity by sector we search for rows which match the sectors_plotting column in the capacity_plotting_mappings dataframe. This is realtively simple because we only need to do it on sectors.

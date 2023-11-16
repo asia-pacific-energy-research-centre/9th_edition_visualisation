@@ -34,9 +34,6 @@ def map_9th_data_to_plotting_template_handler(FILE_DATE_ID, ECONOMY_ID, RAISE_ER
                                       If set to True, the function will halt on encountering any inconsistencies. 
                                       Defaults to False.
                                       
-               
-    Raises:
-        Exception: If no files are found or if multiple files are found for a single economy when USE_ECONOMY_ID is True.
         
     Notes:
         - The function uses various auxiliary mappings stored in Excel sheets for data transformation.
@@ -68,7 +65,7 @@ def map_9th_data_to_plotting_template_handler(FILE_DATE_ID, ECONOMY_ID, RAISE_ER
                 print(f'No file found for {source}')
             #find file with latest file date id using find_most_recent_file_date_id(files)
             file_path = find_most_recent_file_date_id(all_file_paths_source)
-            all_model_df_wides_dict[source] = file_path
+            all_model_df_wides_dict[source] = [file_path]
             if file_path is None:
                 print(f'No latest date id was idenitfied for {source} files')
             
@@ -77,19 +74,19 @@ def map_9th_data_to_plotting_template_handler(FILE_DATE_ID, ECONOMY_ID, RAISE_ER
         if len(files_missing_source) > 0:
             print(f'The following files were not identified as an energy, capacity or emissions file: {files_missing_source}')
         
-        def load_data_to_df(file_path, df_list):
+        def load_data_to_df(file_path):
             if file_path.endswith(('.xlsx', '.xls')):
-                df_list.append(pd.read_excel(file_path))
+                return pd.read_excel(file_path)
             elif file_path.endswith('.csv'):
-                df_list.append(pd.read_csv(file_path))
+                return pd.read_csv(file_path)
             else:
                 breakpoint()
                 raise Exception(f"Unsupported file format for {file_path}")
 
         # Load data into DataFrames and
         for source in all_model_df_wides_dict.keys():
-            file_path = all_model_df_wides_dict[source]
-            load_data_to_df(file_path, all_model_df_wides_dict[source])
+            file_path = all_model_df_wides_dict[source][0]
+            all_model_df_wides_dict[source].append(load_data_to_df(file_path))
             
         return all_model_df_wides_dict
     
@@ -109,9 +106,9 @@ def map_9th_data_to_plotting_template_handler(FILE_DATE_ID, ECONOMY_ID, RAISE_ER
     
     capacity_plotting_mappings = pd.read_excel('../config/master_config.xlsx', sheet_name='capacity_plotting')
     
-    emissions_fuel_plotting_mappings = pd.read_excel('../config/master_config.xlsx', sheet_name='emissions_fuel_plotting')
+    emissions_fuel_plotting_mappings = pd.read_excel('../config/master_config.xlsx', sheet_name='emissions_fuels_plotting')
     
-    emissions_sector_plotting_mappings = pd.read_excel('../config/master_config.xlsx', sheet_name='emissions_sector_plotting')
+    emissions_sector_plotting_mappings = pd.read_excel('../config/master_config.xlsx', sheet_name='emissions_sectors_plotting')
     # fuel_plotting_mappings.columns Index(['fuels_plotting', 'fuels', 'subfuels'], dtype='object')
 
     transformation_sector_mappings = pd.read_excel('../config/master_config.xlsx', sheet_name='transformation_sector_mappings')
@@ -149,7 +146,7 @@ def map_9th_data_to_plotting_template_handler(FILE_DATE_ID, ECONOMY_ID, RAISE_ER
                                         'source': 'energy',
                                         'plotting_name_column': 'fuels_plotting'},
                             'emissions_sector': {'df': emissions_sector_plotting_mappings,
-                                        'columns': ['fuels', 'subfuels'],
+                                        'columns': ['sub2sectors', 'sub1sectors', 'sectors'],
                                         'source': 'emissions',
                                         'plotting_name_column': 'emissions_sector_plotting'},
                             'emissions_fuel': {'df': emissions_fuel_plotting_mappings,
@@ -168,7 +165,7 @@ def map_9th_data_to_plotting_template_handler(FILE_DATE_ID, ECONOMY_ID, RAISE_ER
         df = plotting_mapping_dict['df']
         source = plotting_mapping_dict['source']
         plotting_name_column = plotting_mapping_dict['plotting_name_column']
-        df = mapping_functions.format_plotting_mappings(df, columns, source, plotting_name_column)
+        df = mapping_functions.format_plotting_mappings(df, columns,  plotting_name_column)
         all_plotting_mapping_dicts[plotting_mapping]['df'] = df
         plotting_names = plotting_names + df['plotting_name'].unique().tolist() 
         
@@ -256,11 +253,11 @@ def map_9th_data_to_plotting_template_handler(FILE_DATE_ID, ECONOMY_ID, RAISE_ER
         if source.isin(['energy', 'emissions']):
             #energy and emissions are mapped to both sector and fuel columns so we needed to identify the most specific sector and fuel columns for each row and then join on them. this requires two processes below:
             new_sector_plotting_mappings = all_plotting_mapping_dicts['sector'+'_'+source]['df']
-            model_df_tall_sectors = mapping_functions.merge_sector_mappings(model_df_tall, new_sector_plotting_mappings,sector_plotting_mappings, source, RAISE_ERROR=RAISE_ERROR)
+            model_df_tall_sectors = mapping_functions.merge_sector_mappings(model_df_tall, new_sector_plotting_mappings,sector_plotting_mappings, RAISE_ERROR=RAISE_ERROR)
             breakpoint()
             
             new_fuel_plotting_mappings = all_plotting_mapping_dicts['fuel'+'_'+source]['df']
-            model_df_tall_sectors_fuels = mapping_functions.merge_fuel_mappings(model_df_tall_sectors, new_fuel_plotting_mappings,fuel_plotting_mappings, source, RAISE_ERROR=RAISE_ERROR)#losing access to 19_total because of filtering for lowest level values. not sure how to avoid
+            model_df_tall_sectors_fuels = mapping_functions.merge_fuel_mappings(model_df_tall_sectors, new_fuel_plotting_mappings,fuel_plotting_mappings, RAISE_ERROR=RAISE_ERROR)#losing access to 19_total because of filtering for lowest level values. not sure how to avoid
             # model_df_tall = model_df_tall_sectors_fuels.copy()
             breakpoint()
         elif source == 'capacity':
@@ -331,7 +328,7 @@ def map_9th_data_to_plotting_template_handler(FILE_DATE_ID, ECONOMY_ID, RAISE_ER
         #TEST WE COULD DELETE over
         #TEMP:
         #set unit to 'Petajoules'. for now we dont have any other units so can set it here but may have to change this later, depending on how we deal with that new data (eg activity data.)
-        unit_dict = {'energy': 'Petajoules', 'capacity': 'GW', 'emissions': 'MtCO2e'}
+        unit_dict = {'energy': 'Petajoules', 'capacity': 'capacity', 'emissions': 'MtCO2e'}#TODO FIND SOMEWAY TO SET CPAACITY UNIT. PERHAPS SOURCE DOESNT NEED TO BE CPACITY, CAN BE GENERATION OR TRANSPORT STOCKS?
         economy_new_charts_mapping['unit'] = economy_new_charts_mapping['source'].map(unit_dict)
         #rename scenarios to scenario
         economy_new_charts_mapping.rename(columns={'scenarios':'scenario'}, inplace=True)
@@ -378,5 +375,5 @@ def find_most_recent_file_date_id(files):
 #%%
 FILE_DATE_ID = '20231110'
 ECONOMY_ID = '19_THA'
-map_9th_data_to_plotting_template_handler(FILE_DATE_ID, ECONOMY_ID, RAISE_ERROR=False, USE_ECONOMY_ID=True)
+map_9th_data_to_plotting_template_handler(FILE_DATE_ID, ECONOMY_ID, RAISE_ERROR=False)
 #%%
