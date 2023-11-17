@@ -31,6 +31,13 @@ def extract_max_and_min_values(data, max_and_min_values_dict, total_plotting_nam
                     subset.loc[subset['sectors_plotting'].isin(total_plotting_names), 'value'] = 0
                 elif subset.aggregate_column.iloc[0] == 'sectors_plotting':
                     subset.loc[subset['fuels_plotting'].isin(total_plotting_names), 'value'] = 0
+                elif subset.aggregate_column.iloc[0] == 'emissions_sectors_plotting':
+                    subset.loc[subset['emissions_fuels_plotting'].isin(total_plotting_names), 'value'] = 0 #TODO i think we might have issues with duplicated plotting namesbetweensources. perhaps need to use the id?
+                elif subset.aggregate_column.iloc[0] == 'emissions_fuels_plotting':
+                    subset.loc[subset['emissions_sectors_plotting'].isin(total_plotting_names), 'value'] = 0 #TODO i think we might have issues with duplicated plotting namesbetweensources. perhaps need to use the id?
+                elif subset.aggregate_column.iloc[0] == 'capacity_plotting':
+                    # subset.loc[subset['capacity_plotting'].isin(total_plotting_names), 'value'] = 0 #TODO i think we might have issues with duplicated plotting namesbetweensources. perhaps need to use the id?
+                    pass# i dont think we need to do anything here
                     
                 postive_values = subset[subset['value'] >= 0].copy()
                 negative_values = subset[subset['value'] <= 0].copy()
@@ -193,8 +200,12 @@ def format_table(table,plotting_names_order,plotting_name_to_label_dict):
     
     table = sort_table_rows_and_columns(table,table_id,plotting_names_order,aggregate_column,plotting_column,year_cols)
     
-    #rename fuels_plotting and sectors_plotting to Fuel and Sector respectively
+    #rename fuels_plotting, emissions_fuels_plotting and emissions_sectors_plotting, sectors_plotting, capacity_plotting to Fuel and Sector respectively
     if plotting_column == 'fuels_plotting':
+        table.rename(columns = {plotting_column:'Fuel', aggregate_column:'Sector'}, inplace = True)
+        plotting_column = 'Fuel'
+        aggregate_column = 'Sector'
+    elif plotting_column == 'emissions_fuels_plotting':
         table.rename(columns = {plotting_column:'Fuel', aggregate_column:'Sector'}, inplace = True)
         plotting_column = 'Fuel'
         aggregate_column = 'Sector'
@@ -202,16 +213,14 @@ def format_table(table,plotting_names_order,plotting_name_to_label_dict):
         table.rename(columns = {plotting_column:'Sector', aggregate_column:'Fuel'}, inplace = True)
         plotting_column = 'Sector'
         aggregate_column = 'Fuel'
-    elif plotting_column == 'emissions_plotting':#emissions plotting should probably be by sector and fuels?
-        pass
-        # table.rename(columns = {plotting_column:'Fuel', aggregate_column:'Sector'}, inplace = True)
-        # plotting_column = 'Emission'
-        # aggregate_column = 'Sector'
+    elif plotting_column == 'emissions_sectors_plotting':
+        table.rename(columns = {plotting_column:'Sector', aggregate_column:'Fuel'}, inplace = True)
+        plotting_column = 'Sector'
+        aggregate_column = 'Fuel'
     elif plotting_column == 'capacity_plotting':#i guess this can just be based on sectors?
-        pass
-        # table.rename(columns = {plotting_column:'Sector', aggregate_column:'Fuel'}, inplace = True)
-        # plotting_column = 'Sector'
-        # aggregate_column = 'Fuel'
+        table.rename(columns = {plotting_column:'Sector'}, inplace = True)#, aggregate_column:'Fuel'
+        plotting_column = 'Sector'
+        aggregate_column = np.nan#'Fuel'#TODO is this right?
         
     #convert plotting column and aggregate columns names to labels if any of them need converting:
     table[plotting_column] = table[plotting_column].map(plotting_name_to_label_dict)#todo test i dont delete data here
@@ -547,8 +556,15 @@ def get_plotting_name(row):#TODO MAKE THIS WORK FOR EMISSIONS AND CAPACITY
         return row['fuels_plotting']
     elif row['plotting_column'] == 'sectors_plotting':
         return row['sectors_plotting']
+    if row['plotting_column'] == 'emissions_fuels_plotting':
+        return row['emissions_fuels_plotting']
+    elif row['plotting_column'] == 'emissions_sectors_plotting':
+        return row['emissions_sectors_plotting']
+    elif row['plotting_column'] == 'capacity_plotting':
+        return row['capacity_plotting']
     else:
-        raise Exception('plotting_column must be either fuels_plotting or sectors_plotting')
+        breakpoint()
+        raise Exception('plotting_column doesnt match what was expected')
     
 
 def check_plotting_names_in_colours_dict(charts_mapping, colours_dict):
