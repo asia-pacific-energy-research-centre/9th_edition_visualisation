@@ -5,7 +5,7 @@ import numpy as np
 
 import collections
 STRICT_DATA_CHECKING = False
-        
+
 def format_plotting_mappings(plotting_mappings_df, columns, plotting_name_column, strict_data_checking=False):
     # Initialize the new plotting mappings data frame with the necessary columns
     new_plotting_mappings = pd.DataFrame(columns=['plotting_name','plotting_name_column', 'reference_name', 'reference_name_column'])
