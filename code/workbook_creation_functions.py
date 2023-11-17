@@ -2,6 +2,8 @@ import pandas as pd
 import math
 import numpy as np
 import ast
+import os
+import shutil
 STRICT_DATA_CHECKING = False
 def data_checking_warning_or_error(message):
     if STRICT_DATA_CHECKING:
@@ -9,7 +11,7 @@ def data_checking_warning_or_error(message):
     else:
         print(message)
 
-def create_sheets_from_mapping_df(workbook, charts_mapping):
+def create_sheets_from_mapping_df(workbook, charts_mapping, total_plotting_names, MIN_YEAR, colours_dict, cell_format1, cell_format2, header_format, plotting_specifications, plotting_names_order, plotting_name_to_label_dict, writer):
     #PREPARE DATA ########################################
     #cols: 'sheet_name', 'table_number', 'chart_type', 'plotting_name',
     #    'scenario', 'economy', 'year', 'value', 'unit'
@@ -23,9 +25,9 @@ def create_sheets_from_mapping_df(workbook, charts_mapping):
     
     # Getting the max values for each sheet and chart type to make the charts' y-axis consistent
     max_and_min_values_dict = {}
-    max_and_min_values_dict = workbook_creation_functions.extract_max_and_min_values(charts_mapping, max_and_min_values_dict, total_plotting_names)
+    max_and_min_values_dict = extract_max_and_min_values(charts_mapping, max_and_min_values_dict, total_plotting_names)
     
-    workbook_creation_functions.check_plotting_names_in_colours_dict(charts_mapping, colours_dict)
+    check_plotting_names_in_colours_dict(charts_mapping, colours_dict)
     
     economy = charts_mapping.economy.unique()[0]
 
@@ -111,7 +113,7 @@ def create_sheets_from_mapping_df(workbook, charts_mapping):
                 current_row += space_under_tables
                 pass
             ########################
-            table, chart_types, table_id, plotting_column, year_cols_start,num_cols = workbook_creation_functions.format_table(table,plotting_names_order,plotting_name_to_label_dict)
+            table, chart_types, table_id, plotting_column, year_cols_start,num_cols = format_table(table,plotting_names_order,plotting_name_to_label_dict)
             
             #make the cols for plotting_column and the one before it a bit wider so the text fits
             plotting_column_index = table.columns.get_loc(plotting_column)
@@ -129,7 +131,7 @@ def create_sheets_from_mapping_df(workbook, charts_mapping):
             #if chart_type len is 1 and it is a bar chart, we need to edit the table to work for bar charts:
             
             if len(chart_types) == 1 and 'bar' in chart_types:   
-                table = workbook_creation_functions.create_bar_chart_table(table,year_cols_start,plotting_specifications['bar_years'])
+                table = create_bar_chart_table(table,year_cols_start,plotting_specifications['bar_years'])
             ########################
             #write table to sheet
             table.to_excel(writer, sheet_name = sheet, index = False, startrow = current_row)
@@ -137,9 +139,9 @@ def create_sheets_from_mapping_df(workbook, charts_mapping):
             num_table_rows = len(table.index)
             ######################## 
             #identify and format charts we need to create
-            chart_positions = workbook_creation_functions.identify_chart_positions(current_row,num_table_rows,space_under_tables,column_row, space_above_charts, space_under_charts, plotting_specifications,chart_types)
+            chart_positions = identify_chart_positions(current_row,num_table_rows,space_under_tables,column_row, space_above_charts, space_under_charts, plotting_specifications,chart_types)
             # print('max_and_min_values_dict', max_and_min_values_dict, 'for sheet', sheet)
-            charts_to_plot = workbook_creation_functions.create_charts(table, chart_types, plotting_specifications, workbook,num_table_rows, plotting_column, table_id, sheet, current_row, space_under_tables, column_row, year_cols_start, num_cols, colours_dict,total_plotting_names, max_and_min_values_dict)
+            charts_to_plot = create_charts(table, chart_types, plotting_specifications, workbook,num_table_rows, plotting_column, table_id, sheet, current_row, space_under_tables, column_row, year_cols_start, num_cols, colours_dict,total_plotting_names, max_and_min_values_dict)
             ########################
 
             #write charts to sheet
@@ -147,10 +149,10 @@ def create_sheets_from_mapping_df(workbook, charts_mapping):
                 chart_position = chart_positions[i]
                 worksheet.insert_chart(chart_position, chart)
     
-    workbook = workbook_creation_functions.order_sheets(workbook, plotting_specifications, sheets)
+    workbook = order_sheets(workbook, plotting_specifications, sheets)
     return workbook
 
-def prepare_workbook_for_all_charts(economy, ):
+def prepare_workbook_for_all_charts(economy, FILE_DATE_ID):
     # Set the path for the economy folder
     economy_folder = '../output/output_workbooks/' + economy
 
@@ -186,7 +188,7 @@ def prepare_workbook_for_all_charts(economy, ):
     cell_format2 = workbook.add_format({'font_size': 9})
     # cell_format3 = workbook.add_format({'font_size': 9, 'bold': True, 'underline': True})
 
-    return workbook
+    return workbook, writer, space_format, percentage_format, header_format, cell_format1, cell_format2
 
 def extract_max_and_min_values(data, max_and_min_values_dict, total_plotting_names):
 

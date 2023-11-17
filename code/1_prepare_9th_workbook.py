@@ -72,7 +72,7 @@ plotting_specifications['bar_years'] = ast.literal_eval(plotting_specifications[
 
 plotting_name_to_label_dict = plotting_name_to_label.set_index(plotting_name_to_label.columns[0]).to_dict()[plotting_name_to_label.columns[1]]
 #add all other unique plotting names to the plotting_name_to_label dict, but have it so they map to themselves. can get these from colours_dict
-for plotting_name in colours_dict['plotting_name'].unique():#TODO WAT TO DO ABOUT POTENTIAL DUPLICATES ACROSS SOURCES HERE
+for plotting_name in colours_dict['plotting_name'].unique():#TODO WAT TO DO ABOUT POTENTIAL DUPLICATES ACROSS SOURCES HERE 
     if plotting_name not in plotting_name_to_label_dict.keys():
         plotting_name_to_label_dict[plotting_name] = plotting_name
 
@@ -85,13 +85,12 @@ colours_dict = colours_dict.set_index(colours_dict.columns[0]).to_dict()[colours
 #start process
 ########################################################.
 #PREPARE WORKBOOK
-workbook = mapping_functions.prepare_workbook_for_all_charts(economy, )
+workbook, writer, space_format, percentage_format, header_format, cell_format1, cell_format2 = workbook_creation_functions.prepare_workbook_for_all_charts(ECONOMY_ID, FILE_DATE_ID)
 # Start of the process
 for source in all_charts_mapping_files_dict.keys():
     charts_mapping_dfs = all_charts_mapping_files_dict[source]
     for charts_mapping in charts_mapping_dfs:
-        mapping_functions.create_sheets_from_mapping_df(workbook, charts_mapping, source, ECONOMY_ID)
-
+        workbook_creation_functions.create_sheets_from_mapping_df(workbook, charts_mapping, source, ECONOMY_ID)
 
 #save the workbook
 writer.close()

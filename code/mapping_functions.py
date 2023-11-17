@@ -149,11 +149,12 @@ def check_data_matches_expectations(model_df_wide_economy, model_variables,RAISE
     #drop first 2 rows (includes the columns row) and check the next row is a set of columns that match the object columns in the Data sheet
 
     #we first need to check that the columns in the Variables sheet match the columns in the Data sheet
-    object_columns = model_df_wide_economy.select_dtypes(include=['object']).columns
+    object_columns = model_df_wide_economy.select_dtypes(include=['object']).columns.to_list()
+    #drop source col
+    object_columns.remove('source')
     #check the difference between the columns in the Variables sheet and the columns in the Data sheet
-    diff = np.setdiff1d(model_variables.columns, object_columns)
-
-    if len(diff) > 0:
+    diff = set(object_columns) - set(model_variables.columns.to_list())
+    if len(list(diff)) > 0:
         print('The following columns between the Variables sheet and the Data are different: ', diff)
         raise Exception('The columns in the Variables sheet do not match the columns in the Data sheet')
 
@@ -193,7 +194,6 @@ def check_missing_plotting_name_values_when_merging_mappings_to_modelled_data(co
     plotting_name_column = new_plotting_mappings['plotting_name_column'].unique()[0]
     mapping = plotting_mappings[[plotting_name_column]+columns].drop_duplicates()
     # Merge the dataframes and add an indicator column
-    
     merged_df = pd.merge(new_df, mapping, left_on=['plotting_name']+columns, right_on=[plotting_name_column]+columns, how='outer', indicator=True)
     # Find rows that are only in mapping
     missing_in_new_model = merged_df[merged_df['_merge'] == 'right_only']
@@ -201,7 +201,6 @@ def check_missing_plotting_name_values_when_merging_mappings_to_modelled_data(co
         if RAISE_ERROR:
             raise Exception('There are plotting_name values for {} that have been lost in the merge. These are: {}'.format(plotting_name_column, missing_in_new_model))
         print('There are plotting_name values for {} that have been lost in the merge. These are: {}'.format(plotting_name_column, missing_in_new_model))#This could be because they dont match any original categories, or *unlikely* they arent used by any of the sectors referenced in sectors plotting
-    breakpoint()
     
 def merge_sector_mappings(model_df_tall, new_sector_plotting_mappings, sector_plotting_mappings, RAISE_ERROR=True):
     new_model_df_tall = model_df_tall.copy()
@@ -212,26 +211,13 @@ def merge_sector_mappings(model_df_tall, new_sector_plotting_mappings, sector_pl
         columns_data = model_df_tall.merge(columns_data, how='inner', left_on=unique_col, right_on='reference_name')
         new_model_df_tall = pd.concat([new_model_df_tall, columns_data])
     
-    breakpoint()
     check_missing_plotting_name_values_when_merging_mappings_to_modelled_data([ 'sectors', 'sub1sectors', 'sub2sectors'], new_sector_plotting_mappings['plotting_name_column'].unique()[0], new_sector_plotting_mappings, sector_plotting_mappings, new_model_df_tall, RAISE_ERROR)
-    
-    # # Check for missing values
-    # new_df = new_model_df_tall[['plotting_name', 'sectors', 'sub1sectors', 'sub2sectors']].drop_duplicates().replace('x', np.nan)
-    # mapping = sector_plotting_mappings[[plotting_name_column, 'sectors', 'sub1sectors', 'sub2sectors']].drop_duplicates()
-    # merged_df = pd.merge(new_df, mapping, left_on=['plotting_name', 'sectors', 'sub1sectors', 'sub2sectors'] ,right_on=[plotting_name_column, 'sectors', 'sub1sectors', 'sub2sectors'], how='outer', indicator=True)
-    # missing_in_new_model = merged_df[merged_df['_merge'] == 'right_only']
-    # if len(missing_in_new_model) > 0:
-    #     error_message = 'There are plotting_name values that have been lost in the merge. These are: {}'.format(missing_in_new_model)
-    #     if RAISE_ERROR:
-    #         raise Exception(error_message)
-    #     else:
-    #         print(error_message)
 
     # Drop unnecessary columns
     new_model_df_tall = new_model_df_tall.drop(columns=['sectors', 'sub1sectors', 'sub2sectors', 'sub3sectors', 'sub4sectors', 'reference_name'])
     
     #? rename plotting_name to sectors_plotting_name, just for clarity when we merge the fuel mappings. 
-    new_model_df_tall = new_model_df_tall.rename(columns={'plotting_name': 'sectors_plotting_name'})
+    new_model_df_tall = new_model_df_tall.rename(columns={'plotting_name': 'sectors_plotting'})
     return new_model_df_tall
 
 
@@ -243,7 +229,6 @@ def merge_fuel_mappings(model_df_tall_sectors, new_fuel_plotting_mappings,fuel_p
     new_new_model_df_tall = new_new_model_df_tall[0:0]
     #so join the new_fuel_plotting_mappings to the model_df_tall
     for unique_col in new_fuel_plotting_mappings.reference_name_column.unique():
-        breakpoint()
         columns_data = new_fuel_plotting_mappings[new_fuel_plotting_mappings.reference_name_column == unique_col][['plotting_name', 'reference_name']]
         #filter for the unique col and then join on the unique col to the model_df_tall
         columns_data = model_df_tall_sectors.merge(columns_data, how='inner', left_on=unique_col, right_on='reference_name')
@@ -254,18 +239,27 @@ def merge_fuel_mappings(model_df_tall_sectors, new_fuel_plotting_mappings,fuel_p
     #drop the fuels cols
     new_new_model_df_tall = new_new_model_df_tall.drop(columns=['fuels', 'subfuels','reference_name'])
     
-    new_new_model_df_tall = new_new_model_df_tall.rename(columns={'plotting_name': 'fuels_plotting_name'})
-    breakpoint()
-    #drop duplicates
-    #new_new_model_df_tall = new_new_model_df_tall.drop_duplicates() #this is not needed because the merge above will have dropped duplicates and it will drop duplicate values and that is not needed
+    new_new_model_df_tall = new_new_model_df_tall.rename(columns={'plotting_name': 'fuels_plotting'})
     return new_new_model_df_tall
 
 
 def merge_transformation_sector_mappings(model_df_tall, transformation_sector_mappings,new_fuel_plotting_mappings, RAISE_ERROR=True):
-    #the input_fuel col is a bool and determines whether we are looking for input or output fuels from the transformation sector. If input then the values need to be negative, if output then positive (We'll filter for this)
+    """this function will merge the transformation_sector_mappings dataframe to the model_df_tall dataframe. It will then join the new_fuel_plotting_mappings dataframe to the model_df_tall dataframe. It will then create two dataframes based on the input and output fuels from the transformation sector (see 'input_fuel' below)). It will then check that no sectors_plotting values from transformation_sector_mappings have been lost in the merge, if so, let user know. Finally it will drop the fuels cols and return the two dataframes.
 
-    #we will create a new dataframe which is the aggregation of the sectors in the transformation_sector_mappings dataframe, applied to the 9th modelling data. 
-    #we will create a column within this dataframe called sectors_plotting which will then be able to be stacked with the other columns in other dataframes with the same column name
+    input_fuel: col which is a bool and determines whether we are looking for input or output fuels from the transformation sector. If is input then the values need to be negative, if output then positive (We'll filter for this)
+    
+    Args:
+        model_df_tall (_type_): _description_
+        transformation_sector_mappings (_type_): _description_
+        new_fuel_plotting_mappings (_type_): _description_
+        RAISE_ERROR (bool, optional): _description_. Defaults to True.
+
+    Raises:
+        Exception: _description_
+
+    Returns:
+        _type_: _description_
+    """
 
     model_df_transformation = model_df_tall.copy()
     #join the transformation_sector_mappings dataframe to the model_df_tall_transformation dataframe
@@ -278,17 +272,20 @@ def merge_transformation_sector_mappings(model_df_tall, transformation_sector_ma
 
     #so join the new_sector_plotting_mappings to the model_df_tall
     for unique_col in new_fuel_plotting_mappings.reference_name_column.unique():
-        columns_data = new_fuel_plotting_mappings[new_fuel_plotting_mappings.reference_name_column == unique_col][['fuels_plotting', 'reference_fuel']]
+        columns_data = new_fuel_plotting_mappings[new_fuel_plotting_mappings.reference_name_column == unique_col][['plotting_name', 'reference_name']]
+        
         #filter for the unique col and then join on the unique col to the model_df_tall
-        columns_data = model_df_transformation.merge(columns_data, how='inner', left_on=unique_col, right_on='reference_fuel')
+        columns_data = model_df_transformation.merge(columns_data, how='inner', left_on=unique_col, right_on='reference_name')
+        #rename plotting_name to fuels_plotting
+        columns_data = columns_data.rename(columns={'plotting_name': 'fuels_plotting'})
         #concat to the new_model_df_tall
         new_model_df_transformation = pd.concat([new_model_df_transformation, columns_data])
     
     #now separaten into input and output dfs using the boolean and whtehr value is positive or negative
-    input_transformation = new_model_df_transformation[(new_model_df_transformation['input_fuel'] == True) & (new_model_df_transformation['value'] <= 0)]
+    input_transformation = new_model_df_transformation[(new_model_df_transformation['input_fuel'] == True) & (new_model_df_transformation['value'] <= 0)].copy()
     input_transformation['value'] = input_transformation['value'] * -1
 
-    output_transformation = new_model_df_transformation[(new_model_df_transformation['input_fuel'] == False) & (new_model_df_transformation['value'] >= 0)]
+    output_transformation = new_model_df_transformation[(new_model_df_transformation['input_fuel'] == False) & (new_model_df_transformation['value'] >= 0)].copy()
     
     #check that no sectors_plotting values from transformation_sector_mappings have been lost
     new_df = new_model_df_transformation[['sectors_plotting', 'sectors', 'sub1sectors']].drop_duplicates().replace('x', np.nan)
@@ -297,13 +294,14 @@ def merge_transformation_sector_mappings(model_df_tall, transformation_sector_ma
     merged_df = pd.merge(new_df, mapping, on=['sectors_plotting', 'sectors', 'sub1sectors'], how='outer', indicator=True)
     # Find rows that are only in mapping
     missing_in_new_model = merged_df[merged_df['_merge'] == 'right_only']
+    #TODO WE SEEM TO BE MISSING TRANSFORMATION SECTORS. I GUESS ITS SOME ISSUE IN EBT. i.e. we are missing 09_04_electric_boilers. I think its dealt with in workflow\scripts\C_subset_data.py line 223. but i dont knwo how that code works
     if len(missing_in_new_model) > 0:
         if RAISE_ERROR:
             raise Exception('There are sectors_plotting values that have been lost in the merge. These are: ', missing_in_new_model)
         print('There are sectors_plotting values that have been lost in the merge. These are: ', missing_in_new_model)
-    
     #drop the fuels cols
-    new_model_df_transformation = new_model_df_transformation.drop(columns=['fuels', 'subfuels','reference_fuel'])
+    input_transformation = input_transformation.drop(columns=['sectors', 'sub2sectors', 'sub4sectors', 'sub1sectors', 'sub3sectors', 'fuels', 'subfuels','reference_name', 'input_fuel'])
+    output_transformation = output_transformation.drop(columns=['sectors', 'sub2sectors', 'sub4sectors', 'sub1sectors', 'sub3sectors', 'fuels', 'subfuels','reference_name', 'input_fuel'])
     
     return input_transformation, output_transformation
 
@@ -321,13 +319,19 @@ def merge_capacity_mappings(model_df_tall, new_capacity_plotting_mappings, capac
     """
     new_model_df_tall = model_df_tall.copy()
     new_model_df_tall = new_model_df_tall[0:0]  # Empty it
+    
+    #UNIQUE TO CAPACITY MAPPING, WE NEED TO INSERT EH AGGREGATE NAME INTO THE CAPACITY PLOTTING MAPPINGS. WE DO THIS BY JOINING ON THE PLOTTING NAME:
+    plotting_name = new_capacity_plotting_mappings['plotting_name_column'].unique()[0]
+    plotting_name_to_aggregate_name = capacity_plotting_mappings[[plotting_name, 'aggregate_name']].drop_duplicates()
+    new_capacity_plotting_mappings = new_capacity_plotting_mappings.merge(plotting_name_to_aggregate_name, how='left', left_on='plotting_name', right_on=plotting_name)
+    
     for unique_col in new_capacity_plotting_mappings['reference_name_column'].unique():
         columns_data = new_capacity_plotting_mappings[new_capacity_plotting_mappings['reference_name_column'] == unique_col]
-        columns_data = columns_data[['plotting_name', 'reference_name']]
+        columns_data = columns_data[['plotting_name', 'reference_name', 'aggregate_name']]
         columns_data = model_df_tall.merge(columns_data, how='inner', left_on=unique_col, right_on='reference_name')
         new_model_df_tall = pd.concat([new_model_df_tall, columns_data])
     
-    breakpoint()
+    breakpoint()#TODO BECAUSE THE CAPCAITY MAPPINGS ARENT DONE ET THE DF IS EMPTY SO ITS CAUSING ERRORS!
     check_missing_plotting_name_values_when_merging_mappings_to_modelled_data([ 'sectors', 'sub1sectors', 'sub2sectors'], new_capacity_plotting_mappings['plotting_name_column'].unique()[0], new_capacity_plotting_mappings, capacity_plotting_mappings, new_model_df_tall, RAISE_ERROR)
 
     # Drop unnecessary columns
@@ -335,6 +339,36 @@ def merge_capacity_mappings(model_df_tall, new_capacity_plotting_mappings, capac
 
     new_model_df_tall = new_model_df_tall.rename(columns={'plotting_name': 'capacity_plotting_name'})
     return new_model_df_tall
+
+
+def format_plotting_df_from_mapped_plotting_names(plotting_df, new_charts_mapping):
+    """We need to transfer from having data that is set into all possible plotting name compbinations (i.e. for energy contains a fuels plotting name and sectors plotting name) to a dataset that has the 'aggregate_name_column', 'aggregate_name', 'plotting_name_column', 'plotting_name' columns. This will need to be done by mapping the plotting_df to new_charts_mapping. 
+    
+    The new_charts_mapping dataframe contains the 'aggregate_name_column', 'aggregate_name', 'plotting_name_column', 'plotting_name' columns, and is the  structure we want in the final df. 
+    
+    Plotting df contains all the data needed to plot the plots but isnt in the right structure"""
+    #get all unique combinations in aggregate_name_column and plotting_name_column, these are the unique columns we will pull data from:
+    unique_aggregate_name_column_plotting_name_column_combinations = new_charts_mapping[['aggregate_name_column', 'plotting_name_column', 'source']].drop_duplicates()
+    plotting_df_mapped = pd.DataFrame()
+    
+    for aggregate_name, plotting_name, source in zip(unique_aggregate_name_column_plotting_name_column_combinations['aggregate_name_column'], unique_aggregate_name_column_plotting_name_column_combinations['plotting_name_column'], unique_aggregate_name_column_plotting_name_column_combinations['source']):
+        #check if source is in plotting_df, if its not then skip this mapping
+        if source not in plotting_df['source'].unique():
+            continue
+        #extract those rows from new_charts_mapping, set their aggregate_name and plotting_name cols to the  aggregate_name and plotting_name variables, and then merge with plotting_df on the newly named plotting_name and aggregate_name cols:
+        new_charts_mapping_subset = new_charts_mapping[(new_charts_mapping['aggregate_name_column'] == aggregate_name) & (new_charts_mapping['plotting_name_column'] == plotting_name) & (new_charts_mapping['source'] == source)].copy()
+        new_charts_mapping_subset.rename(columns={'aggregate_name':aggregate_name, 'plotting_name':plotting_name}, inplace=True)
+        plotting_df_subset = plotting_df.merge(new_charts_mapping_subset, how='right', on=[aggregate_name, plotting_name, 'source'])#TODO I THINK SORUCE IS GOOD TO HAVE IN JOIN HERE TO BE SAFE? JUST INCASE DIFFERENT SOURCES HAVE SAME PLOTTING NAMES
+        #now we have all the data from plotting_df for this aggregate_name and plotting_name combination. so rename and concat
+        plotting_df_subset = plotting_df_subset.rename(columns={aggregate_name:'aggregate_name', plotting_name:'plotting_name'})
+        
+        #filter fo ronly the cols we need:
+        plotting_df_subset = plotting_df_subset[['source', 'economy','table_number','sheet_name', 'chart_type', 'plotting_name_column', 'plotting_name','aggregate_name_column', 'aggregate_name', 'scenarios', 'year', 'table_id', 'value']]
+        
+        plotting_df_mapped = pd.concat([plotting_df_mapped, plotting_df_subset])
+    #filter rfor the cols we want
+    plotting_df_mapped = plotting_df_mapped.groupby(['source', 'economy','table_number','sheet_name', 'chart_type', 'plotting_name_column', 'plotting_name','aggregate_name_column', 'aggregate_name', 'scenarios', 'year', 'table_id']).sum().reset_index()               
+    return plotting_df_mapped
 # def collect_missing_datapoints(economy_new_charts_mapping):
 #     #now loop through the unique sheet, table combinations and idneitfy if there are any missing values (nas) in the value col. Put the data for these into a new dataframe called missing_data
 #     missing_data = pd.DataFrame()

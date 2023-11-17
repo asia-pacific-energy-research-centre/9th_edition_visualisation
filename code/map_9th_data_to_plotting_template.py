@@ -44,13 +44,12 @@ def map_9th_data_to_plotting_template_handler(FILE_DATE_ID, ECONOMY_ID, RAISE_ER
     def find_and_load_latest_data_for_all_sources(ECONOMY_ID, sources):
         # Initialize variables
         all_file_paths = []
-        all_model_df_wides = []
         folder =f'../input_data/{ECONOMY_ID}/'
         all_model_df_wides_dict = {}
         # Fetch file paths based on the configuration
     
         for root, dirs, files in os.walk(folder):
-            all_file_paths.extend(glob.glob(os.path.join(root, "*.*")))
+            all_file_paths.extend([os.path.join(root, file) for file in os.listdir(root) if os.path.isfile(os.path.join(root, file))])
 
         # Check if files are found
         if not all_file_paths:
@@ -172,8 +171,8 @@ def map_9th_data_to_plotting_template_handler(FILE_DATE_ID, ECONOMY_ID, RAISE_ER
     plotting_names = set(plotting_names)
     source_and_aggregate_name_column_to_plotting_name_column_mapping_dict = {}
     source_and_aggregate_name_column_to_plotting_name_column_mapping_dict['energy'] = {'sectors_plotting':'fuels_plotting', 'fuels_plotting':'sectors_plotting'}
-    source_and_aggregate_name_column_to_plotting_name_column_mapping_dict['capacity'] = {'capacity_plotting':'capacity_plotting'}
-    source_and_aggregate_name_column_to_plotting_name_column_mapping_dict['emissions'] = {'emissions_sector_plotting':'emissions_fuel_plotting', 'emissions_fuel_plotting':'emissions_sector_plotting'}
+    source_and_aggregate_name_column_to_plotting_name_column_mapping_dict['capacity'] = {'aggregate_name':'capacity_plotting'}
+    source_and_aggregate_name_column_to_plotting_name_column_mapping_dict['emissions'] = {'emissions_sectors_plotting':'emissions_fuels_plotting', 'emissions_fuels_plotting':'emissions_sectors_plotting'}
     
     new_charts_mapping = mapping_functions.format_charts_mapping(charts_mapping, source_and_aggregate_name_column_to_plotting_name_column_mapping_dict)
     mapping_functions.save_plotting_names_order(charts_mapping,FILE_DATE_ID)
@@ -244,27 +243,20 @@ def map_9th_data_to_plotting_template_handler(FILE_DATE_ID, ECONOMY_ID, RAISE_ER
 
 
         ##############################################################################
-        
         mapping_functions.check_data_matches_expectations(model_df_wide, model_variables, RAISE_ERROR=False)
-        
         #############################
         #EXTRACT PLOTTING NAMES FROM MODEL DATA
         #and now these mappings can be joined to the model_df and used to extract the data needed for each plotting_name. it will create a df with only the fuel or sectors columns: fuels_plotting and sectors_plotting, which contains defintiions of all the possible combinations of fuels_plotting and sectors_plotting we could have.. i think.
-        if source.isin(['energy', 'emissions']):
+        if source in ['energy', 'emissions']:
             #energy and emissions are mapped to both sector and fuel columns so we needed to identify the most specific sector and fuel columns for each row and then join on them. this requires two processes below:
             new_sector_plotting_mappings = all_plotting_mapping_dicts['sector'+'_'+source]['df']
-            model_df_tall_sectors = mapping_functions.merge_sector_mappings(model_df_tall, new_sector_plotting_mappings,sector_plotting_mappings, RAISE_ERROR=RAISE_ERROR)
-            breakpoint()
-            
+            model_df_tall_sectors = mapping_functions.merge_sector_mappings(model_df_tall, new_sector_plotting_mappings,sector_plotting_mappings, RAISE_ERROR=RAISE_ERROR)            
             new_fuel_plotting_mappings = all_plotting_mapping_dicts['fuel'+'_'+source]['df']
             model_df_tall_sectors_fuels = mapping_functions.merge_fuel_mappings(model_df_tall_sectors, new_fuel_plotting_mappings,fuel_plotting_mappings, RAISE_ERROR=RAISE_ERROR)#losing access to 19_total because of filtering for lowest level values. not sure how to avoid
-            # model_df_tall = model_df_tall_sectors_fuels.copy()
-            breakpoint()
         elif source == 'capacity':
             #capacity is just based off sectors so its relatively simple
             new_capacity_plotting_mappings = all_plotting_mapping_dicts['capacity']['df']
-            model_df_tall_capacity = mapping_functions.merge_capacity_mappings(model_df_tall, new_capacity_plotting_mappings,capacity_plotting_mappings, source, RAISE_ERROR=RAISE_ERROR)
-            breakpoint()
+            model_df_tall_capacity = mapping_functions.merge_capacity_mappings(model_df_tall, new_capacity_plotting_mappings, capacity_plotting_mappings, RAISE_ERROR=True)
             # model_df_tall = model_df_tall_capacity.copy()
         
         # new_emissions_plotting_mappings = all_plotting_mapping_dicts['emissions']['df']
@@ -278,7 +270,7 @@ def map_9th_data_to_plotting_template_handler(FILE_DATE_ID, ECONOMY_ID, RAISE_ER
         #next step will include creating new datasets which create aggregations of data to match some of the categories plotted in the 8th edition. 
         #for example we need an aggregation of the transformation sector input and output values to create entries for Power, Refining or Hydrogen
         # breakpoint()#we get nas in the transformation sector mappings. why??
-        if source.isin(['energy']):
+        if source in ['energy']:
             input_transformation, output_transformation = mapping_functions.merge_transformation_sector_mappings(model_df_tall, transformation_sector_mappings,new_fuel_plotting_mappings,RAISE_ERROR=RAISE_ERROR)
             #concat all the dataframes together?
             plotting_df = pd.concat([model_df_tall_sectors_fuels, input_transformation, output_transformation])
@@ -302,10 +294,7 @@ def map_9th_data_to_plotting_template_handler(FILE_DATE_ID, ECONOMY_ID, RAISE_ER
         # plotting_df= plotting_df[['scenarios','economy', 'year','value','fuels_plotting', 'sectors_plotting']]
         # plotting_df = plotting_df[['scenarios','economy', 'year','value','aggregate_name_column', 'aggregate_name', 'plotting_name_column', 'plotting_name']]#is this right? should plotting name not be something different, it seems to be the same as aggregate name. should it not be reference name or reference column
         #now join with charts mapping on fuel and sector plotting names to get the plotting names for the transformation sectors
-        economy_new_charts_mapping = new_charts_mapping.merge(plotting_df, how='left', on=['aggregate_name_column', 'aggregate_name', 'plotting_name_column', 'plotting_name']) #is this gonna be right
-        
-        economy_new_charts_mapping = economy_new_charts_mapping.groupby(['source', 'economy','table_number','sheet_name', 'chart_type', 'plotting_name_column', 'plotting_name','aggregate_name_column', 'aggregate_name', 'scenarios', 'year', 'table_id']).sum().reset_index()
-        
+        economy_new_charts_mapping = mapping_functions.format_plotting_df_from_mapped_plotting_names(plotting_df, new_charts_mapping)
         #############################
         #now we can extract the data for each graph we need to produce (as stated in the charts_mapping)
         
