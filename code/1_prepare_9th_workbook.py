@@ -107,9 +107,9 @@ for file in charts_mapping_files:
 
         #create a unit dictionary to map units to the correct sheet, if there are multiple units per sheet then concatenate them 
         # #NOTE THAT THIS DOESNT WORK WITH THE WAY UNITS ARE IMPLEMENTED IN THE CHARTS MAPPING, BUT THE ITNENTION IS THAT ONCE WE START PLOTTING DIFFERENT UNITS THEN THIS WILL BE SOLVED IN THE CHARTS MAPPING, NOT HERE (SO THIS CODE WILL STAY THE SAME)
-        unit_dict = charts_mapping[['sheet_name','unit']].drop_duplicates().groupby('sheet_name')['unit'].apply(lambda x: ', '.join(x)).to_dict()
+        unit_dict = charts_mapping[['sheet_name','unit']].drop_duplicates().groupby('sheet_name')['unit'].apply(lambda x: ', '.join(x)).to_dict() #TODO
 
-        # Custom order list
+        # Custom order list #TODO custom order of sheets? 
         custom_order = ['Buildings', 'Industry', 'Transport', 'Agriculture', 'Non-energy', 'TFC by fuel', 'Fuel consumption power sector', 'Refining']
 
         # Sort the sheets according to the custom order
@@ -146,7 +146,7 @@ for file in charts_mapping_files:
                     sheet_dfs[sheet] = sheet_dfs[sheet] + (table_data,)
         #PREPARE DATA END  ########################################
         #now we have a dictionary of dataframes for each sheet, we can iterate through them and create the charts and tables we need.
-
+        #TODO update 'sectors_plotting', 'fuels_plotting', in below comment. should be like plotting_name , aggregate_name. with understanding that aggregate name will be ?? for capacity
         #every table has the format:'table_number', 'chart_type', 'sectors_plotting', 'fuels_plotting', 'plotting_column', 'aggregate_column', 'scenario', 'unit', ...YEARS... where years is a list of the years columns in the table (eg. 2019, 2020, 2021, 2022, 2023, 2024, 2025)
 
         # Set the path for the economy folder
