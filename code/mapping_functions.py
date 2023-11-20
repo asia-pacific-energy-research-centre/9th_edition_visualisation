@@ -1,4 +1,5 @@
 #Functions used in 1_map_9th_data_to_plotting_template.py. They are to do with mapping but include some adjacent tasks such as data checking, plotting and formatting.
+#%%
 import pickle
 import pandas as pd
 import numpy as np
@@ -94,7 +95,7 @@ def save_plotting_names_order(charts_mapping,FILE_DATE_ID):
     group_2_cols = ['aggregate_name_column', 'aggregate_name']
     group_3_cols = [x for x in charts_mapping.columns.tolist() if x not in key_cols + group_2_cols]
     #create table_id col
-    charts_mapping['table_id'] = charts_mapping['sheet_name'] + '_' + charts_mapping['table_number'].astype(str)
+    charts_mapping['table_id'] = charts_mapping['source'] + '_' + charts_mapping['sheet_name'] + '_' + charts_mapping['table_number'].astype(str)
 
     charts_mapping_pivot = charts_mapping[['table_id'] + group_3_cols].drop_duplicates()
     #set index to 'table_id'
@@ -317,6 +318,7 @@ def merge_capacity_mappings(model_df_tall, new_capacity_plotting_mappings, capac
     Returns:
         _type_: _description_
     """
+
     new_model_df_tall = model_df_tall.copy()
     new_model_df_tall = new_model_df_tall[0:0]  # Empty it
     
@@ -331,13 +333,12 @@ def merge_capacity_mappings(model_df_tall, new_capacity_plotting_mappings, capac
         columns_data = model_df_tall.merge(columns_data, how='inner', left_on=unique_col, right_on='reference_name')
         new_model_df_tall = pd.concat([new_model_df_tall, columns_data])
     
-    breakpoint()#TODO BECAUSE THE CAPCAITY MAPPINGS ARENT DONE ET THE DF IS EMPTY SO ITS CAUSING ERRORS!
-    check_missing_plotting_name_values_when_merging_mappings_to_modelled_data([ 'sectors', 'sub1sectors', 'sub2sectors'], new_capacity_plotting_mappings['plotting_name_column'].unique()[0], new_capacity_plotting_mappings, capacity_plotting_mappings, new_model_df_tall, RAISE_ERROR)
+    check_missing_plotting_name_values_when_merging_mappings_to_modelled_data([ 'sectors', 'sub1sectors', 'sub2sectors', 'sub3sectors','sub4sectors'], new_capacity_plotting_mappings['plotting_name_column'].unique()[0], new_capacity_plotting_mappings, capacity_plotting_mappings, new_model_df_tall, RAISE_ERROR)
 
     # Drop unnecessary columns
     new_model_df_tall = new_model_df_tall.drop(columns=['sectors', 'sub1sectors', 'sub2sectors', 'sub3sectors', 'sub4sectors', 'reference_name'])
 
-    new_model_df_tall = new_model_df_tall.rename(columns={'plotting_name': 'capacity_plotting_name'})
+    new_model_df_tall = new_model_df_tall.rename(columns={'plotting_name': 'capacity_plotting'})
     return new_model_df_tall
 
 
@@ -346,7 +347,9 @@ def format_plotting_df_from_mapped_plotting_names(plotting_df, new_charts_mappin
     
     The new_charts_mapping dataframe contains the 'aggregate_name_column', 'aggregate_name', 'plotting_name_column', 'plotting_name' columns, and is the  structure we want in the final df. 
     
-    Plotting df contains all the data needed to plot the plots but isnt in the right structure"""
+    Plotting df contains all the data needed to plot the plots but isnt in the right structure, so we need to map it to the new_charts_mapping dataframe.
+    
+    The output of this function is a dataframe with all the required data we can extract form this plotting_df, and the structure we want in the final df to plot the plots."""
     #get all unique combinations in aggregate_name_column and plotting_name_column, these are the unique columns we will pull data from:
     unique_aggregate_name_column_plotting_name_column_combinations = new_charts_mapping[['aggregate_name_column', 'plotting_name_column', 'source']].drop_duplicates()
     plotting_df_mapped = pd.DataFrame()
@@ -358,7 +361,15 @@ def format_plotting_df_from_mapped_plotting_names(plotting_df, new_charts_mappin
         #extract those rows from new_charts_mapping, set their aggregate_name and plotting_name cols to the  aggregate_name and plotting_name variables, and then merge with plotting_df on the newly named plotting_name and aggregate_name cols:
         new_charts_mapping_subset = new_charts_mapping[(new_charts_mapping['aggregate_name_column'] == aggregate_name) & (new_charts_mapping['plotting_name_column'] == plotting_name) & (new_charts_mapping['source'] == source)].copy()
         new_charts_mapping_subset.rename(columns={'aggregate_name':aggregate_name, 'plotting_name':plotting_name}, inplace=True)
-        plotting_df_subset = plotting_df.merge(new_charts_mapping_subset, how='right', on=[aggregate_name, plotting_name, 'source'])#TODO I THINK SORUCE IS GOOD TO HAVE IN JOIN HERE TO BE SAFE? JUST INCASE DIFFERENT SOURCES HAVE SAME PLOTTING NAMES
+        
+        #PLEASE NOTE THAT THIS IS WHERE WE MERGE THE MAPPINGS WITH THE DATA, SO ITS ONE OF THE MOST IMPORTANT STEPS IN THE WHOLE PROCESS.
+        plotting_df_subset = plotting_df.merge(new_charts_mapping_subset, how='right', on=[aggregate_name, plotting_name, 'source'], indicator=True)
+        #check that there are no right only rows, if there are then raise an warning since this is where we have no available data for the plotting_name and aggregate_name combination. then remove them from the plotting_df_subset and drop the _merge col
+        if plotting_df_subset[plotting_df_subset['_merge'] == 'right_only'].shape[0] > 0:
+            print('\nWARNING: There are plotting_name and aggregate_name combinations that have no data. These are: \n', plotting_df_subset[plotting_df_subset['_merge'] == 'right_only'])
+            plotting_df_subset = plotting_df_subset[plotting_df_subset['_merge'] != 'right_only']
+        plotting_df_subset = plotting_df_subset.drop(columns=['_merge'])
+        
         #now we have all the data from plotting_df for this aggregate_name and plotting_name combination. so rename and concat
         plotting_df_subset = plotting_df_subset.rename(columns={aggregate_name:'aggregate_name', plotting_name:'plotting_name'})
         

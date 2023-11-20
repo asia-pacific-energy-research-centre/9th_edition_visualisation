@@ -23,12 +23,12 @@ ECONOMY_ID = '19_THA'#'20_USA'#08_JPN
 #create FILE_DATE_ID for use in file names
 FILE_DATE_ID = datetime.now().strftime('%Y%m%d')
 
-# FILE_DATE_ID = '20230912'
+FILE_DATE_ID = '20231110'
 total_plotting_names=['Total', 'TPES', 'Total primary energy supply','TFEC', 'TFC']
 MIN_YEAR = 2000
 #######################################################
 #%%
-map_data = True
+map_data = False
 if map_data:
     map_9th_data_to_plotting_template_handler(FILE_DATE_ID, ECONOMY_ID, RAISE_ERROR=False)
 #%%
@@ -38,7 +38,7 @@ if map_data:
 sources = ['energy', 'emissions', 'capacity']
 all_charts_mapping_files_dict = {}
 for source in sources:
-    charts_mapping_files = [x for x in os.listdir('../intermediate_data/data/') if 'charts_mapping_9th' in x and source in x]
+    charts_mapping_files = [x for x in os.listdir('../intermediate_data/data/') if 'charts_mapping' in x and source in x]
     charts_mapping_files = [x for x in charts_mapping_files if 'pkl' in x]
     charts_mapping_files = [x for x in charts_mapping_files if FILE_DATE_ID in x]
     charts_mapping_files = [x for x in charts_mapping_files if ECONOMY_ID in x]
@@ -71,11 +71,6 @@ plotting_specifications = plotting_specifications.set_index(plotting_specificati
 plotting_specifications['bar_years'] = ast.literal_eval(plotting_specifications['bar_years']) #will be like ['2000', '2010', '2018', '2020', '2030', '2040', '2050'] so format it as a list
 
 plotting_name_to_label_dict = plotting_name_to_label.set_index(plotting_name_to_label.columns[0]).to_dict()[plotting_name_to_label.columns[1]]
-#add all other unique plotting names to the plotting_name_to_label dict, but have it so they map to themselves. can get these from colours_dict
-for plotting_name in colours_dict['plotting_name'].unique():#TODO WAT TO DO ABOUT POTENTIAL DUPLICATES ACROSS SOURCES HERE 
-    if plotting_name not in plotting_name_to_label_dict.keys():
-        plotting_name_to_label_dict[plotting_name] = plotting_name
-
 colours_dict = colours_dict.set_index(colours_dict.columns[0]).to_dict()[colours_dict.columns[1]]
 ####################################################################################################################################
 
@@ -90,8 +85,9 @@ workbook, writer, space_format, percentage_format, header_format, cell_format1, 
 for source in all_charts_mapping_files_dict.keys():
     charts_mapping_dfs = all_charts_mapping_files_dict[source]
     for charts_mapping in charts_mapping_dfs:
-        workbook_creation_functions.create_sheets_from_mapping_df(workbook, charts_mapping, source, ECONOMY_ID)
+        workbook, writer = workbook_creation_functions.create_sheets_from_mapping_df(workbook, charts_mapping, total_plotting_names, MIN_YEAR, colours_dict, cell_format1, cell_format2, header_format, plotting_specifications, plotting_names_order, plotting_name_to_label_dict, writer)#workbook, charts_mapping, source, ECONOMY_ID)
 
+#todo add code for macro and renewable share and so on/ 
 #save the workbook
 writer.close()
 

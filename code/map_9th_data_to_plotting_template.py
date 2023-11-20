@@ -117,6 +117,8 @@ def map_9th_data_to_plotting_template_handler(FILE_DATE_ID, ECONOMY_ID, RAISE_ER
 
     colors_df = pd.read_excel('../config/master_config.xlsx', sheet_name='colors')
 
+    #take in aggregate_name_to_unit form master_config.xlsx
+    aggregate_name_to_unit = pd.read_excel('../config/master_config.xlsx', sheet_name='aggregate_name_to_unit')
     #also plot a color wheel for the user to understand the colors_df
     #NOTE THAT I DIDNT GET AROUND TO MAKING THIS WORK SORRY
     # mapping_functions.prepare_color_plot(colors_df)
@@ -144,11 +146,11 @@ def map_9th_data_to_plotting_template_handler(FILE_DATE_ID, ECONOMY_ID, RAISE_ER
                                         'columns': ['subfuels', 'fuels'],
                                         'source': 'energy',
                                         'plotting_name_column': 'fuels_plotting'},
-                            'emissions_sector': {'df': emissions_sector_plotting_mappings,
+                            'sector_emissions': {'df': emissions_sector_plotting_mappings,
                                         'columns': ['sub2sectors', 'sub1sectors', 'sectors'],
                                         'source': 'emissions',
                                         'plotting_name_column': 'emissions_sectors_plotting'},
-                            'emissions_fuel': {'df': emissions_fuel_plotting_mappings,
+                            'fuel_emissions': {'df': emissions_fuel_plotting_mappings,
                                         'columns': ['fuels', 'subfuels'],
                                         'source': 'emissions',
                                         'plotting_name_column': 'emissions_fuels_plotting'},
@@ -250,9 +252,16 @@ def map_9th_data_to_plotting_template_handler(FILE_DATE_ID, ECONOMY_ID, RAISE_ER
         if source in ['energy', 'emissions']:
             #energy and emissions are mapped to both sector and fuel columns so we needed to identify the most specific sector and fuel columns for each row and then join on them. this requires two processes below:
             new_sector_plotting_mappings = all_plotting_mapping_dicts['sector'+'_'+source]['df']
-            model_df_tall_sectors = mapping_functions.merge_sector_mappings(model_df_tall, new_sector_plotting_mappings,sector_plotting_mappings, RAISE_ERROR=RAISE_ERROR)            
+            if source =='emissions':
+                old_sector_plotting_mappings =emissions_sector_plotting_mappings
+                old_fuel_plotting_mappings = emissions_fuel_plotting_mappings
+            elif source == 'energy':
+                old_sector_plotting_mappings= sector_plotting_mappings
+                old_fuel_plotting_mappings = fuel_plotting_mappings
+                
+            model_df_tall_sectors = mapping_functions.merge_sector_mappings(model_df_tall, new_sector_plotting_mappings,old_sector_plotting_mappings, RAISE_ERROR=RAISE_ERROR)            
             new_fuel_plotting_mappings = all_plotting_mapping_dicts['fuel'+'_'+source]['df']
-            model_df_tall_sectors_fuels = mapping_functions.merge_fuel_mappings(model_df_tall_sectors, new_fuel_plotting_mappings,fuel_plotting_mappings, RAISE_ERROR=RAISE_ERROR)#losing access to 19_total because of filtering for lowest level values. not sure how to avoid
+            model_df_tall_sectors_fuels = mapping_functions.merge_fuel_mappings(model_df_tall_sectors, new_fuel_plotting_mappings,old_fuel_plotting_mappings, RAISE_ERROR=RAISE_ERROR)#losing access to 19_total because of filtering for lowest level values. not sure how to avoid
         elif source == 'capacity':
             #capacity is just based off sectors so its relatively simple
             new_capacity_plotting_mappings = all_plotting_mapping_dicts['capacity']['df']
@@ -278,6 +287,8 @@ def map_9th_data_to_plotting_template_handler(FILE_DATE_ID, ECONOMY_ID, RAISE_ER
             plotting_df = model_df_tall_capacity.copy()
         elif source == 'emissions':
             plotting_df = model_df_tall_sectors_fuels.copy()
+            #rename sectors_plotting and fuels_plotting to emissions_sectors_plotting and emissions_fuels_plotting
+            plotting_df.rename(columns={'sectors_plotting':'emissions_sectors_plotting', 'fuels_plotting':'emissions_fuels_plotting'}, inplace=True)
         else:
             breakpoint()
             raise Exception('source is not valid')  
@@ -319,6 +330,13 @@ def map_9th_data_to_plotting_template_handler(FILE_DATE_ID, ECONOMY_ID, RAISE_ER
         #set unit to 'Petajoules'. for now we dont have any other units so can set it here but may have to change this later, depending on how we deal with that new data (eg activity data.)
         unit_dict = {'energy': 'Petajoules', 'capacity': 'capacity', 'emissions': 'MtCO2e'}#TODO FIND SOMEWAY TO SET CPAACITY UNIT. PERHAPS SOURCE DOESNT NEED TO BE CPACITY, CAN BE GENERATION OR TRANSPORT STOCKS?
         economy_new_charts_mapping['unit'] = economy_new_charts_mapping['source'].map(unit_dict)
+        #based on aggregate_name in economy_new_charts_mapping, set unit to the unit in aggregate_name_to_unit
+        economy_new_charts_mapping = economy_new_charts_mapping.merge(aggregate_name_to_unit, on='aggregate_name', how='left', suffixes=('','_y'))
+        #if unit_y is not null, set unit to unit_y
+        economy_new_charts_mapping.loc[economy_new_charts_mapping['unit_y'].notnull(), 'unit'] = economy_new_charts_mapping['unit_y']
+        #drop unit_y
+        economy_new_charts_mapping = economy_new_charts_mapping.drop(columns=['unit_y'])
+        
         #rename scenarios to scenario
         economy_new_charts_mapping.rename(columns={'scenarios':'scenario'}, inplace=True)
         #set the year column to int
@@ -362,7 +380,14 @@ def find_most_recent_file_date_id(files):
         print("No files found with a valid date ID.")
     return most_recent_file
 #%%
-FILE_DATE_ID = '20231110'
-ECONOMY_ID = '19_THA'
-map_9th_data_to_plotting_template_handler(FILE_DATE_ID, ECONOMY_ID, RAISE_ERROR=False)
+# FILE_DATE_ID = '20231110'
+# ECONOMY_ID = '19_THA'
+# map_9th_data_to_plotting_template_handler(FILE_DATE_ID, ECONOMY_ID, RAISE_ERROR=False)
 #%%
+
+
+# #take in C:\Users\finbar.maunsell\github\9th_edition_visualisation\input_data\19_THA\merged_file_capacity_19_THA_20231110.csv, drop fuels columns and keep only where sectors == 09_total_transformation_sector or 15_transport_sector
+# x = pd.read_csv(r'C:\Users\finbar.maunsell\github\9th_edition_visualisation\input_data\19_THA\merged_file_capacity_19_THA_20231110.csv')
+# x = x[(x['sectors'] == '09_total_transformation_sector') | (x['sectors'] == '15_transport_sector')]
+# x = x.drop(columns=['fuels', 'subfuels']).drop_duplicates()
+# x.to_csv(r'C:\Users\finbar.maunsell\github\9th_edition_visualisation\input_data\19_THA\merged_file_capacity_19_THA_20231110.csv')
