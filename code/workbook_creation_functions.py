@@ -11,10 +11,8 @@ def data_checking_warning_or_error(message):
     else:
         print(message)
 
-def create_sheets_from_mapping_df(workbook, charts_mapping, total_plotting_names, MIN_YEAR, colours_dict, cell_format1, cell_format2, header_format, plotting_specifications, plotting_names_order, plotting_name_to_label_dict, writer):
+def create_sheets_from_mapping_df(workbook, charts_mapping, total_plotting_names, MIN_YEAR, colours_dict, cell_format1, cell_format2, header_format, plotting_specifications, plotting_names_order, plotting_name_to_label_dict, writer, EXPECTED_COLS, ECONOMY_ID): 
     #PREPARE DATA ########################################
-    #cols: 'sheet_name', 'table_number', 'chart_type', 'plotting_name',
-    #    'scenario', 'economy', 'year', 'value', 'unit'
     
     #filter for MIN_YEAR
     charts_mapping = charts_mapping.loc[charts_mapping['year'].astype(int) >= MIN_YEAR].copy()
@@ -29,8 +27,6 @@ def create_sheets_from_mapping_df(workbook, charts_mapping, total_plotting_names
     
     colours_dict = check_plotting_names_in_colours_dict(charts_mapping, colours_dict)
     plotting_name_to_label_dict = check_plotting_name_label_in_plotting_name_to_label_dict(colours_dict, plotting_name_to_label_dict)
-    
-    economy = charts_mapping.economy.unique()[0]
 
     #so firstly, extract the unique sheets we will create:
     sheets = charts_mapping['sheet_name'].unique()
@@ -52,11 +48,13 @@ def create_sheets_from_mapping_df(workbook, charts_mapping, total_plotting_names
         sheet_dfs[sheet] = ()
 
         sheet_data = charts_mapping.loc[charts_mapping['sheet_name'] == sheet]
-        #drop economy and sheet_name from sheet_data
-        sheet_data = sheet_data.drop(['economy','sheet_name'], axis=1)
 
         #pivot the data and create order of cols so it is fsater to create tables
-        sheet_data = sheet_data.pivot(index=['source', 'table_number', 'chart_type','plotting_name', 'plotting_name_column','aggregate_name', 'aggregate_name_column', 'scenario', 'unit', 'table_id'], columns='year', values='value')
+        EXPECTED_COLS_wide = EXPECTED_COLS.copy()
+        EXPECTED_COLS_wide.remove('year')
+        EXPECTED_COLS_wide.remove('value')
+        
+        sheet_data = sheet_data.pivot(index=EXPECTED_COLS_wide, columns='year', values='value')
         # #potentially here we get nas from missing years for certain rows, so replace with 0
         # sheet_data = sheet_data.fillna(0)#decided against it because it seems the nas are useful
         sheet_data = sheet_data.reset_index()
@@ -64,8 +62,11 @@ def create_sheets_from_mapping_df(workbook, charts_mapping, total_plotting_names
         #sort by table_number
         sheet_data = sheet_data.sort_values(by=['table_number'])
         for scenario in sheet_data['scenario'].unique():
-            #extract scenario data
-            scenario_data = sheet_data.loc[(sheet_data['scenario'] == scenario)]
+            if str(scenario) == 'nan':
+                scenario_data = sheet_data.copy()
+            else:   
+                #extract scenario data
+                scenario_data = sheet_data.loc[(sheet_data['scenario'] == scenario)]
             #add tables to tuple, by table number
             for table in scenario_data['table_number'].unique():
                 table_data = scenario_data.loc[(scenario_data['table_number'] == table)]
@@ -81,48 +82,60 @@ def create_sheets_from_mapping_df(workbook, charts_mapping, total_plotting_names
 
     #iterate through the sheets and create them
     for sheet in sheets:
-        if sheet == 'Production':
-            breakpoint()#checkingw why production has negative bvlaues
+        # if sheet == 'Production':
+        #     breakpoint()#checkingw why production has negative bvlaues
         #create sheet in workbook
         workbook.add_worksheet(sheet)
         worksheet = workbook.get_worksheet_by_name(sheet)
 
         space_under_tables = 1
-        space_above_charts = 2
-        space_under_charts = 3
+        space_above_charts = 6# I THINK THIS NEEDS TO BE 1 LESS THAN space_under_charts ALWAYS
+        space_under_charts = 7
         space_under_titles = 1
         column_row = 1
         current_scenario = ''
     
         current_row = 0
         for table in sheet_dfs[sheet]:
-            
+            dimensions = table['dimensions'].unique()[0]
+            if len(table['dimensions'].unique()) > 1:
+                breakpoint()
+                raise Exception('we should only have one dimension type per table')
             ########################
             if current_scenario == '':
                 #this is the first table. we will also use this opportunity to add the title of the sheet:
                 current_scenario = table['scenario'].iloc[0]
-                worksheet.write(0, 0, economy + ' ' + sheet + ' ' + current_scenario, cell_format1)
+                if str(current_scenario) == 'nan':
+                    worksheet.write(0, 0, ECONOMY_ID + ' ' + sheet + ' ', cell_format1)
+                else:
+                    worksheet.write(0, 0, ECONOMY_ID + ' ' + sheet + ' ' + current_scenario, cell_format1)
                 unit = unit_dict[sheet]
                 worksheet.write(1, 0, unit, cell_format2)
                 current_row += 2
             elif table['scenario'].iloc[0] != current_scenario:
                 #New scenario. Add scenario title to next line and then carry on
                 current_scenario = table['scenario'].iloc[0]
-                current_row += 2
-                worksheet.write(current_row, 0, economy + ' ' + sheet + ' ' + current_scenario, cell_format1)
-                current_row += space_under_titles                
+                #if scenario is na then dont add it
+                if str(current_scenario) == 'nan':
+                    current_row += 2
+                    worksheet.write(current_row, 0, ECONOMY_ID + ' ' + sheet + ' ', cell_format1)
+                else:
+                    current_row += 2
+                    worksheet.write(current_row, 0, ECONOMY_ID + ' ' + sheet + ' ' + current_scenario, cell_format1)
+                    current_row += space_under_titles                
             else:
                 #add one line space between tables of same scenario
                 current_row += space_under_tables
                 pass
             ########################
-            table, chart_types, table_id, plotting_name_column, year_cols_start,num_cols = format_table(table,plotting_names_order,plotting_name_to_label_dict)
+            table, chart_types, table_id, plotting_name_column, year_cols_start,num_cols, chart_titles = format_table(table,plotting_names_order,plotting_name_to_label_dict)
             
             #make the cols for plotting_name_column and the one before it a bit wider so the text fits
             plotting_name_column_index = table.columns.get_loc(plotting_name_column)
             aggregate_name_column_index = plotting_name_column_index - 1
             worksheet.set_column(plotting_name_column_index, plotting_name_column_index, 20)
-            worksheet.set_column(aggregate_name_column_index, aggregate_name_column_index, 20)
+            if dimensions == '2D':
+                worksheet.set_column(aggregate_name_column_index, aggregate_name_column_index, 20)
             ########################
             #now start adding the table and charts
             #find out if there is at least a chart for this table, in which case we need to space the table down by the height of the chart (we will add cahrt after adding table because we use the details of where the table is before adding chart)
@@ -144,13 +157,28 @@ def create_sheets_from_mapping_df(workbook, charts_mapping, total_plotting_names
             #identify and format charts we need to create
             chart_positions = identify_chart_positions(current_row,num_table_rows,space_under_tables,column_row, space_above_charts, space_under_charts, plotting_specifications,chart_types)
             # print('max_and_min_values_dict', max_and_min_values_dict, 'for sheet', sheet)
-            charts_to_plot = create_charts(table, chart_types, plotting_specifications, workbook,num_table_rows, plotting_name_column, table_id, sheet, current_row, space_under_tables, column_row, year_cols_start, num_cols, colours_dict,total_plotting_names, max_and_min_values_dict)
+            charts_to_plot = create_charts(table, chart_types, plotting_specifications, workbook,num_table_rows, plotting_name_column, table_id, sheet, current_row, space_under_tables, column_row, year_cols_start, num_cols, colours_dict,total_plotting_names, max_and_min_values_dict, chart_titles)
             ########################
 
             #write charts to sheet
             for i, chart in enumerate(charts_to_plot):
                 chart_position = chart_positions[i]
-                worksheet.insert_chart(chart_position, chart)
+                import warnings
+
+                try:
+                    with warnings.catch_warnings(record=True) as w:
+                        # Cause all warnings to always be triggered.
+                        warnings.simplefilter("always")
+
+                        # Attempt to insert the chart
+                        worksheet.insert_chart(chart_position, chart)
+
+                        # Check if a warning occurred
+                        if len(w) > 0:
+                            print("Warning caught: ", str(w[-1].message))
+                            breakpoint()
+                except Exception as e:
+                    print("Error: ", str(e))
             
             # #create a copy of the writer and try to close it, if it fails we set breakpoitn so we can see what is going on
             # try:
@@ -163,9 +191,9 @@ def create_sheets_from_mapping_df(workbook, charts_mapping, total_plotting_names
     # breakpoint()
     return workbook, writer
 
-def prepare_workbook_for_all_charts(economy, FILE_DATE_ID):
+def prepare_workbook_for_all_charts(ECONOMY_ID, FILE_DATE_ID):
     # Set the path for the economy folder
-    economy_folder = '../output/output_workbooks/' + economy
+    economy_folder = '../output/output_workbooks/' + ECONOMY_ID
 
     # Check if the folder for the economy exists
     if not os.path.exists(economy_folder):
@@ -188,7 +216,7 @@ def prepare_workbook_for_all_charts(economy, FILE_DATE_ID):
                 # Then move the file to the 'old' folder
                 shutil.move(file_path, old_folder)
 
-    writer = pd.ExcelWriter(os.path.join(economy_folder, economy + '_charts_' + FILE_DATE_ID + '.xlsx'), engine='xlsxwriter')
+    writer = pd.ExcelWriter(os.path.join(economy_folder, ECONOMY_ID + '_charts_' + FILE_DATE_ID + '.xlsx'), engine='xlsxwriter')
     workbook = writer.book
     #format the workbook
     # Comma format and header format    #NOTE I DONT KNOW IF ACTUALLY IMPLEMEMNTED all of THESE BUT THEY COULD BE USEFUL!    #TODO THESE SPECS SHOULD PROBABLY BE RECORDED IN A MORE OFFICAL LOCATIO
@@ -295,11 +323,12 @@ def calculate_y_axis_value(value):
         y_axis_value = math.floor(y_axis_value / rounding_step) * rounding_step
     return y_axis_value
 
-def create_charts(table, chart_types, plotting_specifications, workbook, num_table_rows, plotting_name_column, table_id, sheet, current_row, space_under_tables, column_row, year_cols_start, num_cols, colours_dict, total_plotting_names, max_and_min_values_dict):
+def create_charts(table, chart_types, plotting_specifications, workbook, num_table_rows, plotting_name_column, table_id, sheet, current_row, space_under_tables, column_row, year_cols_start, num_cols, colours_dict, total_plotting_names, max_and_min_values_dict, chart_titles):
     # Depending on the chart type, create different charts. Then add them to the worksheet according to their positions
     charts_to_plot = []
     plotting_name_column_index = table.columns.get_loc(plotting_name_column)
-    for chart in chart_types:
+    for i, chart in enumerate(chart_types):
+        chart_title = chart_titles[i-1]
         # Get the y_axis_max from max_and_min_values_dict by including the table_id in the key
         # if table_id == 'Industry_3':
         #     breakpoint()
@@ -314,7 +343,7 @@ def create_charts(table, chart_types, plotting_specifications, workbook, num_tab
             # Configure the chart with the updated y_axis_max
             line_chart = line_plotting_specifications(workbook, plotting_specifications, y_axis_max, y_axis_min)
             line_thickness = plotting_specifications['line_thickness']
-            line_chart = create_line_chart(num_table_rows, table, plotting_name_column, sheet, current_row, space_under_tables, column_row, plotting_name_column_index, year_cols_start, num_cols, colours_dict, line_chart, total_plotting_names, line_thickness, table_id)
+            line_chart = create_line_chart(num_table_rows, table, plotting_name_column, sheet, current_row, space_under_tables, column_row, plotting_name_column_index, year_cols_start, num_cols, colours_dict, line_chart, total_plotting_names, line_thickness, table_id, chart_title)
             if not line_chart:
                 continue
             charts_to_plot.append(line_chart)
@@ -322,7 +351,7 @@ def create_charts(table, chart_types, plotting_specifications, workbook, num_tab
         elif chart == 'area':
             # Configure the chart with the updated y_axis_max, y_axis_min
             area_chart = area_plotting_specifications(workbook, plotting_specifications, y_axis_max, y_axis_min)
-            area_chart = create_area_chart(num_table_rows, table, plotting_name_column, sheet, current_row, space_under_tables, column_row, plotting_name_column_index, year_cols_start, num_cols, colours_dict, area_chart, total_plotting_names, table_id)
+            area_chart = create_area_chart(num_table_rows, table, plotting_name_column, sheet, current_row, space_under_tables, column_row, plotting_name_column_index, year_cols_start, num_cols, colours_dict, area_chart, total_plotting_names, table_id, chart_title)
             if not area_chart:
                 continue
             charts_to_plot.append(area_chart)
@@ -330,7 +359,7 @@ def create_charts(table, chart_types, plotting_specifications, workbook, num_tab
         elif chart == 'bar':
             # Configure the chart with the updated y_axis_max and y_axis_min
             bar_chart = bar_plotting_specifications(workbook, plotting_specifications, y_axis_max, y_axis_min)
-            bar_chart = create_bar_chart(num_table_rows, table, plotting_name_column, sheet, current_row, space_under_tables, column_row, plotting_name_column_index, year_cols_start, len(table.columns), colours_dict, bar_chart, total_plotting_names, table_id)
+            bar_chart = create_bar_chart(num_table_rows, table, plotting_name_column, sheet, current_row, space_under_tables, column_row, plotting_name_column_index, year_cols_start, len(table.columns), colours_dict, bar_chart, total_plotting_names, table_id, chart_title)
             if not bar_chart:
                 continue
             charts_to_plot.append(bar_chart)
@@ -354,16 +383,17 @@ def create_charts(table, chart_types, plotting_specifications, workbook, num_tab
 #     return bar_chart_table, bar_chart, writer, current_row,charts_to_plot
 
 def sort_table_rows_and_columns(table,table_id,plotting_names_order,year_cols):
-    column_order = ['scenario', 'unit', 'aggregate_name', 'plotting_name']+ year_cols.tolist()
+    column_order = ['aggregate_name', 'plotting_name']+ year_cols.tolist()
     #sort column_order
     table = table[column_order].copy()
-    #get the rows order for the plot id
-    labels = plotting_names_order[table_id].copy()
+    #get the rows order for the plot id, if it exists
+    if table_id in plotting_names_order.keys():
+        labels = plotting_names_order[table_id].copy()
     
-    #make sure the plotting_name_column order is the same as labels order
-    table['plotting_name'] = pd.Categorical(table['plotting_name'], labels)
-    #sort the table by the plotting_name_column
-    table = table.sort_values('plotting_name')
+        #make sure the plotting_name_column order is the same as labels order
+        table['plotting_name'] = pd.Categorical(table['plotting_name'], labels)
+        #sort the table by the plotting_name_column
+        table = table.sort_values('plotting_name')
     return table
 
 def format_table(table,plotting_names_order,plotting_name_to_label_dict):
@@ -373,12 +403,12 @@ def format_table(table,plotting_names_order,plotting_name_to_label_dict):
     
     chart_types = np.sort(table['chart_type'].unique())
     table_id = table['table_id'].iloc[0]
-    
+    chart_titles = table['chart_title'].unique()
     #make sure that we only have data for one of the cahrt ttypes. The data should be the same since its based on the same table, so jsut take the first one
     table = table[table['chart_type']==chart_types[0]].copy()
     
     #then drop these columns
-    table = table.drop(columns = ['aggregate_name_column', 'plotting_name_column', 'chart_type','table_id'])
+    table = table.drop(columns = ['aggregate_name_column', 'plotting_name_column', 'chart_type','table_id', 'dimensions', 'chart_title', 'scenario', 'unit','sheet_name'])#not sure if we should remove scenario and unit but it seems right since they are at the top of the section for that sheet. if it becomes a issue i think we should focus on making it clearer, not adding it to the table
     
     #format some cols:
     num_cols = len(table.columns)
@@ -410,11 +440,18 @@ def format_table(table,plotting_names_order,plotting_name_to_label_dict):
         table.rename(columns = {'plotting_name':'Sector'}, inplace = True)#, aggregate_name_column:'Fuel'
         plotting_name_column = 'Sector'
         aggregate_name_column = np.nan#'Fuel'#TODO is this right?
+    else:
+        #just assume that the plotting_name_column is the plotting name and the aggregate_name_column is the aggregate name
+        if str(aggregate_name_column) == 'nan':
+            table.rename(columns = {'plotting_name':plotting_name_column}, inplace = True)
+            table.drop(columns = ['aggregate_name'], inplace = True)
+        else:
+            table.rename(columns = {'plotting_name':plotting_name_column, 'aggregate_name':aggregate_name_column}, inplace = True)
         
     #convert plotting column and aggregate columns names to labels if any of them need converting:
     table[plotting_name_column] = table[plotting_name_column].map(plotting_name_to_label_dict)#todo test i dont delete data here
     
-    return table, chart_types, table_id, plotting_name_column, year_cols_start,num_cols
+    return table, chart_types, table_id, plotting_name_column, year_cols_start,num_cols, chart_titles
 
 def create_bar_chart_table(table,year_cols_start,bar_years):
     #create a new table of data so we only have data for every year that is a mutliple of 10. If the first year is not a multiple of 10 then include this too. This will be written 2 row under the table this is based on
@@ -471,7 +508,7 @@ def get_column_letter(column_number):
 #######################################
 #CHART CREATION
 #######################################
-def create_area_chart(num_table_rows, table, plotting_name_column, sheet, current_row,space_under_tables,column_row, plotting_name_column_index, year_cols_start, num_cols, colours_dict, area_chart,total_plotting_names, table_id):
+def create_area_chart(num_table_rows, table, plotting_name_column, sheet, current_row,space_under_tables,column_row, plotting_name_column_index, year_cols_start, num_cols, colours_dict, area_chart,total_plotting_names, table_id, chart_title):
     # Extract the series of data for the chart from the excels sheets data.
     table_start_row = current_row - num_table_rows - space_under_tables - column_row
     for row_i in range(num_table_rows):
@@ -496,6 +533,10 @@ def create_area_chart(num_table_rows, table, plotting_name_column, sheet, curren
                 'border':     {'none': True}
 
             })   
+    
+    # Add a title to the chart
+    area_chart.set_title({'name': chart_title,'name_font': {'size': 9}})
+    
     #double check if chart is empty, if so let user know and skip the chart
     if len(area_chart.series) == 0:
         print('Chart for ' + sheet +' with table_id ' + table_id + ' is empty. Skipping...')#TEMP for now we are using 'table_id
@@ -503,7 +544,7 @@ def create_area_chart(num_table_rows, table, plotting_name_column, sheet, curren
     else:
         return area_chart
     
-def create_line_chart(num_table_rows, table, plotting_name_column, sheet, current_row,space_under_tables,column_row, plotting_name_column_index, year_cols_start, num_cols, colours_dict, line_chart, total_plotting_names, line_thickness, table_id):
+def create_line_chart(num_table_rows, table, plotting_name_column, sheet, current_row,space_under_tables,column_row, plotting_name_column_index, year_cols_start, num_cols, colours_dict, line_chart, total_plotting_names, line_thickness, table_id, chart_title):
     table_start_row = current_row - num_table_rows - space_under_tables - column_row #add one for columns
     # Extract the series of data for the chart from the excels sheets data.
     for row_i in range(num_table_rows):
@@ -520,6 +561,10 @@ def create_line_chart(num_table_rows, table, plotting_name_column, sheet, curren
                 'values':     [sheet, table_start_row + row_i + 1, year_cols_start, table_start_row + row_i + 1, num_cols - 1],
                 'line':       {'color': table[plotting_name_column].map(colours_dict).iloc[row_i], 'width': line_thickness}
             })   
+    
+    # Add a title to the chart
+    line_chart.set_title({'name': chart_title,'name_font': {'size': 9}})
+
     #double check if chart is empty, if so let user know and skip the chart
     if len(line_chart.series) == 0:
         print('Chart for ' + sheet +' with table_id ' + table_id + ' is empty. Skipping...')
@@ -527,7 +572,7 @@ def create_line_chart(num_table_rows, table, plotting_name_column, sheet, curren
     else:
         return line_chart
 
-def create_bar_chart(num_table_rows, table, plotting_name_column, sheet, current_row, space_under_tables, column_row,plotting_name_column_index, year_cols_start, num_cols, colours_dict, bar_chart,total_plotting_names, table_id):
+def create_bar_chart(num_table_rows, table, plotting_name_column, sheet, current_row, space_under_tables, column_row,plotting_name_column_index, year_cols_start, num_cols, colours_dict, bar_chart,total_plotting_names, table_id, chart_title):
     # Extract the series of data for the chart from the excels sheets data.
     table_start_row = current_row - num_table_rows - space_under_tables - column_row
     for row_i in range(num_table_rows):
@@ -545,6 +590,10 @@ def create_bar_chart(num_table_rows, table, plotting_name_column, sheet, current
                 'fill':       {'color': table[plotting_name_column].map(colours_dict).iloc[row_i]},
                 'border':     {'none': True}
             })   
+    
+    # Add a title to the chart
+    bar_chart.set_title({'name': chart_title,'name_font': {'size': 9}})
+    
     #double check if chart is empty, if so let user know and skip the chart
     if len(bar_chart.series) == 0:
         print('Chart for ' + sheet +' with table_id ' + table_id + ' is empty. Skipping...')
@@ -601,7 +650,7 @@ def area_plotting_specifications(workbook, plotting_specifications, y_axis_max, 
     })
         
     area_chart.set_title({
-        'none': True
+        'name_font': {'size': 9}  # Set the size of the title text
     })
 
     return area_chart
@@ -649,7 +698,7 @@ def bar_plotting_specifications(workbook, plotting_specifications, y_axis_max, y
     })
         
     line_chart.set_title({
-        'none': True
+        'name_font': {'size': 9}  # Set the size of the title text
     })
 
     # # Configure the series of the chart from the dataframe data.    
@@ -712,7 +761,7 @@ def line_plotting_specifications(workbook, plotting_specifications, y_axis_max, 
     })
         
     line_chart.set_title({
-        'none': True
+        'name_font': {'size': 9}  # Set the size of the title text
     })
     
     # # Configure the series of the chart from the dataframe data.

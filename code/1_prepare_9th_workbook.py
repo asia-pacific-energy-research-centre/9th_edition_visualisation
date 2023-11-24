@@ -9,7 +9,8 @@ import os
 import shutil
 import ast
 import workbook_creation_functions
-from map_9th_data_to_plotting_template import map_9th_data_to_plotting_template_handler
+from map_9th_data_to_two_dimensional_plots import map_9th_data_to_two_dimensional_plots
+from map_1d_plots import map_9th_data_to_one_dimensional_plots
 def data_checking_warning_or_error(message):
     if STRICT_DATA_CHECKING:
         raise Exception(message)
@@ -26,11 +27,16 @@ FILE_DATE_ID = datetime.now().strftime('%Y%m%d')
 FILE_DATE_ID = '20231110'
 total_plotting_names=['Total', 'TPES', 'Total primary energy supply','TFEC', 'TFC']
 MIN_YEAR = 2000
+
+EXPECTED_COLS = ['source', 'table_number', 'chart_type','plotting_name', 'plotting_name_column','aggregate_name', 'aggregate_name_column', 'scenario', 'unit', 'table_id', 'dimensions', 'chart_title', 'year', 'value','sheet_name']
 #######################################################
 #%%
 map_data = False
 if map_data:
-    map_9th_data_to_plotting_template_handler(FILE_DATE_ID, ECONOMY_ID, RAISE_ERROR=False)
+    map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COLS, RAISE_ERROR=False)
+    
+#%%
+charts_mapping_1d = map_9th_data_to_one_dimensional_plots(ECONOMY_ID, EXPECTED_COLS)
 #%%
 #######################################################
 #read in titles, only, from charts mapping for each available economy for the FILE_DATE_ID. e.g. charts_mapping_9th_{economy_x}_{FILE_DATE_ID}.pkl. We will use each of these to create a workbook, for each economy
@@ -52,6 +58,11 @@ for source in sources:
 
 if len(charts_mapping_files) == 0:
     raise Exception('No charts mapping files found for FILE_DATE_ID: {}'.format(FILE_DATE_ID))
+
+#add the unique sources form charts_mapping_1d to all_charts_mapping_files_dict
+for source in charts_mapping_1d.source.unique():
+    all_charts_mapping_files_dict[source] = [charts_mapping_1d[charts_mapping_1d.source==source]]
+    
 #%%
 ############################################
 #import master_config xlsx
@@ -85,7 +96,7 @@ workbook, writer, space_format, percentage_format, header_format, cell_format1, 
 for source in all_charts_mapping_files_dict.keys():
     charts_mapping_dfs = all_charts_mapping_files_dict[source]
     for charts_mapping in charts_mapping_dfs:
-        workbook, writer = workbook_creation_functions.create_sheets_from_mapping_df(workbook, charts_mapping, total_plotting_names, MIN_YEAR, colours_dict, cell_format1, cell_format2, header_format, plotting_specifications, plotting_names_order, plotting_name_to_label_dict, writer)#workbook, charts_mapping, source, ECONOMY_ID)
+        workbook, writer = workbook_creation_functions.create_sheets_from_mapping_df(workbook, charts_mapping, total_plotting_names, MIN_YEAR, colours_dict, cell_format1, cell_format2, header_format, plotting_specifications, plotting_names_order, plotting_name_to_label_dict, writer, EXPECTED_COLS, ECONOMY_ID)#workbook, charts_mapping, source, ECONOMY_ID)
 
 #todo add code for macro and renewable share and so on/ 
 #save the workbook

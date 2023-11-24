@@ -3,9 +3,95 @@
 import pickle
 import pandas as pd
 import numpy as np
-
+import os
 import collections
+import re
+from datetime import datetime
 STRICT_DATA_CHECKING = False
+
+
+def find_most_recent_file_date_id(files):
+    """Find the most recent file in a directory based on the date ID in the filename."""
+
+    # Initialize variables to keep track of the most recent file and date
+    most_recent_date = datetime.min
+    most_recent_file = None
+
+    # Define a regex pattern for the date ID (format YYYYMMDD)
+    date_pattern = re.compile(r'(\d{8})')
+    
+    # Loop through the files to find the most recent one
+    for file in files:
+        # Use regex search to find the date ID in the filename
+        match = date_pattern.search(file)
+        if match:
+            date_id = match.group(1)
+            # Parse the date ID into a datetime object
+            try:
+                file_date = datetime.strptime(date_id, '%Y%m%d')
+                # If this file's date is more recent, update the most recent variables
+                if file_date > most_recent_date:
+                    most_recent_date = file_date
+                    most_recent_file = file
+            except ValueError:
+                # If the date ID is not in the expected format, skip this file
+                continue
+
+    # Output the most recent file
+    if most_recent_file:
+        print(f"The most recent file is: {most_recent_file} with the date ID {most_recent_date.strftime('%Y%m%d')}")
+    else:
+        print("No files found with a valid date ID.")
+    return most_recent_file
+
+def find_and_load_latest_data_for_all_sources(ECONOMY_ID, sources):
+    # Initialize variables
+    all_file_paths = []
+    folder =f'../input_data/{ECONOMY_ID}/'
+    all_model_df_wides_dict = {}
+    # Fetch file paths based on the configuration
+
+    for root, dirs, files in os.walk(folder):
+        all_file_paths.extend([os.path.join(root, file) for file in os.listdir(root) if os.path.isfile(os.path.join(root, file))])
+
+    # Check if files are found
+    if not all_file_paths:
+        raise Exception(f"No file found for {folder}")
+
+    #find latest files for each source:
+    all_files_with_source = []
+    for source in sources:
+        all_file_paths_source = [file_path for file_path in all_file_paths if source in os.path.basename(file_path)]
+        all_files_with_source = all_files_with_source + all_file_paths_source
+        if len(all_file_paths_source) == 0:
+            print(f'No file found for {source}')
+        #find file with latest file date id using find_most_recent_file_date_id(files)
+        file_path = find_most_recent_file_date_id(all_file_paths_source)
+        all_model_df_wides_dict[source] = [file_path]
+        if file_path is None:
+            print(f'No latest date id was idenitfied for {source} files')
+        
+    # Check if there are any files_missing_source
+    files_missing_source = [file_path for file_path in all_file_paths if file_path not in all_files_with_source]
+    if len(files_missing_source) > 0:
+        print(f'The following files were not identified as an energy, capacity or emissions file: {files_missing_source}')
+    
+    def load_data_to_df(file_path):
+        if file_path.endswith(('.xlsx', '.xls')):
+            return pd.read_excel(file_path)
+        elif file_path.endswith('.csv'):
+            return pd.read_csv(file_path)
+        else:
+            breakpoint()
+            raise Exception(f"Unsupported file format for {file_path}")
+
+    # Load data into DataFrames and
+    for source in all_model_df_wides_dict.keys():
+        file_path = all_model_df_wides_dict[source][0]
+        all_model_df_wides_dict[source].append(load_data_to_df(file_path))
+        
+    return all_model_df_wides_dict
+
 
 def format_plotting_mappings(plotting_mappings_df, columns, plotting_name_column, strict_data_checking=False):
     # Initialize the new plotting mappings data frame with the necessary columns
@@ -41,7 +127,7 @@ def format_charts_mapping(charts_mapping, source_and_aggregate_name_column_to_pl
     charts_mapping = charts_mapping.iloc[1:]
 
     # Define key columns
-    key_cols = ['source', 'sheet_name', 'table_number', 'chart_type']
+    key_cols = ['source', 'sheet_name', 'table_number', 'chart_type', 'chart_title']
     
     # Assuming 'aggregate_name_column' holds the column names to aggregate by
     aggregate_name_columns = charts_mapping['aggregate_name_column'].unique()
@@ -91,7 +177,7 @@ def format_charts_mapping(charts_mapping, source_and_aggregate_name_column_to_pl
     return new_charts_mapping
 
 def save_plotting_names_order(charts_mapping,FILE_DATE_ID):
-    key_cols = ['source', 'sheet_name', 'table_number', 'chart_type']
+    key_cols = ['source', 'sheet_name', 'table_number', 'chart_type', 'chart_title']
     group_2_cols = ['aggregate_name_column', 'aggregate_name']
     group_3_cols = [x for x in charts_mapping.columns.tolist() if x not in key_cols + group_2_cols]
     #create table_id col
@@ -374,12 +460,40 @@ def format_plotting_df_from_mapped_plotting_names(plotting_df, new_charts_mappin
         plotting_df_subset = plotting_df_subset.rename(columns={aggregate_name:'aggregate_name', plotting_name:'plotting_name'})
         
         #filter fo ronly the cols we need:
-        plotting_df_subset = plotting_df_subset[['source', 'economy','table_number','sheet_name', 'chart_type', 'plotting_name_column', 'plotting_name','aggregate_name_column', 'aggregate_name', 'scenarios', 'year', 'table_id', 'value']]
+        plotting_df_subset = plotting_df_subset[['source', 'economy','table_number','sheet_name', 'chart_type', 'chart_title', 'plotting_name_column', 'plotting_name','aggregate_name_column', 'aggregate_name', 'scenarios', 'year', 'table_id', 'value']]
         
         plotting_df_mapped = pd.concat([plotting_df_mapped, plotting_df_subset])
     #filter rfor the cols we want
-    plotting_df_mapped = plotting_df_mapped.groupby(['source', 'economy','table_number','sheet_name', 'chart_type', 'plotting_name_column', 'plotting_name','aggregate_name_column', 'aggregate_name', 'scenarios', 'year', 'table_id']).sum().reset_index()               
+    plotting_df_mapped = plotting_df_mapped.groupby(['source', 'economy','table_number','sheet_name', 'chart_type', 'chart_title', 'plotting_name_column', 'plotting_name','aggregate_name_column', 'aggregate_name', 'scenarios', 'year', 'table_id']).sum().reset_index()               
     return plotting_df_mapped
+
+
+
+def format_chart_tiles(charts_mapping, ECONOMY_ID):
+    #charts titles use {VARIABLE} to indicate where the variable name should be inserted. This function replaces {VARIABLE} with the variable name, which may be based on either the value for that row or a varaible like economy_id
+    
+    def map_variable_to_value(row, ECONOMY_ID):
+        #this function will map the variable to the value for that row. If the  lower case version of the variable is a column in the row, it will map the value in that column. If the variable is a string, it will map that to a varaible if it has a mapping below:
+        
+        #first check if there are any {VARIABLE} in the chart_title col, if not then return the variable. Note that VARIABLE represents any sequence of lower or uppercase characters, so it could be any variable name, so use regex to find it
+        # a = '{sdd_32saDD} {fsdhsu_32435fh} ssd' #example of a string that would match
+        varaibles_in_chart_title = re.findall(r'{[a-zA-Z_0-9]*}', row['chart_title'])
+        if len(varaibles_in_chart_title) == 0:
+            return row['chart_title']
+        variables = [x.replace('{', '').replace('}', '') for x in varaibles_in_chart_title]
+        
+        for var in variables:
+            if var.lower() in row.index:
+                row['chart_title'] = row['chart_title'].replace('{'+var+'}', str(row[var.lower()]))
+            elif var == 'ECONOMY_ID':
+                row['chart_title'] = row['chart_title'].replace('{'+var+'}', ECONOMY_ID)
+            else:
+                print('The variable {} in the chart_title column is not recognised'.format(var))
+        return row['chart_title']
+    
+    charts_mapping['chart_title'] = charts_mapping.apply(lambda row: map_variable_to_value(row, ECONOMY_ID), axis=1)
+    
+    return charts_mapping
 # def collect_missing_datapoints(economy_new_charts_mapping):
 #     #now loop through the unique sheet, table combinations and idneitfy if there are any missing values (nas) in the value col. Put the data for these into a new dataframe called missing_data
 #     missing_data = pd.DataFrame()
@@ -565,7 +679,7 @@ def format_plotting_df_from_mapped_plotting_names(plotting_df, new_charts_mappin
     
 #     #every column after: [sheet	table_number	chart_type ] will be melted into a plotting_name column. then remove nas from plotting_name column
 #     #but to be safe, double check that these columns are just digits, becuase if there are new cols added, this will break
-#     key_cols = ['sheet_name', 'table_number', 'chart_type']
+#     key_cols = ['sheet_name', 'table_number', 'chart_type', 'chart_title']
 #     group_2_cols = ['fuels_plotting', 'sectors_plotting']
 #     group_3_cols = [x for x in charts_mapping.columns.tolist() if x not in key_cols + group_2_cols]
 #     if not all([str(x).isdigit() for x in group_3_cols]):
@@ -617,7 +731,7 @@ def format_plotting_df_from_mapped_plotting_names(plotting_df, new_charts_mappin
 # def format_charts_mapping(charts_mapping):
 #     #every column after: [sheet	table_number	chart_type ] will be melted into a plotting_name column. then remove nas from plotting_name column
 #     #but to be safe, double check that these columns are just digits, becuase if there are new cols added, this will break
-#     key_cols = ['sheet_name', 'table_number', 'chart_type']
+#     key_cols = ['sheet_name', 'table_number', 'chart_type', 'chart_title']
 #     cols_after_table = [x for x in charts_mapping.columns.tolist() if x not in key_cols]
 #     if not all([str(x).isdigit() for x in cols_after_table]):
 #         raise Exception('columns after table are not all digits')
