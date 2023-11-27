@@ -77,8 +77,8 @@ def create_sheets_from_mapping_df(workbook, charts_mapping, total_plotting_names
                 sheet_dfs[sheet] = sheet_dfs[sheet] + (table_data,)
     #PREPARE DATA END  ########################################
     #now we have a dictionary of dataframes for each sheet, we can iterate through them and create the charts and tables we need.
-    #TODO update 'sectors_plotting', 'fuels_plotting', in below comment. should be like plotting_name , aggregate_name. with understanding that aggregate name will be ?? for capacity
-    #every table has the format:'table_number', 'chart_type', 'sectors_plotting', 'fuels_plotting', 'plotting_name_column', 'aggregate_name_column', 'scenario', 'unit', ...YEARS... where years is a list of the years columns in the table (eg. 2019, 2020, 2021, 2022, 2023, 2024, 2025)
+    #every table has the format (var might change)
+    # EXPECTED_COLS = ['source', 'table_number', 'chart_type','plotting_name', 'plotting_name_column','aggregate_name', 'aggregate_name_column', 'scenario', 'unit', 'table_id', 'dimensions', 'chart_title', 'year', 'value','sheet_name']
 
     #iterate through the sheets and create them
     for sheet in sheets:
@@ -89,8 +89,8 @@ def create_sheets_from_mapping_df(workbook, charts_mapping, total_plotting_names
         worksheet = workbook.get_worksheet_by_name(sheet)
 
         space_under_tables = 1
-        space_above_charts = 6# I THINK THIS NEEDS TO BE 1 LESS THAN space_under_charts ALWAYS
-        space_under_charts = 7
+        space_above_charts = 5# I THINK THIS NEEDS TO BE 1 LESS THAN space_under_charts ALWAYS. Think its because when u increase size of chart it increases the space it takes up equally upwards as downwards. 
+        space_under_charts = 6
         space_under_titles = 1
         column_row = 1
         current_scenario = ''
@@ -102,31 +102,7 @@ def create_sheets_from_mapping_df(workbook, charts_mapping, total_plotting_names
                 breakpoint()
                 raise Exception('we should only have one dimension type per table')
             ########################
-            if current_scenario == '':
-                #this is the first table. we will also use this opportunity to add the title of the sheet:
-                current_scenario = table['scenario'].iloc[0]
-                if str(current_scenario) == 'nan':
-                    worksheet.write(0, 0, ECONOMY_ID + ' ' + sheet + ' ', cell_format1)
-                else:
-                    worksheet.write(0, 0, ECONOMY_ID + ' ' + sheet + ' ' + current_scenario, cell_format1)
-                unit = unit_dict[sheet]
-                worksheet.write(1, 0, unit, cell_format2)
-                current_row += 2
-            elif table['scenario'].iloc[0] != current_scenario:
-                #New scenario. Add scenario title to next line and then carry on
-                current_scenario = table['scenario'].iloc[0]
-                #if scenario is na then dont add it
-                if str(current_scenario) == 'nan':
-                    current_row += 2
-                    worksheet.write(current_row, 0, ECONOMY_ID + ' ' + sheet + ' ', cell_format1)
-                else:
-                    current_row += 2
-                    worksheet.write(current_row, 0, ECONOMY_ID + ' ' + sheet + ' ' + current_scenario, cell_format1)
-                    current_row += space_under_titles                
-            else:
-                #add one line space between tables of same scenario
-                current_row += space_under_tables
-                pass
+            current_row, current_scenario, worksheet = add_section_titles(current_row, current_scenario, sheet, worksheet, cell_format1, cell_format2, space_under_titles, table, space_under_tables,unit_dict, ECONOMY_ID)
             ########################
             table, chart_types, table_id, plotting_name_column, year_cols_start,num_cols, chart_titles = format_table(table,plotting_names_order,plotting_name_to_label_dict)
             
@@ -191,6 +167,32 @@ def create_sheets_from_mapping_df(workbook, charts_mapping, total_plotting_names
     # breakpoint()
     return workbook, writer
 
+def add_section_titles(current_row, current_scenario, sheet, worksheet, cell_format1, cell_format2, space_under_titles, table, space_under_tables,unit_dict, ECONOMY_ID):
+    if current_scenario == '':
+        #this is the first table. we will also use this opportunity to add the title of the sheet:
+        current_scenario = table['scenario'].iloc[0]
+        worksheet.write(0, 0, ECONOMY_ID, cell_format1)
+        worksheet.write(1, 0, sheet, cell_format1)
+        if str(current_scenario) != 'nan':
+            worksheet.write(2, 0, current_scenario.capitalize(), cell_format1)
+        unit = unit_dict[sheet]
+        worksheet.write(1, 0, unit, cell_format2)
+        current_row += 2
+    elif table['scenario'].iloc[0] != current_scenario:
+        #New scenario. Add scenario title to next line and then carry on
+        current_scenario = table['scenario'].iloc[0]
+        #if scenario is na then dont add it
+        current_row += 2
+        worksheet.write(current_row, 0, ECONOMY_ID, cell_format1)
+        worksheet.write(current_row+1, 0, sheet, cell_format1)
+        if str(current_scenario) != 'nan':
+            worksheet.write(current_row+2, 0, current_scenario, cell_format1)
+        current_row += space_under_titles                
+    else:
+        #add one line space between tables of same scenario
+        current_row += space_under_tables
+    return current_row, current_scenario, worksheet
+    
 def prepare_workbook_for_all_charts(ECONOMY_ID, FILE_DATE_ID):
     # Set the path for the economy folder
     economy_folder = '../output/output_workbooks/' + ECONOMY_ID
