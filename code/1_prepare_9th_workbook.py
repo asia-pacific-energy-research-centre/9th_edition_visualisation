@@ -11,27 +11,16 @@ import ast
 import workbook_creation_functions
 from map_9th_data_to_two_dimensional_plots import map_9th_data_to_two_dimensional_plots
 from map_1d_plots import map_9th_data_to_one_dimensional_plots
+from utility_functions import *
 def data_checking_warning_or_error(message):
     if STRICT_DATA_CHECKING:
         raise Exception(message)
     else:
         print(message)
-        
-ECONOMY_ID = '19_THA'#'20_USA'#08_JPN
 
-#######################################################
-#CONFIG PREPARATION
-#create FILE_DATE_ID for use in file names
-FILE_DATE_ID = datetime.now().strftime('%Y%m%d')
-
-FILE_DATE_ID = '20231110'
-total_plotting_names=['Total', 'TPES', 'Total primary energy supply','TFEC', 'TFC']
-MIN_YEAR = 2000
-
-EXPECTED_COLS = ['source', 'table_number', 'chart_type','plotting_name', 'plotting_name_column','aggregate_name', 'aggregate_name_column', 'scenario', 'unit', 'table_id', 'dimensions', 'chart_title', 'year', 'value','sheet_name']
 #######################################################
 #%%
-map_data = False
+map_data = True
 if map_data:
     map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COLS, RAISE_ERROR=False)
     

@@ -8,6 +8,7 @@ import os
 import sys
 import glob
 import re
+from utility_functions import *
 STRICT_DATA_CHECKING = False
 def data_checking_warning_or_error(message):
     if STRICT_DATA_CHECKING:
@@ -139,6 +140,7 @@ def calculate_and_extract_intensity_data(ECONOMY_ID):
     #first identify the years cols so we can keep only them and scenario
     years_cols = [x for x in energy_total.columns if re.match(r'\d\d\d\d', x)]
     energy_total =energy_total[years_cols + ['scenarios']].copy()
+    years_cols = [x for x in emissions_total.columns if re.match(r'\d\d\d\d', x)]
     emissions_total =emissions_total[years_cols + ['scenarios']].copy()
 
     #quickly check for duplicates
