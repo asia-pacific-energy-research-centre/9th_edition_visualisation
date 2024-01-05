@@ -6,11 +6,11 @@ import os
 import shutil
 from utility_functions import *
 STRICT_DATA_CHECKING = False
-def data_checking_warning_or_error(message):
-    if STRICT_DATA_CHECKING:
-        raise Exception(message)
-    else:
-        print(message)
+# def data_checking_warning_or_error(message):
+#     if STRICT_DATA_CHECKING:
+#         raise Exception(message)
+#     else:
+#         print(message)
 
 def create_sheets_from_mapping_df(workbook, charts_mapping, total_plotting_names, MIN_YEAR, colours_dict, cell_format1, cell_format2, header_format, plotting_specifications, plotting_names_order, plotting_name_to_label_dict, writer, EXPECTED_COLS, ECONOMY_ID): 
     #PREPARE DATA ########################################
