@@ -18,7 +18,7 @@ def data_checking_warning_or_error(message):
 
 
 USE_ECONOMY_ID = True
-ECONOMY_ID = '19_THA'#'20_USA'#08_JPN
+ECONOMY_ID = '20_USA'#'20_USA'#08_JPN
 
 #######################################################
 #CONFIG PREPARATION
