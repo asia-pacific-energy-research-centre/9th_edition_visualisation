@@ -3,11 +3,11 @@ import math
 import numpy as np
 import ast
 STRICT_DATA_CHECKING = False
-def data_checking_warning_or_error(message):
-    if STRICT_DATA_CHECKING:
-        raise Exception(message)
-    else:
-        print(message)
+# def data_checking_warning_or_error(message):
+#     if STRICT_DATA_CHECKING:
+#         raise Exception(message)
+#     else:
+#         print(message)
 
 
 def extract_max_and_min_values(data, max_and_min_values_dict, total_plotting_names):
