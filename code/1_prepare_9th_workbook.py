@@ -18,21 +18,6 @@ def data_checking_warning_or_error(message):
     else:
         print(message)
 
-<<<<<<< HEAD
-
-USE_ECONOMY_ID = True
-ECONOMY_ID = '20_USA'#'20_USA'#08_JPN
-
-#######################################################
-#CONFIG PREPARATION
-#create FILE_DATE_ID for use in file names
-FILE_DATE_ID = datetime.now().strftime('%Y%m%d')
-
-# FILE_DATE_ID = '20230912'
-total_plotting_names=['Total', 'TPES', 'Total primary energy supply','TFEC', 'TFC']
-MIN_YEAR = 2000
-=======
->>>>>>> cce41658373ab5083bc405ebcdcace55c0fa19e6
 #######################################################
 #%%
 map_data = True
