@@ -9,7 +9,7 @@ import os
 import shutil
 import ast
 import workbook_creation_functions
-from map_9th_data_to_two_dimensional_plots import map_9th_data_to_two_dimensional_plots
+from map_2d_plots import map_9th_data_to_two_dimensional_plots
 from map_1d_plots import map_9th_data_to_one_dimensional_plots
 from utility_functions import *
 def data_checking_warning_or_error(message):
@@ -81,6 +81,7 @@ colours_dict = colours_dict.set_index(colours_dict.columns[0]).to_dict()[colours
 ########################################################.
 #PREPARE WORKBOOK
 workbook, writer, space_format, percentage_format, header_format, cell_format1, cell_format2 = workbook_creation_functions.prepare_workbook_for_all_charts(ECONOMY_ID, FILE_DATE_ID)
+#%%
 # Start of the process
 for source in all_charts_mapping_files_dict.keys():
     charts_mapping_dfs = all_charts_mapping_files_dict[source]
