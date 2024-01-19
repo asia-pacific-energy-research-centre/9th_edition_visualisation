@@ -71,12 +71,16 @@ def map_all_1d_plotting_dfs_to_charts_mapping(all_1d_plotting_dfs, EXPECTED_COLS
     all_1d_plotting_dfs['aggregate_name'] = np.nan
     
     all_1d_plotting_dfs['dimensions'] = '1D'
+
+    # all_1d_plotting_dfs.to_csv('../intermediate_data/all_1d_plotting_dfs.csv')
     
     #join onto charts_mapping_template using a left join so we get one to many:
     charts_mapping = pd.merge(charts_mapping_template, all_1d_plotting_dfs, how='left', on=['source', 'plotting_name'], indicator=True)
+    # charts_mapping.to_csv('../intermediate_data/charts_mapping_1d.csv')
     #check for any rows that are left only
     if (charts_mapping._merge == 'left_only').any():
         breakpoint()
+        charts_mapping.to_csv('../intermediate_data/charts_mapping_1d.csv')
         raise Exception('There are rows in charts_mapping that are left only. This should not happen.')
     #drop merge col
     charts_mapping.drop(columns=['_merge'], inplace=True)
@@ -126,15 +130,26 @@ def extract_macro_data(ECONOMY_ID):
 
 def calculate_and_extract_intensity_data(ECONOMY_ID):
     #to do this we need to use total energy consumption and total emissions and then divide by gdp. note that this will not go into detail on sectors, if that is ever needed it will need to be part of the 2d plots as it will 'intensity by sector'
-
+    breakpoint()
     all_model_df_wides_dict = mapping_functions.find_and_load_latest_data_for_all_sources(ECONOMY_ID, ['energy', 'emissions'])
     energy = all_model_df_wides_dict['energy'][1]
     emissions = all_model_df_wides_dict['emissions'][1]
 
     #load in 
     energy_total = energy[(energy.sectors == '12_total_final_consumption') & (energy.fuels == '19_total') & (~energy.subtotal_layout) & (~energy.subtotal_results)].copy()
+    #do a quick check that we arent getting more than one row per scenario since we are setting subtotals to true for any total final consumption rows.
+    unique_energy_scenarios = energy_total.scenarios.unique()
+    if len(energy_total) > len(unique_energy_scenarios):
+        breakpoint()
+        raise Exception('There are more rows in energy_total than there are unique scenarios. This should not happen.')
 
     emissions_total = emissions[(emissions.sectors == '12_total_final_consumption') & (emissions.fuels == '19_total') & (~emissions.subtotal_layout) & (~emissions.subtotal_results)].copy()
+    unique_emissions_scenarios = emissions_total.scenarios.unique()
+    if len(emissions_total) > len(unique_emissions_scenarios):
+        breakpoint()
+        raise Exception('There are more rows in emissions_total than there are unique scenarios. This should not happen.')
+
+    # emissions_total.to_csv('../intermediate_data/emissions_total.csv')
 
     #now melt and join with macro data on year.
     #first identify the years cols so we can keep only them and scenario

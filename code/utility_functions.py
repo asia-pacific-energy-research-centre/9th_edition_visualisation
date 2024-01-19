@@ -6,21 +6,21 @@ import os
 from datetime import datetime
 
         
-ECONOMY_ID = '19_THA'#'20_USA'#08_JPN
+ECONOMY_ID = '20_USA'#'20_USA'#08_JPN
 
 #######################################################
 #CONFIG PREPARATION
 #create FILE_DATE_ID for use in file names
 FILE_DATE_ID = datetime.now().strftime('%Y%m%d')
 
-FILE_DATE_ID = '20231110'
+# FILE_DATE_ID = '20231110'
 total_plotting_names=['Total', 'TPES', 'Total primary energy supply','TFEC', 'TFC']
 MIN_YEAR = 2000
 
 EXPECTED_COLS = ['source', 'table_number', 'chart_type','plotting_name', 'plotting_name_column','aggregate_name', 'aggregate_name_column', 'scenario', 'unit', 'table_id', 'dimensions', 'chart_title', 'year', 'value','sheet_name']
 
 EBT_EARLIEST_YEAR = 1980
-OUTLOOK_BASE_YEAR = 2020
+OUTLOOK_BASE_YEAR = 2021
 OUTLOOK_LAST_YEAR = 2070
 
 def find_most_recent_file_date_id(directory_path):
