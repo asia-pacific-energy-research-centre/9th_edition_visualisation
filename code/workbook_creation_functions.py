@@ -416,21 +416,7 @@ def format_table(table,plotting_names_order,plotting_name_to_label_dict):
     #format some cols:
     num_cols = len(table.columns)
     first_non_object_col = table.select_dtypes(exclude=['object']).columns[0]
-    year_cols_start = table.columns.get_loc(first_non_object_col)
-    
-    # Initialize year_cols_start with None to detect if a float column was found
-    year_cols_start = None
-
-    # Iterate over columns and their data types using DataFrame.dtypes.items()
-    for col, dtype in table.dtypes.items():
-        # Check if the data type of the current column is float64
-        if dtype == 'float64':
-            # Get the index (location) of the first column of type float64
-            year_cols_start = table.columns.get_loc(col)
-            break  # Exit the loop once the first float64 column is found
-    # Check if a float64 column was found
-    if year_cols_start is None:
-        raise ValueError("No column of type float64 found. Ensure the table contains year data.")
+    year_cols_start = table.columns.get_loc(first_non_object_col) - 1
     
     #set order of columns and table, dependent on what the aggregate column is:
     year_cols = table.columns[year_cols_start:]
