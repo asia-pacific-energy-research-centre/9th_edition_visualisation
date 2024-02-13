@@ -416,7 +416,7 @@ def format_table(table,plotting_names_order,plotting_name_to_label_dict):
     #format some cols:
     num_cols = len(table.columns)
     first_non_object_col = table.select_dtypes(exclude=['object']).columns[0]
-    year_cols_start = max(0, table.columns.get_loc(first_non_object_col) - 1)
+    year_cols_start = table.columns.get_loc(first_non_object_col)
     
     #set order of columns and table, dependent on what the aggregate column is:
     year_cols = table.columns[year_cols_start:]
@@ -528,10 +528,10 @@ def create_area_chart(num_table_rows, table, plotting_name_column, sheet, curren
                 'name':     [sheet, table_start_row + row_i + 1, plotting_name_column_index], # refers to labels
                 #[sheet, (chart_height*len(num_table_rows_list)) + row_i + 1, 0],#referring to the name of the series #TEMP for now we are using 'table_id'
 
-                'categories': [sheet,  table_start_row, year_cols_start,  table_start_row, num_cols - 1],#refers to x axis
+                'categories': [sheet,  table_start_row, year_cols_start - 1,  table_start_row, num_cols - 1],#refers to x axis
                 #[sheet,  (chart_height*len(num_table_rows_list)), plotting_name_column_index,  (chart_height*len(num_table_rows_list)), num_cols - 1],
 
-                'values':    [sheet,  table_start_row + row_i + 1, year_cols_start, table_start_row + row_i + 1, num_cols - 1], #[sheet,  (chart_height*len(num_table_rows_list)) + row_i + 1, 4, (chart_height*len(num_table_rows_list)) + row_i + 1, num_cols - 1],
+                'values':    [sheet,  table_start_row + row_i + 1, year_cols_start - 1, table_start_row + row_i + 1, num_cols - 1], #[sheet,  (chart_height*len(num_table_rows_list)) + row_i + 1, 4, (chart_height*len(num_table_rows_list)) + row_i + 1, num_cols - 1],
 
                 'fill':       {'color': table[plotting_name_column].map(colours_dict).iloc[row_i]},
                 'border':     {'none': True}
@@ -561,8 +561,8 @@ def create_line_chart(num_table_rows, table, plotting_name_column, sheet, curren
         else:
             line_chart.add_series({
                 'name':       [sheet, table_start_row + row_i + 1, plotting_name_column_index],
-                'categories': [sheet, table_start_row, year_cols_start, table_start_row, num_cols - 1],
-                'values':     [sheet, table_start_row + row_i + 1, year_cols_start, table_start_row + row_i + 1, num_cols - 1],
+                'categories': [sheet, table_start_row, year_cols_start - 1, table_start_row, num_cols - 1],
+                'values':     [sheet, table_start_row + row_i + 1, year_cols_start - 1, table_start_row + row_i + 1, num_cols - 1],
                 'line':       {'color': table[plotting_name_column].map(colours_dict).iloc[row_i], 'width': line_thickness}
             })   
     
@@ -589,8 +589,8 @@ def create_bar_chart(num_table_rows, table, plotting_name_column, sheet, current
         else:
             bar_chart.add_series({
                 'name':       [sheet, table_start_row + row_i + 1, plotting_name_column_index],
-                'categories': [sheet, table_start_row, year_cols_start, table_start_row, num_cols - 1],
-                'values':     [sheet, table_start_row + row_i + 1, year_cols_start, table_start_row + row_i + 1, num_cols - 1],
+                'categories': [sheet, table_start_row, year_cols_start - 1, table_start_row, num_cols - 1],
+                'values':     [sheet, table_start_row + row_i + 1, year_cols_start - 1, table_start_row + row_i + 1, num_cols - 1],
                 'fill':       {'color': table[plotting_name_column].map(colours_dict).iloc[row_i]},
                 'border':     {'none': True}
             })   
