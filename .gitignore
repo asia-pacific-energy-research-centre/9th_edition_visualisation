@@ -3,7 +3,7 @@
 # intermediate_data/*
 # output/*
 # config/computer_generated/*
-archive/*
+**/archive
 # original_preparation_code/*
 
 *.xlsx
