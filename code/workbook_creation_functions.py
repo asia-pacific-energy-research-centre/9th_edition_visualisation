@@ -414,7 +414,7 @@ def format_table(table,plotting_names_order,plotting_name_to_label_dict):
     table = table.drop(columns = ['aggregate_name_column', 'plotting_name_column', 'chart_type','table_id', 'dimensions', 'chart_title', 'scenario', 'unit','sheet_name'])#not sure if we should remove scenario and unit but it seems right since they are at the top of the section for that sheet. if it becomes a issue i think we should focus on making it clearer, not adding it to the table
     
     #format some cols:
-    num_cols = len(table.columns)
+    num_cols = len(table.dropna(axis='columns', how='all').columns) - 1
     first_non_object_col = table.select_dtypes(exclude=['object']).columns[0]
     year_cols_start = table.columns.get_loc(first_non_object_col)
     
@@ -624,7 +624,7 @@ def area_plotting_specifications(workbook, plotting_specifications, y_axis_max, 
     area_chart.set_x_axis({
         # 'name': 'Year',
         'label_position': 'low',
-        'crossing': 21,
+        'crossing': OUTLOOK_BASE_YEAR - MIN_YEAR + 1,
         'major_tick_mark': 'none',
         'minor_tick_mark': 'none',
         'num_font': {'name': 'Segoe UI', 'size': 9, 'color': '#323232'},
@@ -735,7 +735,7 @@ def line_plotting_specifications(workbook, plotting_specifications, y_axis_max, 
     line_chart.set_x_axis({
         # 'name': 'Year',
         'label_position': 'low',
-        'crossing': 21,
+        'crossing': OUTLOOK_BASE_YEAR - MIN_YEAR + 1,
         'major_tick_mark': 'none',
         'minor_tick_mark': 'none',
         'num_font': {'name': 'Segoe UI', 'size': 9, 'color': '#323232'},

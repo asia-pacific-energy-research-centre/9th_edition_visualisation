@@ -114,6 +114,8 @@ def extract_macro_data(ECONOMY_ID):
     macro_data['source'] = 'macro'
     macro_data['plotting_name_column'] = 'variable'
     
+    # Filter for years between MIN_YEAR and OUTLOOK_LAST_YEAR
+    macro_data = macro_data[(macro_data['year'] >= MIN_YEAR) & (macro_data['year'] <= OUTLOOK_LAST_YEAR)]
 
     # #filter for plotting_name in population, real_GDP, GDP_per_capita
     # #POPULATION
