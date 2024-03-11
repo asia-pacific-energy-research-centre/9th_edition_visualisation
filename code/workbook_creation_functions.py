@@ -645,7 +645,7 @@ def area_plotting_specifications(workbook, plotting_specifications, y_axis_max, 
         },
         'line': {'color': '#323232', 'width': 1, 'dash_type': 'square_dot'},
         'min': y_axis_min,
-        'max': y_axis_max,  # Set the max value for y-axis
+        'max': y_axis_max  # Set the max value for y-axis
     })
         
     area_chart.set_legend({
@@ -661,17 +661,17 @@ def area_plotting_specifications(workbook, plotting_specifications, y_axis_max, 
 
 def bar_plotting_specifications(workbook, plotting_specifications, y_axis_max, y_axis_min):
     # Create a another chart
-    line_chart = workbook.add_chart({'type': 'column', 'subtype': 'stacked'})#can make this percent_stacked to make it a percentage stacked bar chart!
-    line_chart.set_size({
+    bar_chart = workbook.add_chart({'type': 'column', 'subtype': 'stacked'})#can make this percent_stacked to make it a percentage stacked bar chart!
+    bar_chart.set_size({
         'width': plotting_specifications['width_pixels'],
         'height': plotting_specifications['height_pixels']
     })
     
-    line_chart.set_chartarea({
+    bar_chart.set_chartarea({
         'border': {'none': True}
     })
     
-    line_chart.set_x_axis({
+    bar_chart.set_x_axis({
         # 'name': 'Year',
         'label_position': 'low',
         'major_tick_mark': 'none',
@@ -681,7 +681,7 @@ def bar_plotting_specifications(workbook, plotting_specifications, y_axis_max, y
         'line': {'color': '#bebebe'}
     })
         
-    line_chart.set_y_axis({
+    bar_chart.set_y_axis({
         'major_tick_mark': 'none', 
         'minor_tick_mark': 'none',
         'label_position': 'low',
@@ -693,15 +693,15 @@ def bar_plotting_specifications(workbook, plotting_specifications, y_axis_max, y
         },
         'line': {'color': '#bebebe'},
         'min': y_axis_min,
-        'max': y_axis_max,  # Set the max value for y-axis
+        'max': y_axis_max  # Set the max value for y-axis
     })
         
-    line_chart.set_legend({
+    bar_chart.set_legend({
         'font': {'name': 'Segoe UI', 'size': 9}
         #'none': True
     })
         
-    line_chart.set_title({
+    bar_chart.set_title({
         'name_font': {'size': 9}  # Set the size of the title text
     })
 
@@ -718,7 +718,7 @@ def bar_plotting_specifications(workbook, plotting_specifications, y_axis_max, y
     #             'gap':        100
     #         })
 
-    return line_chart
+    return bar_chart
 
 def line_plotting_specifications(workbook, plotting_specifications, y_axis_max, y_axis_min):
     # Create a FED line chart with higher level aggregation
@@ -756,7 +756,7 @@ def line_plotting_specifications(workbook, plotting_specifications, y_axis_max, 
         },
         'line': {'color': '#323232', 'width': 1, 'dash_type': 'square_dot'},
         'min': y_axis_min,
-        'max': y_axis_max,  # Set the max value for y-axis
+        'max': y_axis_max  # Set the max value for y-axis
     })
         
     line_chart.set_legend({
