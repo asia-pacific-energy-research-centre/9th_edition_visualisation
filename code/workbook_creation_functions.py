@@ -36,11 +36,11 @@ def create_sheets_from_mapping_df(workbook, charts_mapping, total_plotting_names
     # #NOTE THAT THIS DOESNT WORK WITH THE WAY UNITS ARE IMPLEMENTED IN THE CHARTS MAPPING, BUT THE ITNENTION IS THAT ONCE WE START PLOTTING DIFFERENT UNITS THEN THIS WILL BE SOLVED IN THE CHARTS MAPPING, NOT HERE (SO THIS CODE WILL STAY THE SAME)
     unit_dict = charts_mapping[['sheet_name','unit']].drop_duplicates().groupby('sheet_name')['unit'].apply(lambda x: ', '.join(x)).to_dict() #TODO
 
-    # Custom order list #TODO custom order of sheets? 
-    custom_order = ['Buildings', 'Industry', 'Transport', 'Agriculture', 'Non-energy', 'TFC by fuel', 'Fuel consumption power sector', 'Refining']
+    # # Custom order list #TODO custom order of sheets? 
+    # custom_order = ['Buildings', 'Industry', 'Transport', 'Agriculture', 'Non-energy', 'TFC by fuel', 'Fuel consumption power sector', 'Refining']
 
-    # Sort the sheets according to the custom order
-    sheets = sorted(sheets, key=lambda x: custom_order.index(x) if x in custom_order else len(custom_order))
+    # # Sort the sheets according to the custom order
+    # sheets = sorted(sheets, key=lambda x: custom_order.index(x) if x in custom_order else len(custom_order))
 
     #then create a dictionary of the sheets and the dataframes we will use to populate them:
     sheet_dfs = {}
@@ -163,8 +163,8 @@ def create_sheets_from_mapping_df(workbook, charts_mapping, total_plotting_names
             # except:
             #     breakpoint()
             #     print('writer close failed')
-    
-    workbook = order_sheets(workbook, plotting_specifications, sheets)
+
+    workbook = order_sheets(workbook, plotting_specifications)
     # breakpoint()
     return workbook, writer
 
@@ -780,25 +780,30 @@ def line_plotting_specifications(workbook, plotting_specifications, y_axis_max, 
 
     return line_chart
 
-def order_sheets(workbook, plotting_specifications, sheets):
+def order_sheets(workbook, plotting_specifications):
     #order the sheets in the workbook accoridng to the custom order in master_config>plotting_specifications>sheet_order. If a sheet is not in the sheet_order list then it will be added to the end of the workbook
+    #note that the workbook may hjave more sheets than are just in sheets. so order all sheets in the workbook not just the ones in sheets
+    breakpoint()
+    
+    # Get a list of all worksheets in the workbook
+    worksheets = workbook.worksheets()
+    # Get the names of all worksheets
+    worksheet_names = [worksheet.get_name() for worksheet in worksheets]
+    
     sheet_order = ast.literal_eval(plotting_specifications['sheet_order'])
     #since sh
     worksheet_order = []
     end_sheets = []
     for sheet in sheet_order:
-        if sheet in sheets:
+        if sheet in worksheet_names:
             worksheet_order.append(sheet)
     
     #find sheets not in sheet_order and add them to the end of the list. they will be in worksheets_objs:
-    # Get a list of all worksheets in the workbook
-    worksheets = workbook.worksheets()
-    # Get the names of all worksheets
-    worksheet_names = [worksheet.get_name() for worksheet in worksheets]
-    end_sheets = [sheet for sheet in worksheet_names if sheet not in worksheet_order]
+    end_sheets = [sheet for sheet in worksheet_names if sheet not in sheet_order]
     worksheet_order = worksheet_order + end_sheets
     
     workbook.worksheets_objs.sort(key=lambda x: worksheet_order.index(x.get_name()))#should add a check here to make sure all sheets are in the workbook
+    
     return workbook
 
 

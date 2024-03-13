@@ -287,8 +287,9 @@ def check_missing_plotting_name_values_when_merging_mappings_to_modelled_data(co
     missing_in_new_model = merged_df[merged_df['_merge'] == 'right_only']
     if len(missing_in_new_model) > 0:
         if RAISE_ERROR:
-            raise Exception('There are plotting_name values for {} that have been lost in the merge. These are: {}'.format(plotting_name_column, missing_in_new_model))
-        print('There are plotting_name values for {} that have been lost in the merge. These are: {}'.format(plotting_name_column, missing_in_new_model))#This could be because they dont match any original categories, or *unlikely* they arent used by any of the sectors referenced in sectors plotting
+            breakpoint()
+            raise Exception('There are plotting_name values for {} that may have been lost in the merge. They are probably just missing from the input data. This may or may not be important depending on the rows. These are: {}'.format(plotting_name_column, missing_in_new_model))
+        print('There are plotting_name values for {} that may have been lost in the merge. They are probably just missing from the input data. This may or may not be important depending on the rows. These are: {}'.format(plotting_name_column, missing_in_new_model))#This could be because they dont match any original categories, or *unlikely* they arent used by any of the sectors referenced in sectors plotting
     
 def merge_sector_mappings(model_df_tall, new_sector_plotting_mappings, sector_plotting_mappings, RAISE_ERROR=True):
     new_model_df_tall = model_df_tall.copy()
@@ -420,7 +421,7 @@ def merge_capacity_mappings(model_df_tall, new_capacity_plotting_mappings, capac
         columns_data = model_df_tall.merge(columns_data, how='inner', left_on=unique_col, right_on='reference_name')
         new_model_df_tall = pd.concat([new_model_df_tall, columns_data])
     
-    check_missing_plotting_name_values_when_merging_mappings_to_modelled_data([ 'sectors', 'sub1sectors', 'sub2sectors', 'sub3sectors','sub4sectors'], new_capacity_plotting_mappings['plotting_name_column'].unique()[0], new_capacity_plotting_mappings, capacity_plotting_mappings, new_model_df_tall, RAISE_ERROR)
+    check_missing_plotting_name_values_when_merging_mappings_to_modelled_data([ 'sectors', 'sub1sectors', 'sub2sectors', 'sub3sectors','sub4sectors'], new_capacity_plotting_mappings['plotting_name_column'].unique()[0], new_capacity_plotting_mappings, capacity_plotting_mappings, new_model_df_tall, RAISE_ERROR=False)
 
     # Drop unnecessary columns
     new_model_df_tall = new_model_df_tall.drop(columns=['sectors', 'sub1sectors', 'sub2sectors', 'sub3sectors', 'sub4sectors', 'reference_name'])
