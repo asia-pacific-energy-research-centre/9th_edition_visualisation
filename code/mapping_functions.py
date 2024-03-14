@@ -99,7 +99,18 @@ def format_plotting_mappings(plotting_mappings_df, columns, plotting_name_column
     new_plotting_mappings = pd.DataFrame(columns=['plotting_name','plotting_name_column', 'reference_name', 'reference_name_column'])
 
     # Loop through each column in the specified order
+    original_plotting_mappings_df = plotting_mappings_df.copy()
+    previous_col_valid_rows = 0
     for col in columns:
+        #########CHECK##########
+        #first check that the number of valid rows is more than the previous number of valid rows, otherwise we are not going in order of least to most specific columns:
+        valid_rows_test = original_plotting_mappings_df[original_plotting_mappings_df[col].notna()]
+        if len(valid_rows_test) < previous_col_valid_rows:
+            breakpoint()
+            raise ValueError('The number of valid rows for the column {} is less than or equal to the previous column. This means that the columns are not in order of least to most specific. You will have to fix the all_plotting_mapping_dicts for this plotting_mappings_df'.format(col))
+        else:
+            previous_col_valid_rows = len(valid_rows_test)
+        #########CHECK OVER##########
         # Filter out rows where the column value is not NA
         valid_rows = plotting_mappings_df[plotting_mappings_df[col].notna()]
         # Create a new data frame from the non-NA rows
@@ -191,9 +202,13 @@ def save_plotting_names_order(charts_mapping,FILE_DATE_ID):
     # charts_mapping_pivot = charts_mapping_pivot.dropna()
     #put it into a dictionary such that every key is  the 'table_id', and the value is a list of the group_3_cols in order, excluding nas
     plotting_names_order = {}
+    #check there are no dsuplicates in charts_mapping_pivot.index.tolist(). this is where we;d have two cahrts of same name and it will cause an error
+    if len(charts_mapping_pivot.index.tolist()) != len(set(charts_mapping_pivot.index.tolist())): 
+        breakpoint()
+        raise ValueError('There are duplicated in the table_id column. You probably have two tables of the same table number for the same sheet: ', [item for item, count in collections.Counter(charts_mapping_pivot.index.tolist()).items() if count > 1])
     for table_id in charts_mapping_pivot.index.tolist():
         plotting_names_order[table_id] = [x for x in charts_mapping_pivot.loc[table_id].tolist() if str(x) != 'nan']
-    
+            
     # Save dictionary into file
     with open(f'../intermediate_data/config/plotting_names_order_{FILE_DATE_ID}.pkl', 'wb') as handle:
         pickle.dump(plotting_names_order, handle, protocol=pickle.HIGHEST_PROTOCOL)
@@ -319,6 +334,7 @@ def merge_fuel_mappings(model_df_tall_sectors, new_fuel_plotting_mappings,fuel_p
     #so join the new_fuel_plotting_mappings to the model_df_tall
     for unique_col in new_fuel_plotting_mappings.reference_name_column.unique():
         columns_data = new_fuel_plotting_mappings[new_fuel_plotting_mappings.reference_name_column == unique_col][['plotting_name', 'reference_name']]
+        
         #filter for the unique col and then join on the unique col to the model_df_tall
         columns_data = model_df_tall_sectors.merge(columns_data, how='inner', left_on=unique_col, right_on='reference_name')
         #concat to the new_model_df_tall
