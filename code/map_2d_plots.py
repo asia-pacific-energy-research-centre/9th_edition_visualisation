@@ -108,7 +108,7 @@ def map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COL
                                         'source': 'emissions',
                                         'plotting_name_column': 'emissions_fuels_plotting'},
                             'capacity': {'df': capacity_plotting_mappings,
-                                        'columns': ['sub2sectors', 'sub1sectors', 'sectors'],
+                                        'columns': ['sub4sectors','sub3sectors', 'sub2sectors', 'sub1sectors', 'sectors'],
                                         'source': 'capacity',
                                         'plotting_name_column': 'capacity_plotting'}
                             }    
@@ -222,7 +222,9 @@ def map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COL
             elif source == 'capacity':
                 #capacity is just based off sectors so its relatively simple
                 new_capacity_plotting_mappings = all_plotting_mapping_dicts['capacity']['df']
+                breakpoint()
                 model_df_tall_capacity = mapping_functions.merge_capacity_mappings(model_df_tall, new_capacity_plotting_mappings, capacity_plotting_mappings, RAISE_ERROR=True)
+                breakpoint()
                 # model_df_tall = model_df_tall_capacity.copy()
             
             # new_emissions_plotting_mappings = all_plotting_mapping_dicts['emissions']['df']

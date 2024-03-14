@@ -5,7 +5,7 @@
 # config/computer_generated/*
 **/archive
 # original_preparation_code/*
-
+*.7z
 *.xlsx
 *.csv
 *.html
