@@ -20,7 +20,7 @@ def data_checking_warning_or_error(message):
 
 #######################################################
 #%%
-map_data = False
+map_data = True
 if map_data:
     map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COLS, RAISE_ERROR=False)
     
