@@ -1,3 +1,10 @@
+#TODO:
+#WHY ARE OTHER OIL EMISSIONS IN TRANSPORT SO HIGH. 
+# HOW TO CAPTURE GENERATION EMISSIONS AND INCLUDE THEM
+
+
+
+
 
 # Purpose: This script will create the 9th edition workbook for each economy.
 #it is the main script for creating the workbook. it will call functions from workbook_creation_functions.py

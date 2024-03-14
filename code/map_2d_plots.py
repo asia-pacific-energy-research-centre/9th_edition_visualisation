@@ -104,7 +104,7 @@ def map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COL
                                         'source': 'emissions',
                                         'plotting_name_column': 'emissions_sectors_plotting'},
                             'fuel_emissions': {'df': emissions_fuel_plotting_mappings,
-                                        'columns': ['fuels', 'subfuels'],
+                                        'columns': ['subfuels', 'fuels'],
                                         'source': 'emissions',
                                         'plotting_name_column': 'emissions_fuels_plotting'},
                             'capacity': {'df': capacity_plotting_mappings,
@@ -236,16 +236,18 @@ def map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COL
             #next step will include creating new datasets which create aggregations of data to match some of the categories plotted in the 8th edition. 
             #for example we need an aggregation of the transformation sector input and output values to create entries for Power, Refining or Hydrogen
             # breakpoint()#we get nas in the transformation sector mappings. why??
-            if source in ['energy']:
+            if source in ['energy', 'emissions']:
                 input_transformation, output_transformation = mapping_functions.merge_transformation_sector_mappings(model_df_tall, transformation_sector_mappings,new_fuel_plotting_mappings,RAISE_ERROR=RAISE_ERROR)
                 #concat all the dataframes together?
                 plotting_df = pd.concat([model_df_tall_sectors_fuels, input_transformation, output_transformation])
+                if source == 'emissions':
+                    plotting_df.rename(columns={'sectors_plotting':'emissions_sectors_plotting', 'fuels_plotting':'emissions_fuels_plotting'}, inplace=True)
             elif source == 'capacity':
                 plotting_df = model_df_tall_capacity.copy()
-            elif source == 'emissions':
-                plotting_df = model_df_tall_sectors_fuels.copy()
-                #rename sectors_plotting and fuels_plotting to emissions_sectors_plotting and emissions_fuels_plotting
-                plotting_df.rename(columns={'sectors_plotting':'emissions_sectors_plotting', 'fuels_plotting':'emissions_fuels_plotting'}, inplace=True)
+            # elif source == 'emissions':
+            #     plotting_df = model_df_tall_sectors_fuels.copy()
+            #     #rename sectors_plotting and fuels_plotting to emissions_sectors_plotting and emissions_fuels_plotting
+            #     plotting_df.rename(columns={'sectors_plotting':'emissions_sectors_plotting', 'fuels_plotting':'emissions_fuels_plotting'}, inplace=True)
             else:
                 breakpoint()
                 raise Exception('source is not valid')  
