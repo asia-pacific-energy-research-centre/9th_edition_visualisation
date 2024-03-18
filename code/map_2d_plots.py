@@ -43,6 +43,12 @@ def map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COL
     """
     
     all_model_df_wides_dict = mapping_functions.find_and_load_latest_data_for_all_sources(ECONOMY_ID, sources)
+    
+    # Modify the data to match the plotting template
+    all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'energy', mapping_functions.modify_losses_and_own_use_values).copy()
+    all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'energy', mapping_functions.convert_electricity_output_to_twh).copy()
+    all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'energy', mapping_functions.copy_and_modify_rows).copy()
+    # all_model_df_wides_dict['energy'][1].to_csv(f'../model_df_wide_{ECONOMY_ID}_{FILE_DATE_ID}.csv')
             
     ##############################################################################
 

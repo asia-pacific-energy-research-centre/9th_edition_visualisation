@@ -522,6 +522,117 @@ def format_chart_tiles(charts_mapping, ECONOMY_ID):
     charts_mapping['chart_title'] = charts_mapping.apply(lambda row: map_variable_to_value(row, ECONOMY_ID), axis=1)
     
     return charts_mapping
+
+def modify_dataframe_content(all_model_df_wides_dict, source, modification_func):
+    """
+    Modifies the content of the EBT for a specified source using a given modification function.
+
+    Parameters:
+    - all_model_df_wides_dict (dict): A dictionary containing sources as keys and lists with file paths and dataframes as values.
+    - source (str): The source key for which the dataframe should be modified.
+    - modification_func (function): A function that takes a dataframe as input and returns a modified dataframe.
+
+    Returns:
+    - all_model_df_wides_dict (dict): The updated dictionary with the modified dataframe.
+    """
+    if source in all_model_df_wides_dict:
+        # Retrieve the current dataframe
+        current_df = all_model_df_wides_dict[source][1]
+        # Apply the modification function to the dataframe
+        modified_df = modification_func(current_df)
+        # Update the dictionary with the modified dataframe
+        all_model_df_wides_dict[source][1] = modified_df
+        print(f"Dataframe for source '{source}' has been modified.")
+    else:
+        print(f"Source '{source}' not found in the dictionary.")
+
+    return all_model_df_wides_dict
+
+# Modification functions
+def modify_losses_and_own_use_values(df):
+    """
+    Changes the numeric values in the year columns for rows where the 'sectors' column
+    is '10_losses_and_own_use' from negative to positive.
+    
+    Parameters:
+    - df (pd.DataFrame): The dataframe to modify.
+    
+    Returns:
+    - df (pd.DataFrame): The modified dataframe.
+    """
+    # Identifying year columns
+    year_columns = [col for col in df.columns if col.isdigit()]
+
+    # Filtering rows where the 'sectors' column is '10_losses_and_own_use'
+    condition = df['sectors'] == '10_losses_and_own_use'
+
+    # Changing values from negative to positive for the identified rows and year columns
+    df.loc[condition, year_columns] = df.loc[condition, year_columns].abs()
+
+    return df
+
+def convert_electricity_output_to_twh(df):
+    """
+    Converts values from GWh to TWh in the year columns for rows where the 'sectors' column
+    is '18_electricity_output_in_gwh' by dividing them by 1000.
+    
+    Parameters:
+    - df (pd.DataFrame): The dataframe to modify.
+    
+    Returns:
+    - df (pd.DataFrame): The modified dataframe.
+    """
+    # Identifying year columns
+    year_columns = [col for col in df.columns if col.isdigit()]
+
+    # Filtering rows where the 'sectors' column is '18_electricity_output_in_gwh'
+    condition = df['sectors'] == '18_electricity_output_in_gwh'
+
+    # Dividing values by 1000 for the identified rows and year columns to convert GWh to TWh
+    df.loc[condition, year_columns] = df.loc[condition, year_columns] / 1000
+
+    return df
+
+def copy_and_modify_rows(df):
+    """
+    Finds rows with specific criteria, copies them, modifies certain values, and appends
+    the modified rows to the dataframe.
+
+    The specific criteria are:
+    - 'sectors' == '02_imports'
+    - 'fuels' == '17_electricity'
+    - 'sub1sectors' == 'x'
+
+    The modifications for the copied rows are:
+    - 'sectors' is changed to '18_electricity_output_in_gwh'
+    - 'sub1sectors' is changed to '18_01_electricity_plants'
+    - 'fuels' is changed to '19_imports'
+
+    Parameters:
+    - df (pd.DataFrame): The dataframe to modify.
+    
+    Returns:
+    - df (pd.DataFrame): The modified dataframe with the new rows added.
+    """
+    # Find rows that match the criteria
+    criteria = (df['sectors'] == '02_imports') & (df['fuels'] == '17_electricity') & (df['sub1sectors'] == 'x')
+    matching_rows = df[criteria]
+
+    # If no matching rows, return the original dataframe
+    if matching_rows.empty:
+        return df
+
+    # Copy the matching rows and modify specified columns
+    new_rows = matching_rows.copy()
+    new_rows['sectors'] = '18_electricity_output_in_gwh'
+    new_rows['sub1sectors'] = '18_01_electricity_plants'
+    new_rows['fuels'] = '19_imports'
+
+    # Append the new rows to the original dataframe
+    modified_df = df.append(new_rows, ignore_index=True)
+
+    return modified_df
+
 # def collect_missing_datapoints(economy_new_charts_mapping):
 #     #now loop through the unique sheet, table combinations and idneitfy if there are any missing values (nas) in the value col. Put the data for these into a new dataframe called missing_data
 #     missing_data = pd.DataFrame()
