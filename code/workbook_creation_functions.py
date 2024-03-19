@@ -187,7 +187,7 @@ def add_section_titles(current_row, current_scenario, sheet, worksheet, cell_for
         worksheet.write(current_row, 0, ECONOMY_ID, cell_format1)
         worksheet.write(current_row+1, 0, sheet, cell_format1)
         if str(current_scenario) != 'nan':
-            worksheet.write(current_row+2, 0, current_scenario, cell_format1)
+            worksheet.write(current_row+2, 0, current_scenario.capitalize(), cell_format1)
         current_row += space_under_titles                
     else:
         #add one line space between tables of same scenario
@@ -418,9 +418,11 @@ def format_table(table,plotting_names_order,plotting_name_to_label_dict):
     first_non_object_col = table.select_dtypes(exclude=['object']).columns[0]
     year_cols_start = table.columns.get_loc(first_non_object_col)
     
-    #set order of columns and table, dependent on what the aggregate column is:
+    # Remove rows where all data columns are zeros
     year_cols = table.columns[year_cols_start:]
+    table = table.loc[~(table[year_cols] == 0).all(axis=1)]
     
+    #set order of columns and table, dependent on what the aggregate column is:
     table = sort_table_rows_and_columns(table,table_id,plotting_names_order,year_cols)
     
     #rename fuels_plotting, emissions_fuels_plotting and emissions_sectors_plotting, sectors_plotting, capacity_plotting to Fuel and Sector respectively
@@ -516,28 +518,33 @@ def create_area_chart(num_table_rows, table, plotting_name_column, sheet, curren
     # Extract the series of data for the chart from the excels sheets data.
     table_start_row = current_row - num_table_rows - space_under_tables - column_row
     for row_i in range(num_table_rows):
-        if table[plotting_name_column].iloc[row_i] in total_plotting_names:
+        series_name = table[plotting_name_column].iloc[row_i]
+        if series_name in total_plotting_names:
             pass
         # elif sheet == 'Buildings' and table[plotting_name_column].iloc[row_i] == 'Buildings':
         #     pass
         # elif sheet == 'Industry' and table[plotting_name_column].iloc[row_i] == 'Industry':
         #     pass
         else:
-            area_chart.add_series({#each series here is of the format [sheetname, first_row, first_col, last_row, last_col] which refers to where the data is coming from
-                
-                'name':     [sheet, table_start_row + row_i + 1, plotting_name_column_index], # refers to labels
-                #[sheet, (chart_height*len(num_table_rows_list)) + row_i + 1, 0],#referring to the name of the series #TEMP for now we are using 'table_id'
+            if 'CCS' in series_name:
+                # Apply a pattern fill for 'CCS'
+                area_chart.add_series({
+                    'name':       [sheet, table_start_row + row_i + 1, plotting_name_column_index],
+                    'categories': [sheet, table_start_row, year_cols_start - 1, table_start_row, num_cols - 1],
+                    'values':     [sheet, table_start_row + row_i + 1, year_cols_start - 1, table_start_row + row_i + 1, num_cols - 1],
+                    'pattern':    {'pattern': 'wide_downward_diagonal', 'fg_color': table[plotting_name_column].map(colours_dict).iloc[row_i], 'bg_color': 'white'},
+                    'border':     {'none': True}
+                    })
+            else:
+                # Apply a solid fill for others
+                area_chart.add_series({
+                    'name':       [sheet, table_start_row + row_i + 1, plotting_name_column_index],
+                    'categories': [sheet, table_start_row, year_cols_start - 1, table_start_row, num_cols - 1],
+                    'values':     [sheet, table_start_row + row_i + 1, year_cols_start - 1, table_start_row + row_i + 1, num_cols - 1],
+                    'fill':       {'color': table[plotting_name_column].map(colours_dict).iloc[row_i]},
+                    'border':     {'none': True}
+                    })
 
-                'categories': [sheet,  table_start_row, year_cols_start - 1,  table_start_row, num_cols - 1],#refers to x axis
-                #[sheet,  (chart_height*len(num_table_rows_list)), plotting_name_column_index,  (chart_height*len(num_table_rows_list)), num_cols - 1],
-
-                'values':    [sheet,  table_start_row + row_i + 1, year_cols_start - 1, table_start_row + row_i + 1, num_cols - 1], #[sheet,  (chart_height*len(num_table_rows_list)) + row_i + 1, 4, (chart_height*len(num_table_rows_list)) + row_i + 1, num_cols - 1],
-
-                'fill':       {'color': table[plotting_name_column].map(colours_dict).iloc[row_i]},
-                'border':     {'none': True}
-
-            })   
-    
     # Add a title to the chart
     area_chart.set_title({'name': chart_title,'name_font': {'size': 9}})
     
@@ -580,6 +587,7 @@ def create_bar_chart(num_table_rows, table, plotting_name_column, sheet, current
     # Extract the series of data for the chart from the excels sheets data.
     table_start_row = current_row - num_table_rows - space_under_tables - column_row
     for row_i in range(num_table_rows):
+        series_name = table[plotting_name_column].iloc[row_i]
         if table[plotting_name_column].iloc[row_i] in total_plotting_names:
             pass
         # elif sheet == 'Buildings' and table[plotting_name_column].iloc[row_i] == 'Buildings':
@@ -587,13 +595,24 @@ def create_bar_chart(num_table_rows, table, plotting_name_column, sheet, current
         # elif sheet == 'Industry' and table[plotting_name_column].iloc[row_i] == 'Industry':
         #     pass
         else:
-            bar_chart.add_series({
-                'name':       [sheet, table_start_row + row_i + 1, plotting_name_column_index],
-                'categories': [sheet, table_start_row, year_cols_start - 1, table_start_row, num_cols - 1],
-                'values':     [sheet, table_start_row + row_i + 1, year_cols_start - 1, table_start_row + row_i + 1, num_cols - 1],
-                'fill':       {'color': table[plotting_name_column].map(colours_dict).iloc[row_i]},
-                'border':     {'none': True}
-            })   
+            if 'CCS' in series_name:
+                # Apply a pattern fill for 'CCS'
+                bar_chart.add_series({
+                    'name':       [sheet, table_start_row + row_i + 1, plotting_name_column_index],
+                    'categories': [sheet, table_start_row, year_cols_start - 1, table_start_row, num_cols - 1],
+                    'values':     [sheet, table_start_row + row_i + 1, year_cols_start - 1, table_start_row + row_i + 1, num_cols - 1],
+                    'pattern':    {'pattern': 'wide_downward_diagonal', 'fg_color': table[plotting_name_column].map(colours_dict).iloc[row_i], 'bg_color': 'white'},
+                    'border':     {'none': True}
+                    })
+            else:
+                # Apply a solid fill for others
+                bar_chart.add_series({
+                    'name':       [sheet, table_start_row + row_i + 1, plotting_name_column_index],
+                    'categories': [sheet, table_start_row, year_cols_start - 1, table_start_row, num_cols - 1],
+                    'values':     [sheet, table_start_row + row_i + 1, year_cols_start - 1, table_start_row + row_i + 1, num_cols - 1],
+                    'fill':       {'color': table[plotting_name_column].map(colours_dict).iloc[row_i]},
+                    'border':     {'none': True}
+                    })  
     
     # Add a title to the chart
     bar_chart.set_title({'name': chart_title,'name_font': {'size': 9}})

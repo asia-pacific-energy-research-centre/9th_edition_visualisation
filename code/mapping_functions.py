@@ -593,10 +593,10 @@ def convert_electricity_output_to_twh(df):
 
     return df
 
-def copy_and_modify_rows(df):
+def copy_and_modify_rows_with_conversion(df):
     """
-    Finds rows with specific criteria, copies them, modifies certain values, and appends
-    the modified rows to the dataframe.
+    Finds rows with specific criteria, copies them, modifies certain values including converting
+    energy values from PJ to TWh, and appends the modified rows to the dataframe.
 
     The specific criteria are:
     - 'sectors' == '02_imports'
@@ -607,6 +607,7 @@ def copy_and_modify_rows(df):
     - 'sectors' is changed to '18_electricity_output_in_gwh'
     - 'sub1sectors' is changed to '18_01_electricity_plants'
     - 'fuels' is changed to '19_imports'
+    - Values in year columns are converted from PJ to TWh by multiplying by 0.277778.
 
     Parameters:
     - df (pd.DataFrame): The dataframe to modify.
@@ -622,16 +623,42 @@ def copy_and_modify_rows(df):
     if matching_rows.empty:
         return df
 
+    # Identify year columns
+    year_columns = [col for col in df.columns if col.isdigit()]
+
     # Copy the matching rows and modify specified columns
     new_rows = matching_rows.copy()
     new_rows['sectors'] = '18_electricity_output_in_gwh'
     new_rows['sub1sectors'] = '18_01_electricity_plants'
     new_rows['fuels'] = '19_imports'
 
+    # Convert values from PJ to TWh for the year columns in the new rows
+    conversion_factor = 0.277778  # 1 PJ = 0.277778 TWh
+    new_rows[year_columns] = new_rows[year_columns] * conversion_factor
+
     # Append the new rows to the original dataframe
     modified_df = df.append(new_rows, ignore_index=True)
 
     return modified_df
+
+def modify_gas_to_gas_ccs(df):
+    """
+    Searches for rows with '18_01_02_gas_power_ccs' under 'sub2sectors' column and changes
+    '08_gas' under 'fuels' column to '08_gas_ccs'.
+    
+    Parameters:
+    - df (pd.DataFrame): The dataframe to modify.
+    
+    Returns:
+    - df (pd.DataFrame): The modified dataframe.
+    """
+    # Define the condition for the rows to modify
+    condition = (df['sub2sectors'] == '18_01_02_gas_power_ccs') & (df['fuels'] == '08_gas')
+    
+    # Apply the modification
+    df.loc[condition, 'fuels'] = '08_gas_ccs'
+
+    return df
 
 # def collect_missing_datapoints(economy_new_charts_mapping):
 #     #now loop through the unique sheet, table combinations and idneitfy if there are any missing values (nas) in the value col. Put the data for these into a new dataframe called missing_data
