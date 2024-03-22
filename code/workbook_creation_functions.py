@@ -406,22 +406,26 @@ def format_table(table,plotting_names_order,plotting_name_to_label_dict):
     
     chart_types = np.sort(table['chart_type'].unique())
     table_id = table['table_id'].iloc[0]
+    sheet_name = table['sheet_name'].iloc[0]
     chart_titles = table['chart_title'].unique()
     #make sure that we only have data for one of the cahrt ttypes. The data should be the same since its based on the same table, so jsut take the first one
     table = table[table['chart_type']==chart_types[0]].copy()
     
     #then drop these columns
-    table = table.drop(columns = ['aggregate_name_column', 'plotting_name_column', 'chart_type','table_id', 'dimensions', 'chart_title', 'scenario', 'unit','sheet_name'])#not sure if we should remove scenario and unit but it seems right since they are at the top of the section for that sheet. if it becomes a issue i think we should focus on making it clearer, not adding it to the table
+    table = table.drop(columns = ['aggregate_name_column', 'plotting_name_column', 'chart_type','table_id', 'dimensions', 'chart_title', 'scenario', 'unit', 'sheet_name'])#not sure if we should remove scenario and unit but it seems right since they are at the top of the section for that sheet. if it becomes a issue i think we should focus on making it clearer, not adding it to the table
     
     #format some cols:
     num_cols = len(table.dropna(axis='columns', how='all').columns) - 1
     first_non_object_col = table.select_dtypes(exclude=['object']).columns[0]
     year_cols_start = table.columns.get_loc(first_non_object_col)
     
-    # Remove rows where all data columns are zeros
     year_cols = table.columns[year_cols_start:]
-    table = table.loc[~(table[year_cols] == 0).all(axis=1)]
-    
+
+    # Conditional removal of rows where all data columns are zeros, excluding specific sheet names
+    if sheet_name not in ['Generation capacity', 'Transport stocks']:
+        # If no rows have the specified 'sheet_name', remove rows where all year columns are zeros
+        table = table.loc[~(table[year_cols] == 0).all(axis=1)]
+
     #set order of columns and table, dependent on what the aggregate column is:
     table = sort_table_rows_and_columns(table,table_id,plotting_names_order,year_cols)
     

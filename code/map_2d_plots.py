@@ -222,10 +222,15 @@ def map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COL
                 elif source == 'energy':
                     old_sector_plotting_mappings= sector_plotting_mappings
                     old_fuel_plotting_mappings = fuel_plotting_mappings
-                    
+                    breakpoint()
                 model_df_tall_sectors = mapping_functions.merge_sector_mappings(model_df_tall, new_sector_plotting_mappings,old_sector_plotting_mappings, RAISE_ERROR=RAISE_ERROR)            
                 new_fuel_plotting_mappings = all_plotting_mapping_dicts['fuel'+'_'+source]['df']
+                if source == 'energy':
+                    breakpoint()
                 model_df_tall_sectors_fuels = mapping_functions.merge_fuel_mappings(model_df_tall_sectors, new_fuel_plotting_mappings,old_fuel_plotting_mappings, RAISE_ERROR=RAISE_ERROR)#losing access to 19_total because of filtering for lowest level values. not sure how to avoid
+                
+                if source == 'energy':
+                    breakpoint()
             elif source == 'capacity':
                 #capacity is just based off sectors so its relatively simple
                 new_capacity_plotting_mappings = all_plotting_mapping_dicts['capacity']['df']
