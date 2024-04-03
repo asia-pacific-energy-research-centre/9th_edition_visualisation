@@ -46,7 +46,6 @@ for source in sources:
     charts_mapping_files = [x for x in charts_mapping_files if ECONOMY_ID in x]
     if len(charts_mapping_files)>1:
         print(f'We have more than 1 charts mapping input for the source {source}, economy {ECONOMY_ID}: {charts_mapping_files}')
-        breakpoint()
     all_charts_mapping_files_dict[source] = []
     for mappping_file in charts_mapping_files:
         charts_mapping_df = pd.read_pickle(f'../intermediate_data/data/{mappping_file}')

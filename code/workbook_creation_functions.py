@@ -100,12 +100,18 @@ def create_sheets_from_mapping_df(workbook, charts_mapping, total_plotting_names
         for table in sheet_dfs[sheet]:
             dimensions = table['dimensions'].unique()[0]
             if len(table['dimensions'].unique()) > 1:
-                breakpoint()
                 raise Exception('we should only have one dimension type per table')
             ########################
             current_row, current_scenario, worksheet = add_section_titles(current_row, current_scenario, sheet, worksheet, cell_format1, cell_format2, space_under_titles, table, space_under_tables,unit_dict, ECONOMY_ID)
             ########################
-            table, chart_types, table_id, plotting_name_column, year_cols_start,num_cols, chart_titles = format_table(table,plotting_names_order,plotting_name_to_label_dict)
+            table, chart_types, table_id, plotting_name_column, year_cols_start,num_cols, chart_titles, first_year_col, sheet_name = format_table(table,plotting_names_order,plotting_name_to_label_dict)
+            
+            try:
+                # Try to convert 'first_year_col' to an integer and use it
+                first_year_col = int(first_year_col)
+            except ValueError:
+                # If conversion fails, default to MIN_YEAR
+                first_year_col = MIN_YEAR
             
             #make the cols for plotting_name_column and the one before it a bit wider so the text fits
             plotting_name_column_index = table.columns.get_loc(plotting_name_column)
@@ -124,7 +130,7 @@ def create_sheets_from_mapping_df(workbook, charts_mapping, total_plotting_names
             #if chart_type len is 1 and it is a bar chart, we need to edit the table to work for bar charts:
             
             if len(chart_types) == 1 and 'bar' in chart_types:   
-                table = create_bar_chart_table(table,year_cols_start,plotting_specifications['bar_years'])
+                table = create_bar_chart_table(table,year_cols_start,plotting_specifications['bar_years'], sheet_name)
             ########################
             #write table to sheet
             table.to_excel(writer, sheet_name = sheet, index = False, startrow = current_row)
@@ -134,7 +140,7 @@ def create_sheets_from_mapping_df(workbook, charts_mapping, total_plotting_names
             #identify and format charts we need to create
             chart_positions = identify_chart_positions(current_row,num_table_rows,space_under_tables,column_row, space_above_charts, space_under_charts, plotting_specifications,chart_types)
             # print('max_and_min_values_dict', max_and_min_values_dict, 'for sheet', sheet)
-            charts_to_plot = create_charts(table, chart_types, plotting_specifications, workbook,num_table_rows, plotting_name_column, table_id, sheet, current_row, space_under_tables, column_row, year_cols_start, num_cols, colours_dict,total_plotting_names, max_and_min_values_dict, chart_titles)
+            charts_to_plot = create_charts(table, chart_types, plotting_specifications, workbook,num_table_rows, plotting_name_column, table_id, sheet, current_row, space_under_tables, column_row, year_cols_start, num_cols, colours_dict,total_plotting_names, max_and_min_values_dict, chart_titles, first_year_col, sheet_name)
             ########################
 
             #write charts to sheet
@@ -153,7 +159,6 @@ def create_sheets_from_mapping_df(workbook, charts_mapping, total_plotting_names
                         # Check if a warning occurred
                         if len(w) > 0:
                             print("Warning caught: ", str(w[-1].message))
-                            breakpoint()
                 except Exception as e:
                     print("Error: ", str(e))
             
@@ -249,7 +254,8 @@ def extract_max_and_min_values(data, max_and_min_values_dict, total_plotting_nam
                 if subset.empty:
                     continue
                 #set value to 0 where plotting name is one of the total plotting names. This is so that the max/min y value is not affected by the total plotting names, since they arent plotted 
-                subset.loc[subset['plotting_name'].isin(total_plotting_names), 'value'] = 0
+                subset.loc[subset['plotting_name'].isin(total_plotting_names + ['Net emissions']), 'value'] = 0
+
                 # if subset.aggregate_name_column.iloc[0] == 'fuels_plotting':
                 #     subset.loc[subset['plotting_name_column'].isin(total_plotting_names), 'value'] = 0
                 # elif subset.aggregate_name_column.iloc[0] == 'sectors_plotting':
@@ -326,7 +332,7 @@ def calculate_y_axis_value(value):
         y_axis_value = math.floor(y_axis_value / rounding_step) * rounding_step
     return y_axis_value
 
-def create_charts(table, chart_types, plotting_specifications, workbook, num_table_rows, plotting_name_column, table_id, sheet, current_row, space_under_tables, column_row, year_cols_start, num_cols, colours_dict, total_plotting_names, max_and_min_values_dict, chart_titles):
+def create_charts(table, chart_types, plotting_specifications, workbook, num_table_rows, plotting_name_column, table_id, sheet, current_row, space_under_tables, column_row, year_cols_start, num_cols, colours_dict, total_plotting_names, max_and_min_values_dict, chart_titles, first_year_col, sheet_name):
     # Depending on the chart type, create different charts. Then add them to the worksheet according to their positions
     charts_to_plot = []
     plotting_name_column_index = table.columns.get_loc(plotting_name_column)
@@ -340,11 +346,10 @@ def create_charts(table, chart_types, plotting_specifications, workbook, num_tab
         if y_axis_max is None:
             continue  # Skip the chart creation if y_axis_max is None
         if y_axis_min is None:
-            breakpoint()
             raise Exception("y_axis_min is None. We werent expecting this. perhaps its ok but need to check")
         if chart == 'line':
             # Configure the chart with the updated y_axis_max
-            line_chart = line_plotting_specifications(workbook, plotting_specifications, y_axis_max, y_axis_min)
+            line_chart = line_plotting_specifications(workbook, plotting_specifications, y_axis_max, y_axis_min, first_year_col)
             line_thickness = plotting_specifications['line_thickness']
             line_chart = create_line_chart(num_table_rows, table, plotting_name_column, sheet, current_row, space_under_tables, column_row, plotting_name_column_index, year_cols_start, num_cols, colours_dict, line_chart, total_plotting_names, line_thickness, table_id, chart_title)
             if not line_chart:
@@ -353,7 +358,7 @@ def create_charts(table, chart_types, plotting_specifications, workbook, num_tab
 
         elif chart == 'area':
             # Configure the chart with the updated y_axis_max, y_axis_min
-            area_chart = area_plotting_specifications(workbook, plotting_specifications, y_axis_max, y_axis_min)
+            area_chart = area_plotting_specifications(workbook, plotting_specifications, y_axis_max, y_axis_min, first_year_col)
             area_chart = create_area_chart(num_table_rows, table, plotting_name_column, sheet, current_row, space_under_tables, column_row, plotting_name_column_index, year_cols_start, num_cols, colours_dict, area_chart, total_plotting_names, table_id, chart_title)
             if not area_chart:
                 continue
@@ -361,11 +366,19 @@ def create_charts(table, chart_types, plotting_specifications, workbook, num_tab
 
         elif chart == 'bar':
             # Configure the chart with the updated y_axis_max and y_axis_min
-            bar_chart = bar_plotting_specifications(workbook, plotting_specifications, y_axis_max, y_axis_min)
+            bar_chart = bar_plotting_specifications(workbook, plotting_specifications, y_axis_max, y_axis_min, sheet_name)
             bar_chart = create_bar_chart(num_table_rows, table, plotting_name_column, sheet, current_row, space_under_tables, column_row, plotting_name_column_index, year_cols_start, len(table.columns), colours_dict, bar_chart, total_plotting_names, table_id, chart_title)
             if not bar_chart:
                 continue
             charts_to_plot.append(bar_chart)
+
+        elif chart == 'combined':
+            primary_chart, secondary_chart = combined_plotting_specifications(workbook, plotting_specifications, y_axis_max, y_axis_min, first_year_col)
+            line_thickness = plotting_specifications['line_thickness']
+            combined_chart = create_combined_chart(num_table_rows, table, plotting_name_column, sheet, current_row,space_under_tables,column_row, plotting_name_column_index, year_cols_start, num_cols, colours_dict, primary_chart, secondary_chart, total_plotting_names, line_thickness, table_id, chart_title, plotting_specifications)
+            if not combined_chart:
+                continue
+            charts_to_plot.append(combined_chart)
 
     return charts_to_plot
 
@@ -421,10 +434,34 @@ def format_table(table,plotting_names_order,plotting_name_to_label_dict):
     
     year_cols = table.columns[year_cols_start:]
 
+    ############################################
+    # Modification of the tables in Excel
+    ############################################
     # Conditional removal of rows where all data columns are zeros, excluding specific sheet names
     if sheet_name not in ['Generation capacity', 'Transport stocks']:
         # If no rows have the specified 'sheet_name', remove rows where all year columns are zeros
         table = table.loc[~(table[year_cols] == 0).all(axis=1)]
+    
+    # # Conditional removal of first year column(s) if all values are zeros in the beginning year(s) for all rows
+    # cols_to_remove = []
+    # for col in year_cols:
+    #     if (table[col] == 0).all():
+    #         cols_to_remove.append(col)
+    #     else:
+    #         # Stop removing columns once you encounter a column with a non-zero value
+    #         break
+
+    # # Remove the identified columns
+    # table = table.drop(columns=cols_to_remove)
+    
+    ############################################
+    
+    # # Ensure year_cols is updated after potentially removing columns
+    # year_cols = table.columns[year_cols_start:]  # This initializes year_cols as a pandas.Index
+    # year_cols = year_cols.intersection(table.columns)  # This filters year_cols, keeping it as a pandas.Index
+    
+    # Get the year of the first year column for crossing
+    first_year_col = year_cols[0]
 
     #set order of columns and table, dependent on what the aggregate column is:
     table = sort_table_rows_and_columns(table,table_id,plotting_names_order,year_cols)
@@ -461,9 +498,13 @@ def format_table(table,plotting_names_order,plotting_name_to_label_dict):
     #convert plotting column and aggregate columns names to labels if any of them need converting:
     table[plotting_name_column] = table[plotting_name_column].map(plotting_name_to_label_dict)#todo test i dont delete data here
     
-    return table, chart_types, table_id, plotting_name_column, year_cols_start,num_cols, chart_titles
+    return table, chart_types, table_id, plotting_name_column, year_cols_start,num_cols, chart_titles, first_year_col, sheet_name
 
-def create_bar_chart_table(table,year_cols_start,bar_years):
+def create_bar_chart_table(table,year_cols_start,bar_years, sheet_name):
+    # Directly return the original table without modifications if sheet_name is 'Emissions'
+    if sheet_name == 'Emissions':
+        return table
+    
     #create a new table of data so we only have data for every year that is a mutliple of 10. If the first year is not a multiple of 10 then include this too. This will be written 2 row under the table this is based on
     USE_BAR_YEARS=True
     if USE_BAR_YEARS:
@@ -616,7 +657,7 @@ def create_bar_chart(num_table_rows, table, plotting_name_column, sheet, current
                     'values':     [sheet, table_start_row + row_i + 1, year_cols_start - 1, table_start_row + row_i + 1, num_cols - 1],
                     'fill':       {'color': table[plotting_name_column].map(colours_dict).iloc[row_i]},
                     'border':     {'none': True}
-                    })  
+                    })
     
     # Add a title to the chart
     bar_chart.set_title({'name': chart_title,'name_font': {'size': 9}})
@@ -628,10 +669,66 @@ def create_bar_chart(num_table_rows, table, plotting_name_column, sheet, current
     else:
         return bar_chart
 
+def create_combined_chart(num_table_rows, table, plotting_name_column, sheet, current_row, space_under_tables, column_row, plotting_name_column_index, year_cols_start, num_cols, colours_dict, primary_chart, secondary_chart, total_plotting_names, line_thickness, table_id, chart_title, plotting_specifications):
+    table_start_row = current_row - num_table_rows - space_under_tables - column_row
+
+    # Set the gap and overlap for the primary chart
+    # It is only necessary to apply the gap and overlap property to one series in the primary chart.
+    gap = 50  # Set the gap between columns to 50
+    overlap = 100  # Set the overlap between columns to 100
+
+    # Add series to primary chart
+    for row_i in range(num_table_rows):
+        series_name = table[plotting_name_column].iloc[row_i]
+        if series_name in total_plotting_names:
+            continue  # Skip this series
+        else:
+            series_options = {
+                'name':       [sheet, table_start_row + row_i + 1, plotting_name_column_index],
+                'categories': [sheet, table_start_row, year_cols_start - 1, table_start_row, num_cols - 1],
+                'values':     [sheet, table_start_row + row_i + 1, year_cols_start - 1, table_start_row + row_i + 1, num_cols - 1],
+                'border':     {'none': True}
+            }
+            if not 'Net emissions' in series_name:
+                if 'CCS' in series_name or 'carbon capture' in series_name:
+                    # Apply a pattern fill for 'CCS' or 'carbon capture'
+                    series_options.update({
+                        'pattern': {'pattern': 'wide_downward_diagonal', 'fg_color': table[plotting_name_column].map(colours_dict).iloc[row_i], 'bg_color': 'white'}
+                    })
+                else:
+                    # Apply a solid fill for others
+                    series_options.update({
+                        'fill': {'color': table[plotting_name_column].map(colours_dict).iloc[row_i]}
+                    })
+                # Only apply gap and overlap to the first series
+                if row_i == 0:
+                    series_options.update({'gap': gap, 'overlap': overlap})
+                primary_chart.add_series(series_options)
+            elif 'Net emissions' in series_name:
+                # This part remains unchanged
+                # Add a series to secondary chart with line settings
+                secondary_chart.add_series({
+                    'name':       [sheet, table_start_row + row_i + 1, plotting_name_column_index],
+                    'categories': [sheet, table_start_row, year_cols_start - 1, table_start_row, num_cols - 1],
+                    'values':     [sheet, table_start_row + row_i + 1, year_cols_start - 1, table_start_row + row_i + 1, num_cols - 1],
+                    'line':       {'color': table[plotting_name_column].map(colours_dict).iloc[row_i], 'width': line_thickness}
+                })
+
+    # Combine the charts and configure the combined chart as before
+    primary_chart.combine(secondary_chart)
+    primary_chart.set_title({'name': chart_title, 'name_font': {'size': 9}})
+    primary_chart.set_size({'width': plotting_specifications['width_pixels'], 'height': plotting_specifications['height_pixels']})
+
+    if len(primary_chart.series) == 0:
+        print('Chart for ' + sheet + ' with table_id ' + table_id + ' is empty. Skipping...')
+        return False
+    else:
+        return primary_chart
+
 #######################################
 #CHART CONFIGS
 #######################################
-def area_plotting_specifications(workbook, plotting_specifications, y_axis_max, y_axis_min):
+def area_plotting_specifications(workbook, plotting_specifications, y_axis_max, y_axis_min, first_year_col):
 
     # Create an area charts config
     area_chart = workbook.add_chart({'type': 'area', 'subtype': 'stacked'})
@@ -647,7 +744,7 @@ def area_plotting_specifications(workbook, plotting_specifications, y_axis_max, 
     area_chart.set_x_axis({
         # 'name': 'Year',
         'label_position': 'low',
-        'crossing': OUTLOOK_BASE_YEAR - MIN_YEAR + 1,
+        'crossing': (OUTLOOK_BASE_YEAR - first_year_col) + 1,
         'major_tick_mark': 'none',
         'minor_tick_mark': 'none',
         'num_font': {'name': 'Segoe UI', 'size': 9, 'color': '#323232'},
@@ -682,7 +779,7 @@ def area_plotting_specifications(workbook, plotting_specifications, y_axis_max, 
 
     return area_chart
 
-def bar_plotting_specifications(workbook, plotting_specifications, y_axis_max, y_axis_min):
+def bar_plotting_specifications(workbook, plotting_specifications, y_axis_max, y_axis_min, sheet_name):
     # Create a another chart
     bar_chart = workbook.add_chart({'type': 'column', 'subtype': 'stacked'})#can make this percent_stacked to make it a percentage stacked bar chart!
     bar_chart.set_size({
@@ -693,16 +790,26 @@ def bar_plotting_specifications(workbook, plotting_specifications, y_axis_max, y
     bar_chart.set_chartarea({
         'border': {'none': True}
     })
-    
-    bar_chart.set_x_axis({
-        # 'name': 'Year',
-        'label_position': 'low',
-        'major_tick_mark': 'none',
-        'minor_tick_mark': 'none',
-        'num_font': {'name': 'Segoe UI', 'size': 9, 'color': '#323232'},
-        'interval_unit': 1,
-        'line': {'color': '#bebebe'}
-    })
+    if sheet_name == 'Emissions':
+        bar_chart.set_x_axis({
+            # 'name': 'Year',
+            'label_position': 'low',
+            'major_tick_mark': 'none',
+            'minor_tick_mark': 'none',
+            'num_font': {'name': 'Segoe UI', 'size': 9, 'color': '#323232'},
+            'interval_unit': 10,
+            'line': {'color': '#bebebe'}
+        })
+    else:
+        bar_chart.set_x_axis({
+            # 'name': 'Year',
+            'label_position': 'low',
+            'major_tick_mark': 'none',
+            'minor_tick_mark': 'none',
+            'num_font': {'name': 'Segoe UI', 'size': 9, 'color': '#323232'},
+            'interval_unit': 1,
+            'line': {'color': '#bebebe'}
+        })
         
     bar_chart.set_y_axis({
         'major_tick_mark': 'none', 
@@ -743,7 +850,7 @@ def bar_plotting_specifications(workbook, plotting_specifications, y_axis_max, y
 
     return bar_chart
 
-def line_plotting_specifications(workbook, plotting_specifications, y_axis_max, y_axis_min):
+def line_plotting_specifications(workbook, plotting_specifications, y_axis_max, y_axis_min, first_year_col):
     # Create a FED line chart with higher level aggregation
     line_chart = workbook.add_chart({'type': 'line'})
     line_chart.set_size({
@@ -758,7 +865,7 @@ def line_plotting_specifications(workbook, plotting_specifications, y_axis_max, 
     line_chart.set_x_axis({
         # 'name': 'Year',
         'label_position': 'low',
-        'crossing': OUTLOOK_BASE_YEAR - MIN_YEAR + 1,
+        'crossing': (OUTLOOK_BASE_YEAR - first_year_col) + 1,
         'major_tick_mark': 'none',
         'minor_tick_mark': 'none',
         'num_font': {'name': 'Segoe UI', 'size': 9, 'color': '#323232'},
@@ -803,10 +910,58 @@ def line_plotting_specifications(workbook, plotting_specifications, y_axis_max, 
 
     return line_chart
 
+def combined_plotting_specifications(workbook, plotting_specifications, y_axis_max, y_axis_min, first_year_col):
+
+    # Create a combined charts config
+    primary_chart = workbook.add_chart({'type': 'column', 'subtype': 'stacked'})
+    # Create secondary line chart
+    secondary_chart = workbook.add_chart({'type': 'line', 'secondary': True})
+
+    primary_chart.set_chartarea({
+        'border': {'none': True}
+    })
+
+    # Set the x-axis and y-axis configurations
+    primary_chart.set_x_axis({
+        'label_position': 'low',
+        'crossing': (OUTLOOK_BASE_YEAR - first_year_col) + 1,
+        'major_tick_mark': 'none',
+        'minor_tick_mark': 'none',
+        'num_font': {'name': 'Segoe UI', 'size': 9, 'color': '#323232'},
+        'position_axis': 'on_tick',
+        'interval_unit': 10,
+        'line': {'color': '#bebebe'}
+    })
+        
+    primary_chart.set_y_axis({
+        'major_tick_mark': 'none', 
+        'minor_tick_mark': 'none',
+        'label_position': 'low',
+        'num_font': {'name': 'Segoe UI', 'size': 9, 'color': '#323232'},
+        'num_format': '# ### ### ##0',
+        'major_gridlines': {
+            'visible': True,
+            'line': {'color': '#bebebe'}
+        },
+        'line': {'color': '#323232', 'width': 1, 'dash_type': 'square_dot'},
+        'min': y_axis_min,
+        'max': y_axis_max  # Set the max value for y-axis
+    })
+        
+    primary_chart.set_legend({
+        'font': {'name': 'Segoe UI', 'size': 9}
+        #'none': True
+    })
+        
+    primary_chart.set_title({
+        'name_font': {'size': 9}  # Set the size of the title text
+    })
+
+    return primary_chart, secondary_chart
+
 def order_sheets(workbook, plotting_specifications):
     #order the sheets in the workbook accoridng to the custom order in master_config>plotting_specifications>sheet_order. If a sheet is not in the sheet_order list then it will be added to the end of the workbook
     #note that the workbook may hjave more sheets than are just in sheets. so order all sheets in the workbook not just the ones in sheets
-    breakpoint()
     
     # Get a list of all worksheets in the workbook
     worksheets = workbook.worksheets()

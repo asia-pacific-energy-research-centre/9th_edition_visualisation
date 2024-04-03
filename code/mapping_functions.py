@@ -83,7 +83,6 @@ def find_and_load_latest_data_for_all_sources(ECONOMY_ID, sources):
         elif file_path.endswith('.csv'):
             return pd.read_csv(file_path)
         else:
-            breakpoint()
             raise Exception(f"Unsupported file format for {file_path}")
 
     # Load data into DataFrames and
@@ -106,7 +105,6 @@ def format_plotting_mappings(plotting_mappings_df, columns, plotting_name_column
         #first check that the number of valid rows is more than the previous number of valid rows, otherwise we are not going in order of least to most specific columns:
         valid_rows_test = original_plotting_mappings_df[original_plotting_mappings_df[col].notna()]
         if len(valid_rows_test) < previous_col_valid_rows:
-            breakpoint()
             raise ValueError('The number of valid rows for the column {} is less than or equal to the previous column. This means that the columns are not in order of least to most specific. You will have to fix the all_plotting_mapping_dicts for this plotting_mappings_df'.format(col))
         else:
             previous_col_valid_rows = len(valid_rows_test)
@@ -180,7 +178,6 @@ def format_charts_mapping(charts_mapping, source_and_aggregate_name_column_to_pl
         #if the mapping doesent work then it should be an error from user input, so raise an error
         new_charts_mapping.loc[new_charts_mapping['source'] == source, 'plotting_name_column'] = new_charts_mapping['aggregate_name_column'].map(source_and_aggregate_name_column_to_plotting_name_column_mapping_dict[source])
         if new_charts_mapping.loc[(new_charts_mapping['source'] == source) &(new_charts_mapping.plotting_name_column.isna())].shape[0] > 0:
-            breakpoint()
             raise ValueError('There is a source in the new_charts_mapping that does not have a plotting_name_column. This is likely because the source_and_aggregate_name_column_to_plotting_name_column_mapping_dict is missing a source or aggregate_name_column. Otherwise you might have entered data wrong in the master_configs source or aggregate_name_column. Please check the source_and_aggregate_name_column_to_plotting_name_column_mapping_dict for the source: ', source)
     
     # Create a unique identifier for each source, sheet and table number
@@ -204,7 +201,6 @@ def save_plotting_names_order(charts_mapping,FILE_DATE_ID):
     plotting_names_order = {}
     #check there are no dsuplicates in charts_mapping_pivot.index.tolist(). this is where we;d have two cahrts of same name and it will cause an error
     if len(charts_mapping_pivot.index.tolist()) != len(set(charts_mapping_pivot.index.tolist())): 
-        breakpoint()
         raise ValueError('There are duplicated in the table_id column. You probably have two tables of the same table number for the same sheet: ', [item for item, count in collections.Counter(charts_mapping_pivot.index.tolist()).items() if count > 1])
     for table_id in charts_mapping_pivot.index.tolist():
         plotting_names_order[table_id] = [x for x in charts_mapping_pivot.loc[table_id].tolist() if str(x) != 'nan']
@@ -310,7 +306,6 @@ def check_missing_plotting_name_values_when_merging_mappings_to_modelled_data(co
     missing_in_new_model = merged_df[merged_df['_merge'] == 'right_only']
     if len(missing_in_new_model) > 0:
         if RAISE_ERROR:
-            breakpoint()
             raise Exception('There are plotting_name values for {} that may have been lost in the merge. They are probably just missing from the input data. This may or may not be important depending on the rows. These are: {}'.format(plotting_name_column, missing_in_new_model))
         print('There are plotting_name values for {} that may have been lost in the merge. They are probably just missing from the input data. This may or may not be important depending on the rows. These are: {}'.format(plotting_name_column, missing_in_new_model))#This could be because they dont match any original categories, or *unlikely* they arent used by any of the sectors referenced in sectors plotting
     
@@ -447,7 +442,6 @@ def merge_capacity_mappings(model_df_tall, new_capacity_plotting_mappings, capac
     try:
         check_missing_plotting_name_values_when_merging_mappings_to_modelled_data([ 'sectors', 'sub1sectors', 'sub2sectors', 'sub3sectors','sub4sectors'], new_capacity_plotting_mappings['plotting_name_column'].unique()[0], new_capacity_plotting_mappings, capacity_plotting_mappings, new_model_df_tall, RAISE_ERROR=False)
     except Exception as e:
-        breakpoint()
         check_missing_plotting_name_values_when_merging_mappings_to_modelled_data([ 'sectors', 'sub1sectors', 'sub2sectors', 'sub3sectors','sub4sectors'], new_capacity_plotting_mappings['plotting_name_column'].unique()[0], new_capacity_plotting_mappings, capacity_plotting_mappings, new_model_df_tall, RAISE_ERROR=False)
     # Drop unnecessary columns
     new_model_df_tall = new_model_df_tall.drop(columns=['sectors', 'sub1sectors', 'sub2sectors', 'sub3sectors', 'sub4sectors', 'reference_name'])
@@ -659,6 +653,125 @@ def modify_gas_to_gas_ccs(df):
     df.loc[condition, 'fuels'] = '08_gas_ccs'
 
     return df
+
+def modify_hydrogen_green_electricity(df):
+    """
+    Searches for a row where it is '09_total_transformation_sector' in 'sectors',
+    '09_13_hydrogen_transformation' in 'sub1sectors', '09_13_01_electrolysers' in 'sub2sectors' and '17_x_green_electricity' in 'fuels',
+    and changes the 'sub1sectors' from '09_13_hydrogen_transformation' to '09_13x_hydrogen_transformation'.
+    
+    Parameters:
+    - df (pd.DataFrame): The dataframe to modify.
+    
+    Returns:
+    - df (pd.DataFrame): The modified dataframe.
+    """
+    # Define the condition for the rows to modify
+    condition = (df['sectors'] == '09_total_transformation_sector') & \
+                (df['sub1sectors'] == '09_13_hydrogen_transformation') & \
+                (df['sub2sectors'] == '09_13_01_electrolysers') & \
+                (df['fuels'] == '17_x_green_electricity')
+    
+    # Apply the modification
+    df.loc[condition, 'sub1sectors'] = '09_13x_hydrogen_green_electricity'
+
+    return df
+
+# Temporary fix to exclude hydrogen in ccs emissions
+def drop_hydrogen_transformation_rows(df):
+    """
+    Drops rows from the DataFrame where 'sub1sectors' is '09_13_hydrogen_transformation'.
+
+    Parameters:
+    - df (pd.DataFrame): The dataframe to modify.
+    
+    Returns:
+    - df (pd.DataFrame): The modified dataframe with specified rows dropped.
+    """
+    # Define the condition for rows to drop
+    condition = df['sub1sectors'] == '09_13_hydrogen_transformation'
+    
+    # Drop rows that match the condition
+    df = df[~condition]
+
+    return df
+
+def rename_sectors_and_negate_values_based_on_ccs_cap(df):
+    """
+    For rows with a suffix '_ccs_cap' in 'sub2sectors' or 'sub3sectors' columns:
+    - Adds '_emissions_cap' to the suffix of the category name in the 'sectors' column and ensures values in year columns are negative.
+    - Copies these rows, renames the category in 'sectors' to '_emissions_cap_pos', and makes the year values positive.
+    
+    Parameters:
+    - df (pd.DataFrame): The dataframe to modify.
+    
+    Returns:
+    - df (pd.DataFrame): The modified dataframe with additional rows appended.
+    """
+    # Identify year columns
+    year_columns = [col for col in df.columns if col.isdigit()]
+
+    # Define condition for rows to modify
+    condition = df['sub2sectors'].str.endswith('_ccs_cap') | df['sub3sectors'].str.endswith('_ccs_cap')
+    
+    # Copy the rows that meet the condition, to modify and append them
+    rows = df.loc[condition].copy()
+    
+    # Update 'sectors' and year values for rows matching the condition
+    rows.loc[condition, 'sectors'] = rows.loc[condition, 'sectors'] + '_emissions_cap_neg'
+    for col in year_columns:
+        rows.loc[condition, col] = rows.loc[condition, col].apply(lambda x: -abs(x))
+
+    # Copy the rows that meet the condition, to modify and append them
+    new_rows = rows.loc[condition].copy()
+    new_rows['sectors'] = new_rows['sectors'].str.replace('_emissions_cap_neg', '_emissions_cap_pos')
+    for col in year_columns:
+        new_rows[col] = new_rows[col].abs()  # Make values positive
+    
+    # Copy new rows and rename the category in 'sectors' to '_emissions_area'
+    new_rows_area = new_rows.copy()
+    new_rows_area['sectors'] = new_rows_area['sectors'].str.replace('_emissions_cap_pos', '_emissions_area')
+
+    # Concatenate the new rows to the original dataframe
+    df = pd.concat([df, rows, new_rows, new_rows_area], ignore_index=True)
+
+    return df
+
+def copy_and_modify_power_sector_rows(df):
+    """
+    Copies rows where 'sub1sectors' matches certain criteria and has negative values,
+    renames 'sectors' by adding '_net' to the end, turns the year values positive,
+    then appends them to the dataframe.
+    """
+    # Define the list of 'sub1sectors' values to filter
+    power_sectors = [
+        '09_01_electricity_plants',
+        '09_02_chp_plants',
+        '09_04_electric_boilers',
+        '09_05_chemical_heat_for_electricity_production',
+        '09_x_heat_plants'
+    ]
+
+    # Identify year columns
+    year_columns = [col for col in df.columns if col.isdigit()]
+
+    # Filter rows where 'sub1sectors' matches the criteria and has negative values in any year column
+    condition = (df['sectors'] == '09_total_transformation_sector') & df['sub1sectors'].isin(power_sectors) & (df[year_columns] < 0).any(axis=1)
+
+    # Filter rows matching the condition
+    filtered_rows = df[condition].copy()
+
+    # Modify 'sectors' by adding '_net' to the end
+    filtered_rows['sectors'] += '_net'
+
+    # Ensure all values in year columns are positive
+    filtered_rows[year_columns] = filtered_rows[year_columns].abs()
+
+    # Append the modified rows to the original dataframe
+    df = pd.concat([df, filtered_rows], ignore_index=True)
+
+    return df
+
 
 # def collect_missing_datapoints(economy_new_charts_mapping):
 #     #now loop through the unique sheet, table combinations and idneitfy if there are any missing values (nas) in the value col. Put the data for these into a new dataframe called missing_data
