@@ -6,7 +6,7 @@ import os
 from datetime import datetime
 
         
-ECONOMY_ID = '19_THA'#08_JPN
+ECONOMY_ID = '20_USA'#08_JPN
 
 #######################################################
 #CONFIG PREPARATION

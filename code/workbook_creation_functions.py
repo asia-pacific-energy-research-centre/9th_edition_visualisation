@@ -674,7 +674,7 @@ def create_combined_chart(num_table_rows, table, plotting_name_column, sheet, cu
 
     # Set the gap and overlap for the primary chart
     # It is only necessary to apply the gap and overlap property to one series in the primary chart.
-    gap = 50  # Set the gap between columns to 50
+    gap = 33  # Set the gap between columns to 33
     overlap = 100  # Set the overlap between columns to 100
 
     # Add series to primary chart
