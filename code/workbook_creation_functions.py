@@ -319,7 +319,7 @@ def calculate_y_axis_value(value):
     if value > 0:
         y_axis_value = value + (0.05 * value)
     else:
-        y_axis_value = value - (0.05 * value)
+        y_axis_value = value - (0.1 * abs(value))
 
     # Use absolute value to handle the logarithm for negatives
     order_of_magnitude = 10 ** math.floor(math.log10(abs(y_axis_value)))
@@ -330,6 +330,7 @@ def calculate_y_axis_value(value):
         y_axis_value = math.ceil(y_axis_value / rounding_step) * rounding_step
     else:
         y_axis_value = math.floor(y_axis_value / rounding_step) * rounding_step
+
     return y_axis_value
 
 def create_charts(table, chart_types, plotting_specifications, workbook, num_table_rows, plotting_name_column, table_id, sheet, current_row, space_under_tables, column_row, year_cols_start, num_cols, colours_dict, total_plotting_names, max_and_min_values_dict, chart_titles, first_year_col, sheet_name):
@@ -571,8 +572,8 @@ def create_area_chart(num_table_rows, table, plotting_name_column, sheet, curren
         # elif sheet == 'Industry' and table[plotting_name_column].iloc[row_i] == 'Industry':
         #     pass
         else:
-            if 'CCS' in series_name:
-                # Apply a pattern fill for 'CCS'
+            if 'CCS' in series_name or 'idle' in series_name:
+                # Apply a pattern fill for 'CCS' or 'idle'
                 area_chart.add_series({
                     'name':       [sheet, table_start_row + row_i + 1, plotting_name_column_index],
                     'categories': [sheet, table_start_row, year_cols_start - 1, table_start_row, num_cols - 1],
@@ -640,8 +641,8 @@ def create_bar_chart(num_table_rows, table, plotting_name_column, sheet, current
         # elif sheet == 'Industry' and table[plotting_name_column].iloc[row_i] == 'Industry':
         #     pass
         else:
-            if 'CCS' in series_name:
-                # Apply a pattern fill for 'CCS'
+            if 'CCS' in series_name or 'idle' in series_name:
+                # Apply a pattern fill for 'CCS' or 'idle'
                 bar_chart.add_series({
                     'name':       [sheet, table_start_row + row_i + 1, plotting_name_column_index],
                     'categories': [sheet, table_start_row, year_cols_start - 1, table_start_row, num_cols - 1],
