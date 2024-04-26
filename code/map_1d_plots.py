@@ -129,7 +129,6 @@ def extract_macro_data(ECONOMY_ID):
 
     return population, real_gdp, gdppc
 
-
 def calculate_and_extract_intensity_data(ECONOMY_ID):
     #to do this we need to use total energy consumption and total emissions and then divide by gdp. note that this will not go into detail on sectors, if that is ever needed it will need to be part of the 2d plots as it will 'intensity by sector'
     breakpoint()
@@ -138,7 +137,7 @@ def calculate_and_extract_intensity_data(ECONOMY_ID):
     emissions = all_model_df_wides_dict['emissions'][1]
 
     #load in 
-    energy_total = energy[(energy.sectors == '12_total_final_consumption') & (energy.fuels == '19_total') & (~energy.subtotal_layout) & (~energy.subtotal_results)].copy()
+    energy_total = energy[(energy.sectors == '07_total_primary_energy_supply') & (energy.fuels == '19_total') & (~energy.subtotal_layout) & (~energy.subtotal_results)].copy()
     #do a quick check that we arent getting more than one row per scenario since we are setting subtotals to true for any total final consumption rows.
     unique_energy_scenarios = energy_total.scenarios.unique()
     if len(energy_total) > len(unique_energy_scenarios):
@@ -176,6 +175,10 @@ def calculate_and_extract_intensity_data(ECONOMY_ID):
     energy_total_melt['year'] = energy_total_melt['year'].astype(int)
     emissions_total_melt['year'] = emissions_total_melt['year'].astype(int)
 
+    # Filter data for years within the specified range
+    energy_total_melt = energy_total_melt[(energy_total_melt['year'] >= MIN_YEAR) & (energy_total_melt['year'] <= OUTLOOK_LAST_YEAR)]
+    emissions_total_melt = emissions_total_melt[(emissions_total_melt['year'] >= MIN_YEAR) & (emissions_total_melt['year'] <= OUTLOOK_LAST_YEAR)]
+
     #join with macro data wiht only gdp in it
     population, real_gdp, gdppc = extract_macro_data(ECONOMY_ID)
     real_gdp.drop(columns=['plotting_name'], inplace=True)
@@ -188,7 +191,30 @@ def calculate_and_extract_intensity_data(ECONOMY_ID):
     emissions_intensity = pd.merge(emissions_total_melt, real_gdp, how='left', on=['year'])
     emissions_intensity['value'] = emissions_intensity['emissions_total']/emissions_intensity['value']
     emissions_intensity.drop(columns=[ 'emissions_total'], inplace=True)
-        
+    
+    # Normalizing the data to index it to 100 for the year 2005
+    base_year = 2005
+    
+    # Function to normalize the dataframe
+    def normalize_to_base_year(df, base_year):
+        # Find the base year value for each scenario
+        base_values = df[df['year'] == base_year].set_index('scenarios')['value']
+        # Merge base year values back to the main dataframe to divide
+        df = df.join(base_values, on='scenarios', rsuffix='_base')
+        # Normalize and scale to 100
+        df['value'] = (df['value'] / df['value_base']) * 100
+        # Drop the base value column after calculation
+        df.drop(columns=['value_base'], inplace=True)
+        return df
+    
+    # Normalize energy and emissions intensity
+    energy_intensity = normalize_to_base_year(energy_intensity, base_year)
+    emissions_intensity = normalize_to_base_year(emissions_intensity, base_year)
+    
+    # Set values to NaN for 'target' scenarios between MIN_YEAR and OUTLOOK_BASE_YEAR
+    energy_intensity.loc[(energy_intensity['scenarios'] == 'target') & (energy_intensity['year'] >= MIN_YEAR) & (energy_intensity['year'] < OUTLOOK_BASE_YEAR), 'value'] = np.nan
+    emissions_intensity.loc[(emissions_intensity['scenarios'] == 'target') & (emissions_intensity['year'] >= MIN_YEAR) & (emissions_intensity['year'] < OUTLOOK_BASE_YEAR), 'value'] = np.nan
+    
     #now we have energy_intensity and emissions_intensity, we need to put them in the format we want to plot them in
     energy_intensity['source'] = 'intensity'
     energy_intensity['plotting_name'] = 'energy_intensity'
@@ -205,6 +231,82 @@ def calculate_and_extract_intensity_data(ECONOMY_ID):
     # #cnacatenate and return
     # energy_and_emissions_intensity = pd.concat([energy_intensity, emissions_intensity], axis=0)
     return energy_intensity, emissions_intensity
+
+# def calculate_and_extract_intensity_data(ECONOMY_ID):
+#     #to do this we need to use total energy consumption and total emissions and then divide by gdp. note that this will not go into detail on sectors, if that is ever needed it will need to be part of the 2d plots as it will 'intensity by sector'
+#     breakpoint()
+#     all_model_df_wides_dict = mapping_functions.find_and_load_latest_data_for_all_sources(ECONOMY_ID, ['energy', 'emissions'])
+#     energy = all_model_df_wides_dict['energy'][1]
+#     emissions = all_model_df_wides_dict['emissions'][1]
+
+#     #load in 
+#     energy_total = energy[(energy.sectors == '12_total_final_consumption') & (energy.fuels == '19_total') & (~energy.subtotal_layout) & (~energy.subtotal_results)].copy()
+#     #do a quick check that we arent getting more than one row per scenario since we are setting subtotals to true for any total final consumption rows.
+#     unique_energy_scenarios = energy_total.scenarios.unique()
+#     if len(energy_total) > len(unique_energy_scenarios):
+#         breakpoint()
+#         raise Exception('There are more rows in energy_total than there are unique scenarios. This should not happen.')
+
+#     emissions_total = emissions[(emissions.sectors == '12_total_final_consumption') & (emissions.fuels == '19_total') & (~emissions.subtotal_layout) & (~emissions.subtotal_results)].copy()
+#     unique_emissions_scenarios = emissions_total.scenarios.unique()
+#     if len(emissions_total) > len(unique_emissions_scenarios):
+#         breakpoint()
+#         raise Exception('There are more rows in emissions_total than there are unique scenarios. This should not happen.')
+
+#     # emissions_total.to_csv('../intermediate_data/emissions_total.csv')
+
+#     #now melt and join with macro data on year.
+#     #first identify the years cols so we can keep only them and scenario
+#     years_cols = [x for x in energy_total.columns if re.match(r'\d\d\d\d', x)]
+#     energy_total =energy_total[years_cols + ['scenarios']].copy()
+#     years_cols = [x for x in emissions_total.columns if re.match(r'\d\d\d\d', x)]
+#     emissions_total =emissions_total[years_cols + ['scenarios']].copy()
+
+#     #quickly check for duplicates
+#     if energy_total.duplicated().any():
+#         breakpoint()
+#         raise Exception('There are duplicates in energy_total')
+#     if emissions_total.duplicated().any():
+#         breakpoint()
+#         raise Exception('There are duplicates in emissions_total')
+
+#     #now melt
+#     energy_total_melt = energy_total.melt(id_vars=['scenarios'], value_vars=years_cols, var_name='year', value_name='energy_total')
+#     emissions_total_melt = emissions_total.melt(id_vars=['scenarios'], value_vars=years_cols, var_name='year', value_name='emissions_total')
+
+#     #make year int
+#     energy_total_melt['year'] = energy_total_melt['year'].astype(int)
+#     emissions_total_melt['year'] = emissions_total_melt['year'].astype(int)
+
+#     #join with macro data wiht only gdp in it
+#     population, real_gdp, gdppc = extract_macro_data(ECONOMY_ID)
+#     real_gdp.drop(columns=['plotting_name'], inplace=True)
+#     real_gdp['value'] = real_gdp['value']/100 #to get 10,000 which seems to be similar magnitude to energy and emissions
+#     breakpoint()
+#     energy_intensity = pd.merge(energy_total_melt, real_gdp, how='left', on=['year'])
+#     energy_intensity['value'] = energy_intensity['energy_total']/energy_intensity['value']
+#     energy_intensity.drop(columns=['energy_total'], inplace=True)
+
+#     emissions_intensity = pd.merge(emissions_total_melt, real_gdp, how='left', on=['year'])
+#     emissions_intensity['value'] = emissions_intensity['emissions_total']/emissions_intensity['value']
+#     emissions_intensity.drop(columns=[ 'emissions_total'], inplace=True)
+        
+#     #now we have energy_intensity and emissions_intensity, we need to put them in the format we want to plot them in
+#     energy_intensity['source'] = 'intensity'
+#     energy_intensity['plotting_name'] = 'energy_intensity'
+#     emissions_intensity['source'] = 'intensity'
+#     emissions_intensity['plotting_name'] = 'emissions_intensity'
+
+#     #change unit to PJ/million_gdp_2017_usd_ppp or MtCO2/million_gdp_2017_usd_ppp
+#     energy_intensity['unit'] = 'PJ/ten_thousand_gdp_2017_usd_ppp'
+#     emissions_intensity['unit'] = 'MtCO2/ten_thousand_gdp_2017_usd_ppp'
+
+#     #rena,e , 'scenarios':'scenario'
+#     energy_intensity.rename(columns={'scenarios':'scenario'}, inplace=True)
+#     emissions_intensity.rename(columns={'scenarios':'scenario'}, inplace=True)
+#     # #cnacatenate and return
+#     # energy_and_emissions_intensity = pd.concat([energy_intensity, emissions_intensity], axis=0)
+#     return energy_intensity, emissions_intensity
 
 
 def calculate_and_extract_renewable_share_data(ECONOMY_ID):

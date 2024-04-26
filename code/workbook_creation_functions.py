@@ -19,8 +19,10 @@ def create_sheets_from_mapping_df(workbook, charts_mapping, total_plotting_names
     charts_mapping = charts_mapping.loc[charts_mapping['year'].astype(int) >= MIN_YEAR].copy()
     #make values 1 decimal place
     charts_mapping['value'] = charts_mapping['value'].round(1).copy()
-    #replace nas with 0
-    charts_mapping['value'] = charts_mapping['value'].fillna(0).copy()
+    # Replace NaNs with 0 except for 'Transport stocks' and 'Intensity' sheets
+    mask = ~charts_mapping['sheet_name'].isin(['Transport stocks', 'Intensity'])
+    charts_mapping.loc[mask, 'value'] = charts_mapping.loc[mask, 'value'].fillna(0).copy()
+
     
     # Getting the max values for each sheet and chart type to make the charts' y-axis consistent
     max_and_min_values_dict = {}
@@ -45,12 +47,11 @@ def create_sheets_from_mapping_df(workbook, charts_mapping, total_plotting_names
     #then create a dictionary of the sheets and the dataframes we will use to populate them:
     sheet_dfs = {}
     for sheet in sheets:
-
         sheet_dfs[sheet] = ()
 
         sheet_data = charts_mapping.loc[charts_mapping['sheet_name'] == sheet]
 
-        #pivot the data and create order of cols so it is fsater to create tables
+        # Pivot the data and create an order of cols so it is faster to create tables
         EXPECTED_COLS_wide = EXPECTED_COLS.copy()
         EXPECTED_COLS_wide.remove('year')
         EXPECTED_COLS_wide.remove('value')
@@ -62,20 +63,40 @@ def create_sheets_from_mapping_df(workbook, charts_mapping, total_plotting_names
 
         #sort by table_number
         sheet_data = sheet_data.sort_values(by=['table_number'])
-        for scenario in sheet_data['scenario'].unique():
-            if str(scenario) == 'nan':
-                scenario_data = sheet_data.copy()
-            else:   
-                #extract scenario data
-                scenario_data = sheet_data.loc[(sheet_data['scenario'] == scenario)]
-            #add tables to tuple, by table number
-            for table in scenario_data['table_number'].unique():
-                table_data = scenario_data.loc[(scenario_data['table_number'] == table)]
-                #drop table number from table data
-                table_data = table_data.drop(columns = ['table_number'])
+        # for scenario in sheet_data['scenario'].unique():
+        #     if str(scenario) == 'nan':
+        #         scenario_data = sheet_data.copy()
+        #     else:   
+        #         #extract scenario data
+        #         scenario_data = sheet_data.loc[(sheet_data['scenario'] == scenario)]
+        #     #add tables to tuple, by table number
+        #     for table in scenario_data['table_number'].unique():
+        #         table_data = scenario_data.loc[(scenario_data['table_number'] == table)]
+        #         #drop table number from table data
+        #         table_data = table_data.drop(columns = ['table_number'])
 
-                #add table data to tuple
+        #         #add table data to tuple
+        #         sheet_dfs[sheet] = sheet_dfs[sheet] + (table_data,)
+        if sheet == "Intensity":
+            # Handle all data as one scenario block for "Intensity" sheet
+            for table in sheet_data['table_number'].unique():
+                table_data = sheet_data.loc[(sheet_data['table_number'] == table)]
+                table_data = table_data.drop(columns=['table_number'])
+                # Update 'plotting_name' based on 'scenario' values
+                table_data['plotting_name'] = table_data['scenario'].apply(lambda x: x.capitalize() if x in ['reference', 'target'] else table_data['plotting_name'])
                 sheet_dfs[sheet] = sheet_dfs[sheet] + (table_data,)
+        else:
+            # Process each scenario individually for other sheets
+            for scenario in sheet_data['scenario'].unique():
+                if str(scenario) == 'nan':
+                    scenario_data = sheet_data.copy()
+                else:
+                    scenario_data = sheet_data.loc[(sheet_data['scenario'] == scenario)]
+
+                for table in scenario_data['table_number'].unique():
+                    table_data = scenario_data.loc[(scenario_data['table_number'] == table)]
+                    table_data = table_data.drop(columns=['table_number'])
+                    sheet_dfs[sheet] = sheet_dfs[sheet] + (table_data,)
     #PREPARE DATA END  ########################################
     #now we have a dictionary of dataframes for each sheet, we can iterate through them and create the charts and tables we need.
     #every table has the format (var might change)
