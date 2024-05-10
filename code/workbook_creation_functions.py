@@ -20,7 +20,7 @@ def create_sheets_from_mapping_df(workbook, charts_mapping, total_plotting_names
     #make values 1 decimal place
     charts_mapping['value'] = charts_mapping['value'].round(1).copy()
     # Replace NaNs with 0 except for 'Transport stocks' and 'Intensity' sheets
-    mask = ~charts_mapping['sheet_name'].isin(['Transport stocks', 'Intensity'])
+    mask = ~charts_mapping['sheet_name'].isin(['Transport stocks', 'Intensity', 'Renewable share'])
     charts_mapping.loc[mask, 'value'] = charts_mapping.loc[mask, 'value'].fillna(0).copy()
 
     
@@ -77,8 +77,8 @@ def create_sheets_from_mapping_df(workbook, charts_mapping, total_plotting_names
 
         #         #add table data to tuple
         #         sheet_dfs[sheet] = sheet_dfs[sheet] + (table_data,)
-        if sheet == "Intensity":
-            # Handle all data as one scenario block for "Intensity" sheet
+        if sheet in ['Intensity', 'Renewable share']:
+            # Handle all data as one scenario block for "Intensity" or "Renewable share" sheet
             for table in sheet_data['table_number'].unique():
                 table_data = sheet_data.loc[(sheet_data['table_number'] == table)]
                 table_data = table_data.drop(columns=['table_number'])

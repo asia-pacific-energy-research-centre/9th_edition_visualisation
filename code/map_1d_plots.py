@@ -137,6 +137,8 @@ def calculate_and_extract_intensity_data(ECONOMY_ID):
     emissions = all_model_df_wides_dict['emissions'][1]
 
     #load in 
+    # for some reason, electricity is double counted in historic energy_total values. We will use 07_total_primary_energy_supply instead because Kaya identity is based on primary energy supply.
+    # energy_total = energy[(energy.sectors == '13_total_final_energy_consumption') & (energy.fuels == '19_total') & (~energy.subtotal_layout) & (~energy.subtotal_results)].copy()
     energy_total = energy[(energy.sectors == '07_total_primary_energy_supply') & (energy.fuels == '19_total') & (~energy.subtotal_layout) & (~energy.subtotal_results)].copy()
     #do a quick check that we arent getting more than one row per scenario since we are setting subtotals to true for any total final consumption rows.
     unique_energy_scenarios = energy_total.scenarios.unique()
@@ -144,7 +146,9 @@ def calculate_and_extract_intensity_data(ECONOMY_ID):
         breakpoint()
         raise Exception('There are more rows in energy_total than there are unique scenarios. This should not happen.')
 
-    emissions_total = emissions[(emissions.sectors == '12_total_final_consumption') & (emissions.fuels == '19_total') & (~emissions.subtotal_layout) & (~emissions.subtotal_results)].copy()
+    emissions_total = emissions[(emissions.sectors == '07_total_primary_energy_supply') & (emissions.subfuels == 'x')].copy()
+    # Group the filtered data by the 'scenarios' column
+    emissions_total = emissions_total.groupby('scenarios').sum().reset_index().copy()
     unique_emissions_scenarios = emissions_total.scenarios.unique()
     if len(emissions_total) > len(unique_emissions_scenarios):
         breakpoint()
@@ -317,7 +321,9 @@ def calculate_and_extract_renewable_share_data(ECONOMY_ID):
     energy = all_model_df_wides_dict['energy'][1]
     #extract toal final consumption and total renewables
     energy_total = energy[(energy.sectors == '12_total_final_consumption') & (energy.fuels == '19_total') & (~energy.subtotal_layout) & (~energy.subtotal_results)].copy()
+    energy_total.to_csv('../intermediate_data/energy_total.csv')
     energy_renewables = energy[(energy.sectors == '12_total_final_consumption') & (energy.fuels == '21_modern_renewables') & (~energy.subtotal_layout) & (~energy.subtotal_results)].copy()
+    energy_renewables.to_csv('../intermediate_data/energy_renewables.csv')
     
     #melt them
     years_cols = [x for x in energy_total.columns if re.match(r'\d\d\d\d', x)]
@@ -332,6 +338,12 @@ def calculate_and_extract_renewable_share_data(ECONOMY_ID):
     renewable_share = pd.merge(energy_total_melt, energy_renewables_melt, how='left', on=['scenarios', 'year'])
     #calculate share
     renewable_share['value'] = (renewable_share['energy_renewables']/renewable_share['energy_total']) * 100
+    
+    # Set values to NaN for 'target' scenarios between MIN_YEAR and OUTLOOK_BASE_YEAR
+    renewable_share.loc[(renewable_share['scenarios'] == 'target') & (renewable_share['year'] >= MIN_YEAR) & (renewable_share['year'] < OUTLOOK_BASE_YEAR), 'value'] = np.nan
+    
+    renewable_share.to_csv('../intermediate_data/renewables_share.csv')
+    
     # we need to put them in the format we want to plot them in
     renewable_share['source'] = 'renewable_share'
     renewable_share['plotting_name'] = 'renewable_share'
