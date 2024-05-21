@@ -491,7 +491,7 @@ def format_plotting_df_from_mapped_plotting_names(plotting_df, new_charts_mappin
 
 
 
-def format_chart_tiles(charts_mapping, ECONOMY_ID):
+def format_chart_titles(charts_mapping, ECONOMY_ID):
     #charts titles use {VARIABLE} to indicate where the variable name should be inserted. This function replaces {VARIABLE} with the variable name, which may be based on either the value for that row or a varaible like economy_id
     
     def map_variable_to_value(row, ECONOMY_ID):

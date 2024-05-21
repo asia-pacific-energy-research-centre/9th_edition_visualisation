@@ -150,8 +150,22 @@ def create_sheets_from_mapping_df(workbook, charts_mapping, total_plotting_names
             ########################
             #if chart_type len is 1 and it is a bar chart, we need to edit the table to work for bar charts:
             
-            if len(chart_types) == 1 and 'bar' in chart_types:   
+            if len(chart_types) == 1 and 'bar' in chart_types and not sheet == 'CO2 emissions components':   
                 table = create_bar_chart_table(table,year_cols_start,plotting_specifications['bar_years'], sheet_name)
+            ########################
+            # Define the mapping dictionary
+            column_mapping = {
+                3000: f'Emissions {OUTLOOK_BASE_YEAR}',
+                3001: 'Population',
+                3002: 'GDP per capita',
+                3003: 'Energy intensity',
+                3004: 'Emissions intensity',
+                3005: f'Emissions {OUTLOOK_LAST_YEAR}'
+            }
+            # If sheet is CO2 emissions components, rename the years
+            if sheet == 'CO2 emissions components':
+                # Rename the columns using the mapping dictionary
+                table.rename(columns=column_mapping, inplace=True)
             ########################
             #write table to sheet
             table.to_excel(writer, sheet_name = sheet, index = False, startrow = current_row)
@@ -275,7 +289,11 @@ def extract_max_and_min_values(data, max_and_min_values_dict, total_plotting_nam
                 if subset.empty:
                     continue
                 #set value to 0 where plotting name is one of the total plotting names. This is so that the max/min y value is not affected by the total plotting names, since they arent plotted 
-                subset.loc[subset['plotting_name'].isin(total_plotting_names + ['Net emissions']), 'value'] = 0
+                subset.loc[subset['plotting_name'].isin(total_plotting_names), 'value'] = 0
+                
+                # if chart_type is combined, set value to 0 where plotting name is 'Net emissions'
+                if chart_type == 'combined':
+                    subset.loc[subset['plotting_name'] == 'Net emissions', 'value'] = 0
 
                 # if subset.aggregate_name_column.iloc[0] == 'fuels_plotting':
                 #     subset.loc[subset['plotting_name_column'].isin(total_plotting_names), 'value'] = 0
@@ -671,6 +689,24 @@ def create_bar_chart(num_table_rows, table, plotting_name_column, sheet, current
                     'pattern':    {'pattern': 'wide_downward_diagonal', 'fg_color': table[plotting_name_column].map(colours_dict).iloc[row_i], 'bg_color': 'white'},
                     'border':     {'none': True}
                     })
+            elif series_name == 'base':
+                # Apply no fill for base
+                bar_chart.add_series({
+                    'name':       [sheet, table_start_row + row_i + 1, plotting_name_column_index],
+                    'categories': [sheet, table_start_row, year_cols_start - 1, table_start_row, num_cols - 1],
+                    'values':     [sheet, table_start_row + row_i + 1, year_cols_start - 1, table_start_row + row_i + 1, num_cols - 1],
+                    'fill':       {'none': True},
+                    'border':     {'none': True}
+                    })
+            elif 'rise' in series_name or 'fall' in series_name:
+                # Apply transparent fill for 'rise' or 'fall'
+                bar_chart.add_series({
+                    'name':       [sheet, table_start_row + row_i + 1, plotting_name_column_index],
+                    'categories': [sheet, table_start_row, year_cols_start - 1, table_start_row, num_cols - 1],
+                    'values':     [sheet, table_start_row + row_i + 1, year_cols_start - 1, table_start_row + row_i + 1, num_cols - 1],
+                    'fill':       {'color': table[plotting_name_column].map(colours_dict).iloc[row_i], 'transparency': 50},
+                    'border':     {'none': True}
+                    })
             else:
                 # Apply a solid fill for others
                 bar_chart.add_series({
@@ -683,6 +719,10 @@ def create_bar_chart(num_table_rows, table, plotting_name_column, sheet, current
     
     # Add a title to the chart
     bar_chart.set_title({'name': chart_title,'name_font': {'size': 9}})
+    
+    # Exclude legend if sheet is 'CO2 emissions components'
+    if sheet == 'CO2 emissions components':
+        bar_chart.set_legend({'none': True})
     
     #double check if chart is empty, if so let user know and skip the chart
     if len(bar_chart.series) == 0:

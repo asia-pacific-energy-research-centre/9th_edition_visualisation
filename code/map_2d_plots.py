@@ -318,15 +318,25 @@ def map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COL
             if len(extra_cols) > 0 or len(missing_cols) > 0:
                 raise Exception(f'There are missing or extra columns in charts_mapping. Extra cols: {extra_cols}. Missing cols: {missing_cols}')
             
-            economy_new_charts_mapping = mapping_functions.format_chart_tiles(economy_new_charts_mapping, ECONOMY_ID)
+            economy_new_charts_mapping = mapping_functions.format_chart_titles(economy_new_charts_mapping, ECONOMY_ID)
             #############################
             
             #concat to charts_mapping_all_years 
             charts_mapping_all_years = pd.concat([charts_mapping_all_years, economy_new_charts_mapping])
-            
+        
         # Save the processed data to a pickle file
         charts_mapping_all_years.to_pickle(f'../intermediate_data/data/charts_mapping_{source}_{economy_x}_{FILE_DATE_ID}.pkl')
         print(f"Data for {economy_x} {source} saved.")
+        
+        # If sources is emissions, return the filtered data
+        if source == 'emissions':
+            total_emissions = charts_mapping_all_years[(charts_mapping_all_years['sheet_name'] == 'Emissions') & (charts_mapping_all_years['plotting_name'].isin(['Agriculture','Buildings', 'Industry', 'Non-specified', 'Own-use and losses', 'Power_input', 'Transport'])) & (charts_mapping_all_years['aggregate_name'] == 'TFEC')].copy()
+            # Group by scenario and year, and sum the values
+            total_emissions = total_emissions.groupby(['scenario', 'year']).sum().reset_index().copy()
+            # Drop table_number column
+            total_emissions.drop(columns=['table_number'], inplace=True)
+            # total_emissions.to_csv(f'../intermediate_data/total_emissions_{economy_x}_{FILE_DATE_ID}.csv')
+            return total_emissions
 
 #%%
 # FILE_DATE_ID = '20231110'
