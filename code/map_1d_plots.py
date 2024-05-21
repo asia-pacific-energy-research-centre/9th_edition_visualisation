@@ -368,311 +368,73 @@ def calculate_and_extract_renewable_share_data(ECONOMY_ID):
     
     return renewable_share
 
-# def calculate_and_extract_kaya_identity_data(ECONOMY_ID, energy_df, emissions_df, kaya_emissions):
-#     # Load the required data
-#     population, real_gdp, gdppc = extract_macro_data(ECONOMY_ID)
-    
-#     # Initialize the kaya_identity_df and modify year values
-#     kaya_identity_df = kaya_emissions[['scenario', 'year', 'value']].copy()
-#     kaya_identity_df['plotting_name'] = 'initial'
-#     kaya_identity_df['year'] = kaya_identity_df['year'].replace({OUTLOOK_BASE_YEAR: 3000, OUTLOOK_LAST_YEAR: 3005})
-    
-#     def calculate_factor(df, base_year, last_year):
-#         base_value = df.loc[df['year'] == base_year, 'value'].values[0]
-#         last_value = df.loc[df['year'] == last_year, 'value'].values[0]
-#         return last_value / base_value
-    
-#     def create_new_rows(df, factor, year, scenario):
-#         new_rows = []
-#         base_value = df[(df['year'] == year) & (df['scenario'] == scenario)]['value'].values[0]
-#         new_value = factor * base_value
-#         new_diff = new_value - base_value
-#         plotting_name = 'rise' if new_diff > 0 else 'fall'
-#         if plotting_name == 'fall':
-#             new_diff = abs(new_diff)
-#             base_value -= new_diff
-#         new_rows.append({'scenario': scenario, 'year': year + 1, 'plotting_name': plotting_name, 'value': new_diff})
-#         new_rows.append({'scenario': scenario, 'year': year + 1, 'plotting_name': 'base', 'value': base_value})
-#         return new_rows
-    
-#     # Calculate factors
-#     population_factor = calculate_factor(population, OUTLOOK_BASE_YEAR, OUTLOOK_LAST_YEAR)
-#     gdppc_factor = calculate_factor(gdppc, OUTLOOK_BASE_YEAR, OUTLOOK_LAST_YEAR)
-    
-#     # Create and append new rows for each scenario and factor
-#     for scenario in ['reference', 'target']:
-#         kaya_identity_df = kaya_identity_df.append(create_new_rows(kaya_identity_df, population_factor, 3000, scenario), ignore_index=True)
-#         kaya_identity_df = kaya_identity_df.append(create_new_rows(kaya_identity_df, gdppc_factor, 3001, scenario), ignore_index=True)
-        
-#         energy_factor = calculate_factor(energy_df[energy_df['scenarios'] == scenario], OUTLOOK_BASE_YEAR, OUTLOOK_LAST_YEAR)
-#         kaya_identity_df = kaya_identity_df.append(create_new_rows(kaya_identity_df[kaya_identity_df['scenario'] == scenario], energy_factor, 3002, scenario), ignore_index=True)
-        
-#         emissions_factor = calculate_factor(emissions_df[emissions_df['scenarios'] == scenario], OUTLOOK_BASE_YEAR, OUTLOOK_LAST_YEAR)
-#         kaya_identity_df = kaya_identity_df.append(create_new_rows(kaya_identity_df[kaya_identity_df['scenario'] == scenario], emissions_factor, 3003, scenario), ignore_index=True)
-    
-#     # Final adjustments to the dataframe
-#     kaya_identity_df.rename(columns={'plotting_name': 'temp_plotting_name'}, inplace=True)
-#     kaya_identity_df['plotting_name'] = 'emissions_components'
-#     kaya_identity_df['unit'] = 'million tonnes'
-#     kaya_identity_df['source'] = 'kaya'
-#     kaya_identity_df['plotting_name_column'] = 'variable'
-    
-#     kaya_identity_df.to_csv('../intermediate_data/kaya_identity_df.csv')
-    
-#     return kaya_identity_df
-
 def calculate_and_extract_kaya_identity_data(ECONOMY_ID, energy_df, emissions_df, total_emissions):
+    def get_factor(df, base_year, last_year):
+        base_value = df.loc[df['year'] == base_year, 'value'].values[0]
+        last_value = df.loc[df['year'] == last_year, 'value'].values[0]
+        return last_value / base_value
+    
+    def add_new_rows(kaya_df, year, factor, scenario, previous_value):
+        new_value = factor * previous_value
+        new_value_diff = new_value - previous_value
+        plotting_name = 'rise' if new_value_diff > 0 else 'fall'
+        new_value_diff = abs(new_value_diff)
+        
+        kaya_df = kaya_df.append({
+            'scenario': scenario,
+            'year': year,
+            'plotting_name': plotting_name,
+            'value': new_value_diff,
+        }, ignore_index=True)
+        
+        base_value = previous_value if plotting_name == 'rise' else previous_value - new_value_diff
+        kaya_df = kaya_df.append({
+            'scenario': scenario,
+            'year': year,
+            'plotting_name': 'base',
+            'value': base_value,
+        }, ignore_index=True)
+        
+        return kaya_df, new_value
+
     # Load the required data
     population, real_gdp, gdppc = extract_macro_data(ECONOMY_ID)
     
     # Filter total emissions data for the required years
-    total_emissions = total_emissions[(total_emissions['year'].isin([OUTLOOK_BASE_YEAR, OUTLOOK_LAST_YEAR]))].copy()
+    total_emissions = total_emissions[total_emissions['year'].isin([OUTLOOK_BASE_YEAR, OUTLOOK_LAST_YEAR])].copy()
     
     # Select specific columns to copy
     kaya_identity_df = total_emissions[['scenario', 'year', 'value']].copy()
-    
-    # Add new column to the dataframe
     kaya_identity_df['plotting_name'] = 'initial'
     
     # Change OUTLOOK_BASE_YEAR to 3000 and OUTLOOK_LAST_YEAR to 3005
     kaya_identity_df.loc[kaya_identity_df['year'] == OUTLOOK_BASE_YEAR, 'year'] = 3000
     kaya_identity_df.loc[kaya_identity_df['year'] == OUTLOOK_LAST_YEAR, 'year'] = 3005
     
+    # Calculate factors
+    population_factor = get_factor(population, OUTLOOK_BASE_YEAR, OUTLOOK_LAST_YEAR)
+    gdppc_factor = get_factor(gdppc, OUTLOOK_BASE_YEAR, OUTLOOK_LAST_YEAR)
     
-    # POPULATION
-    # Get the population values for 2021 and 2060
-    population_base_year = population.loc[population['year'] == OUTLOOK_BASE_YEAR, 'value'].values[0]
-    population_last_year = population.loc[population['year'] == OUTLOOK_LAST_YEAR, 'value'].values[0]
-    
-    # Calculate the population factor
-    population_factor = population_last_year / population_base_year
-    
-    new_rows_list = []
     for scenario in ['reference', 'target']:
-        # Get the value for the year 3000 for the current scenario
+        # Initial value for year 3000
         year_3000_value = kaya_identity_df[(kaya_identity_df['year'] == 3000) & (kaya_identity_df['scenario'] == scenario)]['value'].values[0]
         
-        # Calculate the new value using the population factor
-        new_value_population = population_factor * year_3000_value
-        new_value_diff_population = new_value_population - year_3000_value
+        # Add population factor rows
+        kaya_identity_df, population_adjusted_value = add_new_rows(kaya_identity_df, 3001, population_factor, scenario, year_3000_value)
         
-        # Determine the plotting_name and adjust the value if necessary
-        if new_value_diff_population > 0:
-            plotting_name = 'rise'
-        else:
-            new_value_diff_population = abs(new_value_diff_population)
-            plotting_name = 'fall'
+        # Add GDP per capita factor rows
+        kaya_identity_df, gdppc_adjusted_value = add_new_rows(kaya_identity_df, 3002, gdppc_factor, scenario, population_adjusted_value)
         
-        # Create new row for the calculated value using the population factor
-        new_row = {
-            'scenario': scenario,
-            'year': 3001,
-            'plotting_name': plotting_name,
-            'value': new_value_diff_population,
-        }
+        # Add energy intensity factor rows
+        energy_intensity_factor = get_factor(energy_df[energy_df['scenarios'] == scenario], OUTLOOK_BASE_YEAR, OUTLOOK_LAST_YEAR)
+        kaya_identity_df, energy_adjusted_value = add_new_rows(kaya_identity_df, 3003, energy_intensity_factor, scenario, gdppc_adjusted_value)
         
-        new_rows_list.append(new_row)
-        
-        # Create additional row based on the rise/fall condition using the population factor
-        if plotting_name == 'rise':
-            base_value = year_3000_value
-        else: # plotting_name == 'fall'
-            base_value = year_3000_value - new_value_diff_population
-        
-        base_row = {
-            'scenario': scenario,
-            'year': 3001,
-            'plotting_name': 'base',
-            'value': base_value,
-        }
-        
-        new_rows_list.append(base_row)
+        # Add emissions intensity factor rows
+        emissions_intensity_factor = get_factor(emissions_df[emissions_df['scenarios'] == scenario], OUTLOOK_BASE_YEAR, OUTLOOK_LAST_YEAR)
+        kaya_identity_df, _ = add_new_rows(kaya_identity_df, 3004, emissions_intensity_factor, scenario, energy_adjusted_value)
     
-    # Append the new rows to the DataFrame
-    kaya_identity_df = kaya_identity_df.append(new_rows_list, ignore_index=True)
-    
-    
-    # GDP PER CAPITA
-    # Calculate the gdppc factor
-    gdppc_base_year = gdppc.loc[gdppc['year'] == OUTLOOK_BASE_YEAR, 'value'].values[0]
-    gdppc_last_year = gdppc.loc[gdppc['year'] == OUTLOOK_LAST_YEAR, 'value'].values[0]
-    gdppc_factor = gdppc_last_year / gdppc_base_year
-    
-    new_rows_list = []
-    for scenario in ['reference', 'target']:
-        # Get the value for the year 3000 for the current scenario
-        year_3000_value = kaya_identity_df[(kaya_identity_df['year'] == 3000) & (kaya_identity_df['scenario'] == scenario)]['value'].values[0]
-        
-        # Calculate the new value using the population factor
-        new_value_population = population_factor * year_3000_value
-        
-        # Calculate the new value using the gdppc factor
-        new_value_gdppc = gdppc_factor * new_value_population
-        new_value_diff_gdppc = new_value_gdppc - new_value_population
-        
-        # Determine the plotting_name and adjust the value if necessary
-        if new_value_diff_gdppc > 0:
-            plotting_name = 'rise'
-        else:
-            new_value_diff_gdppc = abs(new_value_diff_gdppc)
-            plotting_name = 'fall'
-        
-        # Create new row for the calculated value using the gdppc factor
-        new_row = {
-            'scenario': scenario,
-            'year': 3002,
-            'plotting_name': plotting_name,
-            'value': new_value_diff_gdppc,
-        }
-        
-        new_rows_list.append(new_row)
-        
-        # Create additional row based on the rise/fall condition using the gdppc factor
-        if plotting_name == 'rise':
-            base_value = new_value_population
-        else: # plotting_name == 'fall'
-            base_value = new_value_population - new_value_diff_gdppc
-        
-        base_row = {
-            'scenario': scenario,
-            'year': 3002,
-            'plotting_name': 'base',
-            'value': base_value,
-        }
-        
-        new_rows_list.append(base_row)
-    
-    # Append the new rows to the DataFrame
-    kaya_identity_df = kaya_identity_df.append(new_rows_list, ignore_index=True)
-    
-    
-    # ENERGY INTENSITY
-    
-    new_rows_list = []
-    for scenario in ['reference', 'target']:
-        # Calculate energy intensity factor
-        energy_intensity_base_year = energy_df[(energy_df['year'] == OUTLOOK_BASE_YEAR) & (energy_df['scenarios'] == scenario)]['value'].values[0]
-        energy_intensity_last_year = energy_df[(energy_df['year'] == OUTLOOK_LAST_YEAR) & (energy_df['scenarios'] == scenario)]['value'].values[0]
-        energy_intensity_factor = energy_intensity_last_year / energy_intensity_base_year
-        
-        # Get the value for the year 3000 for the current scenario
-        year_3000_value = kaya_identity_df[(kaya_identity_df['year'] == 3000) & (kaya_identity_df['scenario'] == scenario)]['value'].values[0]
-        
-        # Calculate the new value using the population factor
-        new_value_population = population_factor * year_3000_value
-        
-        # Calculate the new value using the gdppc factor
-        new_value_gdppc = gdppc_factor * new_value_population
-        
-        # Calculate the new value using the energy intensity factor
-        new_value_energy_intensity = energy_intensity_factor * new_value_gdppc
-        new_value_energy_intensity_diff = new_value_energy_intensity - new_value_gdppc
-        
-        # Determine the plotting_name and adjust the value if necessary
-        if new_value_energy_intensity_diff > 0:
-            plotting_name = 'rise'
-        else:
-            new_value_energy_intensity_diff = abs(new_value_energy_intensity_diff)
-            plotting_name = 'fall'
-        
-        # Create new row for the calculated value using the gdppc factor
-        new_row = {
-            'scenario': scenario,
-            'year': 3003,
-            'plotting_name': plotting_name,
-            'value': new_value_energy_intensity_diff,
-        }
-        
-        new_rows_list.append(new_row)
-        
-        # Create additional row based on the rise/fall condition using the gdppc factor
-        if plotting_name == 'rise':
-            base_value = new_value_gdppc
-        else: # plotting_name == 'fall'
-            base_value = new_value_gdppc - new_value_energy_intensity_diff
-        
-        base_row = {
-            'scenario': scenario,
-            'year': 3003,
-            'plotting_name': 'base',
-            'value': base_value,
-        }
-        
-        new_rows_list.append(base_row)
-    
-    # Append the new rows to the DataFrame
-    kaya_identity_df = kaya_identity_df.append(new_rows_list, ignore_index=True)
-    
-    
-    # EMISSIONS INTENSITY
-    
-    new_rows_list = []
-    for scenario in ['reference', 'target']:
-        # Calculate emissions intensity factor
-        emissions_intensity_base_year = emissions_df[(emissions_df['year'] == OUTLOOK_BASE_YEAR) & (emissions_df['scenarios'] == scenario)]['value'].values[0]
-        emissions_intensity_last_year = emissions_df[(emissions_df['year'] == OUTLOOK_LAST_YEAR) & (emissions_df['scenarios'] == scenario)]['value'].values[0]
-        emissions_intensity_factor = emissions_intensity_last_year / emissions_intensity_base_year
-        
-        # Calculate energy intensity factor
-        energy_intensity_base_year = energy_df[(energy_df['year'] == OUTLOOK_BASE_YEAR) & (energy_df['scenarios'] == scenario)]['value'].values[0]
-        energy_intensity_last_year = energy_df[(energy_df['year'] == OUTLOOK_LAST_YEAR) & (energy_df['scenarios'] == scenario)]['value'].values[0]
-        energy_intensity_factor = energy_intensity_last_year / energy_intensity_base_year
-        
-        # Get the value for the year 3000 for the current scenario
-        year_3000_value = kaya_identity_df[(kaya_identity_df['year'] == 3000) & (kaya_identity_df['scenario'] == scenario)]['value'].values[0]
-        
-        # Calculate the new value using the population factor
-        new_value_population = population_factor * year_3000_value
-        
-        # Calculate the new value using the gdppc factor
-        new_value_gdppc = gdppc_factor * new_value_population
-        
-        # Calculate the new value using the energy intensity factor
-        new_value_energy_intensity = energy_intensity_factor * new_value_gdppc
-        
-        # Calculate the new value using the emissions intensity factor
-        new_value_emissions_intensity = emissions_intensity_factor * new_value_energy_intensity
-        new_value_emissions_intensity_diff = new_value_emissions_intensity - new_value_energy_intensity
-        
-        # Determine the plotting_name and adjust the value if necessary
-        if new_value_emissions_intensity_diff > 0:
-            plotting_name = 'rise'
-        else:
-            new_value_emissions_intensity_diff = abs(new_value_emissions_intensity_diff)
-            plotting_name = 'fall'
-        
-        # Create new row for the calculated value using the gdppc factor
-        new_row = {
-            'scenario': scenario,
-            'year': 3004,
-            'plotting_name': plotting_name,
-            'value': new_value_emissions_intensity_diff,
-        }
-        
-        new_rows_list.append(new_row)
-        
-        # Create additional row based on the rise/fall condition using the gdppc factor
-        if plotting_name == 'rise':
-            base_value = new_value_energy_intensity
-        else: # plotting_name == 'fall'
-            base_value = new_value_energy_intensity - new_value_emissions_intensity_diff
-        
-        base_row = {
-            'scenario': scenario,
-            'year': 3004,
-            'plotting_name': 'base',
-            'value': base_value,
-        }
-        
-        new_rows_list.append(base_row)
-    
-    # Append the new rows to the DataFrame
-    kaya_identity_df = kaya_identity_df.append(new_rows_list, ignore_index=True)
-    
-    # Rename plotting_name to temp_plotting_name
+    # Finalize the DataFrame
     kaya_identity_df.rename(columns={'plotting_name': 'temp_plotting_name'}, inplace=True)
-    
-    # Add new constant columns to the dataframe
     kaya_identity_df['plotting_name'] = 'emissions_components'
     kaya_identity_df['unit'] = 'million tonnes'
     kaya_identity_df['source'] = 'kaya'
