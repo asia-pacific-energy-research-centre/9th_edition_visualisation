@@ -207,7 +207,7 @@ def calculate_and_extract_intensity_data(ECONOMY_ID, total_emissions):
     energy_intensity.drop(columns=['energy_total'], inplace=True)
 
     emissions_intensity = pd.merge(emissions_total_melt, energy_total_melt, how='left', on=['year', 'scenarios'])
-    # Emissions intensity is calculated as gross emissions divided by TPES
+    # Emissions intensity is calculated as gross emissions divided by TPES (CO2 intensity of TPES)
     emissions_intensity['value'] = emissions_intensity['value']/emissions_intensity['energy_total']
     emissions_intensity.drop(columns=['energy_total'], inplace=True)
     
@@ -244,9 +244,9 @@ def calculate_and_extract_intensity_data(ECONOMY_ID, total_emissions):
     emissions_intensity['source'] = 'intensity'
     emissions_intensity['plotting_name'] = 'emissions_intensity'
 
-    #change unit to PJ/million_gdp_2017_usd_ppp or MtCO2/million_gdp_2017_usd_ppp
-    energy_intensity['unit'] = 'PJ/ten_thousand_gdp_2017_usd_ppp'
-    emissions_intensity['unit'] = 'MtCO2/ten_thousand_gdp_2017_usd_ppp'
+    #change unit
+    energy_intensity['unit'] = 'PJ/million_gdp_2017_usd_ppp'
+    emissions_intensity['unit'] = 'tons CO2/petajoule'
 
     #rena,e , 'scenarios':'scenario'
     energy_intensity.rename(columns={'scenarios':'scenario'}, inplace=True)
@@ -339,8 +339,8 @@ def calculate_and_extract_renewable_share_data(ECONOMY_ID):
     all_model_df_wides_dict = mapping_functions.find_and_load_latest_data_for_all_sources(ECONOMY_ID, ['energy'])
     energy = all_model_df_wides_dict['energy'][1]
     #extract toal final consumption and total renewables
-    energy_total = energy[(energy.sectors == '12_total_final_consumption') & (energy.fuels == '19_total') & (~energy.subtotal_layout) & (~energy.subtotal_results)].copy()
-    energy_renewables = energy[(energy.sectors == '12_total_final_consumption') & (energy.fuels == '21_modern_renewables') & (~energy.subtotal_layout) & (~energy.subtotal_results)].copy()
+    energy_total = energy[(energy.sectors == '13_total_final_energy_consumption') & (energy.fuels == '19_total') & (~energy.subtotal_layout) & (~energy.subtotal_results)].copy()
+    energy_renewables = energy[(energy.sectors == '13_total_final_energy_consumption') & (energy.fuels == '21_modern_renewables') & (~energy.subtotal_layout) & (~energy.subtotal_results)].copy()
     
     #melt them
     years_cols = [x for x in energy_total.columns if re.match(r'\d\d\d\d', x)]
@@ -362,7 +362,7 @@ def calculate_and_extract_renewable_share_data(ECONOMY_ID):
     # we need to put them in the format we want to plot them in
     renewable_share['source'] = 'renewable_share'
     renewable_share['plotting_name'] = 'renewable_share'
-    renewable_share['unit'] = 'Modern renewables % of total final consumption'
+    renewable_share['unit'] = 'Modern renewables % of total final energy consumption'
     renewable_share.drop(columns=['energy_total', 'energy_renewables'], inplace=True)
     renewable_share.rename(columns={'scenarios':'scenario'}, inplace=True)
     
