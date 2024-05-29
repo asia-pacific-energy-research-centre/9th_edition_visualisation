@@ -33,8 +33,8 @@ def map_9th_data_to_one_dimensional_plots(ECONOMY_ID, EXPECTED_COLS, total_emiss
     energy_intensity_df, emissions_intensity_df, energy_df, emissions_df = calculate_and_extract_intensity_data(ECONOMY_ID, total_emissions)
     all_1d_plotting_dfs = pd.concat([all_1d_plotting_dfs, energy_intensity_df, emissions_intensity_df], axis=0)
     
-    renewable_share_df = calculate_and_extract_renewable_share_data(ECONOMY_ID)
-    all_1d_plotting_dfs = pd.concat([all_1d_plotting_dfs, renewable_share_df], axis=0)
+    renewable_share_df, electricity_renewable_share = calculate_and_extract_renewable_share_data(ECONOMY_ID)
+    all_1d_plotting_dfs = pd.concat([all_1d_plotting_dfs, renewable_share_df, electricity_renewable_share], axis=0)
     
     kaya_identity_df = calculate_and_extract_kaya_identity_data(ECONOMY_ID, energy_df, emissions_df, total_emissions)
     all_1d_plotting_dfs = pd.concat([all_1d_plotting_dfs, kaya_identity_df], axis=0)
@@ -342,12 +342,24 @@ def calculate_and_extract_renewable_share_data(ECONOMY_ID):
     energy_total = energy[(energy.sectors == '13_total_final_energy_consumption') & (energy.fuels == '19_total') & (~energy.subtotal_layout) & (~energy.subtotal_results)].copy()
     energy_renewables = energy[(energy.sectors == '13_total_final_energy_consumption') & (energy.fuels == '21_modern_renewables') & (~energy.subtotal_layout) & (~energy.subtotal_results)].copy()
     
+    # Extract total electricity generated from renewable sources and total electricity generation
+    electricity_renewables = energy[(energy.sectors == '18_electricity_output_in_gwh') & (energy.sub1sectors == 'x') & (energy.fuels == '20_total_renewables') & (~energy.subtotal_layout) & (~energy.subtotal_results)].copy()
+    electricity_total = energy[(energy.sectors == '18_electricity_output_in_gwh') & (energy.sub1sectors == 'x') & (energy.fuels == '19_total') & (~energy.subtotal_layout) & (~energy.subtotal_results)].copy()
+    
     #melt them
     years_cols = [x for x in energy_total.columns if re.match(r'\d\d\d\d', x)]
     energy_total =energy_total[years_cols + ['scenarios']].copy()
     energy_renewables =energy_renewables[years_cols + ['scenarios']].copy()
     energy_total_melt = energy_total.melt(id_vars=['scenarios'], value_vars=years_cols, var_name='year', value_name='energy_total')
     energy_renewables_melt = energy_renewables.melt(id_vars=['scenarios'], value_vars=years_cols, var_name='year', value_name='energy_renewables')
+    
+    # Melt electricity data
+    years_cols = [x for x in electricity_total.columns if re.match(r'\d\d\d\d', x)]
+    electricity_total = electricity_total[years_cols + ['scenarios']].copy()
+    electricity_renewables = electricity_renewables[years_cols + ['scenarios']].copy()
+    electricity_total_melt = electricity_total.melt(id_vars=['scenarios'], value_vars=years_cols, var_name='year', value_name='electricity_total')
+    electricity_renewables_melt = electricity_renewables.melt(id_vars=['scenarios'], value_vars=years_cols, var_name='year', value_name='electricity_renewables')
+    
     #make year int
     energy_total_melt['year'] = energy_total_melt['year'].astype(int)
     energy_renewables_melt['year'] = energy_renewables_melt['year'].astype(int)
@@ -356,17 +368,33 @@ def calculate_and_extract_renewable_share_data(ECONOMY_ID):
     #calculate share
     renewable_share['value'] = (renewable_share['energy_renewables']/renewable_share['energy_total']) * 100
     
+    # Change year to integer
+    electricity_total_melt['year'] = electricity_total_melt['year'].astype(int)
+    electricity_renewables_melt['year'] = electricity_renewables_melt['year'].astype(int)
+    # Merge electricity data
+    electricity_renewable_share = pd.merge(electricity_total_melt, electricity_renewables_melt, how='left', on=['scenarios', 'year'])
+    # Calculate the share of renewables in electricity generation
+    electricity_renewable_share['value'] = (electricity_renewable_share['electricity_renewables'] / electricity_renewable_share['electricity_total']) * 100
+    
     # Set values to NaN for 'target' scenarios between MIN_YEAR and OUTLOOK_BASE_YEAR
     renewable_share.loc[(renewable_share['scenarios'] == 'target') & (renewable_share['year'] >= MIN_YEAR) & (renewable_share['year'] < OUTLOOK_BASE_YEAR), 'value'] = np.nan
+    electricity_renewable_share.loc[(electricity_renewable_share['scenarios'] == 'target') & (electricity_renewable_share['year'] >= MIN_YEAR) & (electricity_renewable_share['year'] < OUTLOOK_BASE_YEAR), 'value'] = np.nan
     
     # we need to put them in the format we want to plot them in
-    renewable_share['source'] = 'renewable_share'
-    renewable_share['plotting_name'] = 'renewable_share'
+    renewable_share['source'] = 'renewables_share'
+    renewable_share['plotting_name'] = 'renewables_share'
     renewable_share['unit'] = 'Modern renewables % of total final energy consumption'
     renewable_share.drop(columns=['energy_total', 'energy_renewables'], inplace=True)
     renewable_share.rename(columns={'scenarios':'scenario'}, inplace=True)
     
-    return renewable_share
+    # Format electricity data
+    electricity_renewable_share['source'] = 'renewables_share'
+    electricity_renewable_share['plotting_name'] = 'renewables_share_in_electricity_generation'
+    electricity_renewable_share['unit'] = 'Renewables % of total electricity generation'
+    electricity_renewable_share.drop(columns=['electricity_total', 'electricity_renewables'], inplace=True)
+    electricity_renewable_share.rename(columns={'scenarios':'scenario'}, inplace=True)
+    
+    return renewable_share, electricity_renewable_share
 
 def calculate_and_extract_kaya_identity_data(ECONOMY_ID, energy_df, emissions_df, total_emissions):
     def get_factor(df, base_year, last_year):

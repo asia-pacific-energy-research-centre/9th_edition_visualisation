@@ -772,6 +772,25 @@ def copy_and_modify_power_sector_rows(df):
 
     return df
 
+# Function to add percentage_bar chart_type in the dataframe
+def add_percentage_bar_chart_type(df):
+    # Filter the rows where chart_type is 'area' or 'line'
+    filtered_df = df[df['chart_type'].isin(['area', 'line'])].copy()
+    
+    # Drop duplicates based on 'scenario', 'year', 'plotting_name', and 'table_id'
+    filtered_df.drop_duplicates(subset=['scenario', 'year', 'plotting_name', 'table_id'], inplace=True)
+    
+    # Create a copy of the filtered rows with chart_type set to 'percentage_bar'
+    new_rows = filtered_df.copy()
+    new_rows['chart_type'] = 'percentage_bar'
+    
+    # Append the new rows to the original dataframe
+    modified_df = pd.concat([df, new_rows], ignore_index=True)
+    
+    # Reset the index of the dataframe
+    modified_df.reset_index(drop=True, inplace=True)
+    
+    return modified_df
 
 # def collect_missing_datapoints(economy_new_charts_mapping):
 #     #now loop through the unique sheet, table combinations and idneitfy if there are any missing values (nas) in the value col. Put the data for these into a new dataframe called missing_data

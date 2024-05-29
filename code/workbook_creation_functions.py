@@ -20,7 +20,7 @@ def create_sheets_from_mapping_df(workbook, charts_mapping, total_plotting_names
     #make values 1 decimal place
     charts_mapping['value'] = charts_mapping['value'].round(1).copy()
     # Replace NaNs with 0 except for 'Transport stocks' and 'Intensity' sheets
-    mask = ~charts_mapping['sheet_name'].isin(['Transport stocks', 'Intensity', 'Renewable share'])
+    mask = ~charts_mapping['sheet_name'].isin(['Transport stocks', 'Intensity', 'Renewables share'])
     charts_mapping.loc[mask, 'value'] = charts_mapping.loc[mask, 'value'].fillna(0).copy()
 
     
@@ -77,8 +77,8 @@ def create_sheets_from_mapping_df(workbook, charts_mapping, total_plotting_names
 
         #         #add table data to tuple
         #         sheet_dfs[sheet] = sheet_dfs[sheet] + (table_data,)
-        if sheet in ['Intensity', 'Renewable share']:
-            # Handle all data as one scenario block for "Intensity" or "Renewable share" sheet
+        if sheet in ['Intensity', 'Renewables share']:
+            # Handle all data as one scenario block for "Intensity" or "Renewables share" sheet
             for table in sheet_data['table_number'].unique():
                 table_data = sheet_data.loc[(sheet_data['table_number'] == table)]
                 table_data = table_data.drop(columns=['table_number'])
@@ -377,7 +377,7 @@ def create_charts(table, chart_types, plotting_specifications, workbook, num_tab
     charts_to_plot = []
     plotting_name_column_index = table.columns.get_loc(plotting_name_column)
     for i, chart in enumerate(chart_types):
-        chart_title = chart_titles[i-1]
+        chart_title = chart_titles[0]
         # Get the y_axis_max from max_and_min_values_dict by including the table_id in the key
         # if table_id == 'Industry_3':
         #     breakpoint()
@@ -419,6 +419,13 @@ def create_charts(table, chart_types, plotting_specifications, workbook, num_tab
             if not combined_chart:
                 continue
             charts_to_plot.append(combined_chart)
+
+        elif chart == 'percentage_bar':
+            percentage_bar_chart = percentage_bar_plotting_specifications(workbook, plotting_specifications)
+            percentage_bar_chart = create_percentage_bar_chart(num_table_rows, table, plotting_name_column, sheet, current_row, space_under_tables, column_row, plotting_name_column_index, year_cols_start, num_cols, colours_dict, percentage_bar_chart, total_plotting_names, table_id, chart_title)
+            if not percentage_bar_chart:
+                continue
+            charts_to_plot.append(percentage_bar_chart)
 
     return charts_to_plot
 
@@ -562,12 +569,12 @@ def identify_chart_positions(current_row,num_table_rows,space_under_tables,colum
     #get table id and extract the chart types and, if there are more than one charts, their positions
     chart_positions = []
     #if chart_types has more than one chart then we will need to estimate what column the next chart should be in since it is in the same row
-    for chart in chart_types:
-        #based on the position in the list of chart types, we can estimate the position of the chart
-        index_of_chart = np.where(chart_types == chart)[0][0]
+    for i, chart in enumerate(chart_types):
+        # #based on the position in the list of chart types, we can estimate the position of the chart
+        # index_of_chart = np.where(chart_types == chart)[0][0]
         #default column width is 59 pixels. so take the chart width in pixels, divide by 59 and round up to get the number of columns to space for a chart
-        num_cols_to_space = math.ceil(plotting_specifications['width_pixels']/59)
-        col_number = 4 + (index_of_chart * num_cols_to_space)
+        num_cols_to_space = math.ceil(plotting_specifications['width_pixels'] / 59)
+        col_number = 4 + (i * num_cols_to_space)
         #convert col number to letter. It will be the index of the letter in the alphabet 
         column_letter = get_column_letter(col_number)
         chart_positions.append(column_letter + str(table_start_row - plotting_specifications['height'] + space_above_charts - space_under_charts))
@@ -786,6 +793,44 @@ def create_combined_chart(num_table_rows, table, plotting_name_column, sheet, cu
         return False
     else:
         return primary_chart
+
+def create_percentage_bar_chart(num_table_rows, table, plotting_name_column, sheet, current_row, space_under_tables, column_row, plotting_name_column_index, year_cols_start, num_cols, colours_dict, percentage_bar_chart, total_plotting_names, table_id, chart_title):
+    # Extract the series of data for the chart from the excel sheets data.
+    table_start_row = current_row - num_table_rows - space_under_tables - column_row
+    for row_i in range(num_table_rows):
+        series_name = table[plotting_name_column].iloc[row_i]
+        if series_name in total_plotting_names:
+            pass
+        else:
+            series_options = {
+                'name':       [sheet, table_start_row + row_i + 1, plotting_name_column_index],
+                'categories': [sheet, table_start_row, year_cols_start - 1, table_start_row, num_cols - 1],
+                'values':     [sheet, table_start_row + row_i + 1, year_cols_start - 1, table_start_row + row_i + 1, num_cols - 1],
+                'border':     {'none': True},
+                'gap':        '0',
+                'overlap':    '100'
+            }
+            if 'CCS' in series_name or 'idle' in series_name:
+                # Apply a pattern fill for 'CCS' or 'idle'
+                series_options.update({
+                    'pattern': {'pattern': 'wide_downward_diagonal', 'fg_color': table[plotting_name_column].map(colours_dict).iloc[row_i], 'bg_color': 'white', 'transparency': 15}
+                })
+            else:
+                series_options.update({
+                    'fill': {'color': table[plotting_name_column].map(colours_dict).iloc[row_i], 'transparency': 15}
+                })
+            
+            percentage_bar_chart.add_series(series_options)
+
+    # Add a title to the chart
+    percentage_bar_chart.set_title({'name': chart_title, 'name_font': {'size': 9}})
+
+    # Double check if chart is empty, if so let user know and skip the chart
+    if len(percentage_bar_chart.series) == 0:
+        print('Chart for ' + sheet + ' with table_id ' + table_id + ' is empty. Skipping...')
+        return False
+    else:
+        return percentage_bar_chart
 
 #######################################
 #CHART CONFIGS
@@ -1020,6 +1065,52 @@ def combined_plotting_specifications(workbook, plotting_specifications, y_axis_m
     })
 
     return primary_chart, secondary_chart
+
+def percentage_bar_plotting_specifications(workbook, plotting_specifications):
+    # Create a percentage bar chart config
+    percentage_bar_chart = workbook.add_chart({'type': 'column', 'subtype': 'percent_stacked'})
+    percentage_bar_chart.set_size({
+        'width': plotting_specifications['width_pixels'],
+        'height': plotting_specifications['height_pixels']
+    })
+    
+    percentage_bar_chart.set_chartarea({
+        'border': {'none': True}
+    })
+
+    percentage_bar_chart.set_x_axis({
+        # 'name': 'Year',
+        'label_position': 'low',
+        'major_tick_mark': 'none',
+        'minor_tick_mark': 'none',
+        'num_font': {'name': 'Segoe UI', 'size': 9, 'color': '#323232'},
+        'interval_unit': 10,
+        'line': {'color': '#bebebe'}
+    })
+        
+    percentage_bar_chart.set_y_axis({
+        'major_tick_mark': 'none', 
+        'minor_tick_mark': 'none',
+        'label_position': 'low',
+        'num_font': {'name': 'Segoe UI', 'size': 9, 'color': '#323232'},
+        'num_format': '0%',
+        'major_gridlines': {
+            'visible': True,
+            'line': {'color': '#bebebe'}
+        },
+        'line': {'color': '#bebebe'}
+    })
+        
+    percentage_bar_chart.set_legend({
+        'font': {'name': 'Segoe UI', 'size': 9}
+        #'none': True
+    })
+        
+    percentage_bar_chart.set_title({
+        'name_font': {'size': 9}  # Set the size of the title text
+    })
+
+    return percentage_bar_chart
 
 def order_sheets(workbook, plotting_specifications):
     #order the sheets in the workbook accoridng to the custom order in master_config>plotting_specifications>sheet_order. If a sheet is not in the sheet_order list then it will be added to the end of the workbook

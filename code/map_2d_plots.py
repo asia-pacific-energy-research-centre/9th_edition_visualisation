@@ -78,7 +78,7 @@ def map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COL
     transformation_sector_mappings = pd.read_excel('../config/master_config.xlsx', sheet_name='transformation_sector_mappings')
     # transformation_sector_mappings.columns: input_fuel	transformation_sectors	sub1sectors
 
-    charts_mapping = pd.read_excel('../config/master_config.xlsx', sheet_name='two_dimensional_plots', header = 1)
+    charts_mapping = pd.read_excel('../config/master_config.xlsx', sheet_name='two_dimensional_plots', header = 0)
 
     colors_df = pd.read_excel('../config/master_config.xlsx', sheet_name='colors')
 
@@ -324,9 +324,13 @@ def map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COL
             #concat to charts_mapping_all_years 
             charts_mapping_all_years = pd.concat([charts_mapping_all_years, economy_new_charts_mapping])
         
+        # Modify dataframe to include percentage_bar chart_type
+        charts_mapping_all_years = mapping_functions.add_percentage_bar_chart_type(charts_mapping_all_years)
+        
         # Save the processed data to a pickle file
         charts_mapping_all_years.to_pickle(f'../intermediate_data/data/charts_mapping_{source}_{economy_x}_{FILE_DATE_ID}.pkl')
         print(f"Data for {economy_x} {source} saved.")
+        # charts_mapping_all_years.to_csv(f'../intermediate_data/charts_mapping_{source}_{economy_x}_{FILE_DATE_ID}.csv')
         
         # If sources is emissions, return the filtered data
         if source == 'emissions':
