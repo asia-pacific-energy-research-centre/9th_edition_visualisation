@@ -19,6 +19,7 @@ import workbook_creation_functions
 from map_2d_plots import map_9th_data_to_two_dimensional_plots
 from map_1d_plots import map_9th_data_to_one_dimensional_plots
 from utility_functions import *
+import csv
 def data_checking_warning_or_error(message):
     if STRICT_DATA_CHECKING:
         raise Exception(message)
@@ -97,7 +98,5 @@ for source in all_charts_mapping_files_dict.keys():
 #todo add code for macro and renewable share and so on/ 
 #save the workbook
 writer.close()
-
-#%%
 
 #%%

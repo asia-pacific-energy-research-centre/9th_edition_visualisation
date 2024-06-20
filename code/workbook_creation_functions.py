@@ -23,11 +23,11 @@ def create_sheets_from_mapping_df(workbook, charts_mapping, total_plotting_names
     else:
         #make values 1 decimal place
         charts_mapping['value'] = charts_mapping['value'].round(1).copy()
-    # Replace NaNs with 0 except for 'Transport stocks' and 'Intensity' sheets
-    mask = ~charts_mapping['sheet_name'].isin(['Transport stocks', 'Intensity', 'Renewables share'])
+    # Replace NaNs with 0 except for 'Transport secondary' and 'Intensity' sheets
+    mask = ~charts_mapping['sheet_name'].isin(['Transport secondary', 'Intensity', 'Renewables share'])
     charts_mapping.loc[mask, 'value'] = charts_mapping.loc[mask, 'value'].fillna(0).copy()
-    # Replace 0s with NaNs for 'Transport stocks' only for years before OUTLOOK_BASE_YEAR
-    mask2 = (charts_mapping['sheet_name'] == 'Transport stocks') & (charts_mapping['year'].astype(int) < OUTLOOK_BASE_YEAR)
+    # Replace 0s with NaNs for 'Transport secondary' only for years before OUTLOOK_BASE_YEAR
+    mask2 = (charts_mapping['sheet_name'] == 'Transport secondary') & (charts_mapping['year'].astype(int) < OUTLOOK_BASE_YEAR)
     charts_mapping.loc[mask2, 'value'] = charts_mapping.loc[mask2, 'value'].replace(0, np.nan).copy()
 
     
@@ -492,15 +492,15 @@ def format_table(table,plotting_names_order,plotting_name_to_label_dict):
     
     year_cols = table.columns[year_cols_start:]
     
-    # Adjust num_cols for 'Transport stocks' sheet
-    if sheet_name == 'Transport stocks':
+    # Adjust num_cols for 'Transport secondary' sheet
+    if sheet_name == 'Transport secondary':
         num_cols += 1
 
     ############################################
     # Modification of the tables in Excel
     ############################################
     # Conditional removal of rows where all data columns are zeros, excluding specific sheet names
-    if sheet_name not in ['Generation capacity', 'Transport stocks']:
+    if sheet_name not in ['Generation capacity', 'Transport secondary']:
         # If no rows have the specified 'sheet_name', remove rows where all year columns are zeros
         table = table.loc[~(table[year_cols] == 0).all(axis=1)]
     

@@ -121,7 +121,7 @@ def map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COL
                                         'source': 'emissions',
                                         'plotting_name_column': 'emissions_fuels_plotting'},
                             'capacity': {'df': capacity_plotting_mappings,
-                                        'columns': ['sub4sectors','sub3sectors', 'sub2sectors', 'sub1sectors', 'sectors'],
+                                        'columns': ['sub4sectors','sub3sectors', 'sub2sectors', 'sub1sectors', 'sectors','sheet'],
                                         'source': 'capacity',
                                         'plotting_name_column': 'capacity_plotting'}
                             }    
@@ -334,12 +334,13 @@ def map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COL
         # charts_mapping_all_years.to_csv(f'../intermediate_data/charts_mapping_{source}_{economy_x}_{FILE_DATE_ID}.csv')
         
         # If sources is emissions, return the filtered data
+        
         if source == 'emissions':
             total_emissions = charts_mapping_all_years[(charts_mapping_all_years['sheet_name'] == 'Emissions') & (charts_mapping_all_years['plotting_name'].isin(['Agriculture','Buildings', 'Industry', 'Non-specified', 'Own-use and losses', 'Power_input', 'Transport'])) & (charts_mapping_all_years['aggregate_name'] == 'TFEC')].copy()
             # Group by scenario and year, and sum the values
-            total_emissions = total_emissions.groupby(['scenario', 'year']).sum().reset_index().copy()
+            total_emissions = total_emissions.groupby(['scenario', 'year'])['value'].sum().reset_index()
             # Drop table_number column
-            total_emissions.drop(columns=['table_number'], inplace=True)
+            # total_emissions.drop(columns=['table_number'], inplace=True)
             # total_emissions.to_csv(f'../intermediate_data/total_emissions_{economy_x}_{FILE_DATE_ID}.csv')
             return total_emissions
 
