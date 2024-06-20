@@ -80,7 +80,8 @@ def map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COL
     # transformation_sector_mappings.columns: input_fuel	transformation_sectors	sub1sectors
 
     charts_mapping = pd.read_excel('../config/master_config.xlsx', sheet_name='two_dimensional_plots', header = 0)
-
+    economy_specific_chart_mapping = pd.read_excel('../config/master_config.xlsx', sheet_name='economy_specific_2d', header = 0)
+    
     colors_df = pd.read_excel('../config/master_config.xlsx', sheet_name='colors')
 
     #take in aggregate_name_to_unit form master_config.xlsx
@@ -102,6 +103,10 @@ def map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COL
 
     #############################
     #FORMAT THE MAPPINGS
+    #add any economy specific mappings to the charts_mappings
+    if ECONOMY_ID in economy_specific_chart_mapping['economy'].unique():
+        charts_mapping = pd.concat([charts_mapping, economy_specific_chart_mapping.loc[economy_specific_chart_mapping['economy'] == ECONOMY_ID].drop(columns=['economy'])])
+        
     #for fuel and sector mappings we will extract the most sepcific reference for each row and then record it's column in a column called 'column'.
     #so for example, where we want to extract the reference for the sectors_plotting value Agriculture, we find the rightmost column that is not na (this is the msot specific column), set 'reference_sector' to that value in the most specific column, and then the column to the name of the most specific column
     all_plotting_mapping_dicts = {'sector_energy': {'df': sector_plotting_mappings, 
