@@ -21,7 +21,7 @@ EXPECTED_COLS = ['source', 'table_number', 'chart_type','plotting_name', 'plotti
 
 EBT_EARLIEST_YEAR = 1980
 OUTLOOK_BASE_YEAR = 2021
-OUTLOOK_LAST_YEAR = 2023
+OUTLOOK_LAST_YEAR = 2060
 
 def find_most_recent_file_date_id(directory_path):
     """Find the most recent file in a directory based on the date ID in the filename."""

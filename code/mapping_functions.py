@@ -96,6 +96,9 @@ def find_and_load_latest_data_for_all_sources(ECONOMY_ID, sources):
 def format_plotting_mappings(plotting_mappings_df, columns, plotting_name_column, strict_data_checking=False):
     # Initialize the new plotting mappings data frame with the necessary columns
     new_plotting_mappings = pd.DataFrame(columns=['plotting_name','plotting_name_column', 'reference_name', 'reference_name_column'])
+    #to handle the extra detail of the sheet column, we need to add it to the new_plotting_mappings. Worried that this is a bit complicated and could be done better
+    if 'sheet' in columns:
+        new_plotting_mappings = pd.DataFrame(columns=['plotting_name','plotting_name_column', 'reference_name', 'reference_name_column', 'sheet'])
 
     # Loop through each column in the specified order
     original_plotting_mappings_df = plotting_mappings_df.copy()
@@ -119,6 +122,8 @@ def format_plotting_mappings(plotting_mappings_df, columns, plotting_name_column
             'reference_name_column': col,
             'source': valid_rows['source']
         })#plotting_name ?
+        if 'sheet' in columns:
+            new_rows['sheet'] = valid_rows['sheet']
 
         # Append the new rows to the new plotting mappings data frame
         new_plotting_mappings = pd.concat([new_plotting_mappings, new_rows], ignore_index=True)
@@ -420,6 +425,7 @@ def merge_transformation_sector_mappings(model_df_tall, transformation_sector_ma
 def merge_capacity_mappings(model_df_tall, new_capacity_plotting_mappings, capacity_plotting_mappings, RAISE_ERROR=True):
     """grab data from the original model df_tall for capacity. since we are reporting capacity by sector we search for rows which match the sectors_plotting column in the capacity_plotting_mappings dataframe. This is realtively simple because we only need to do it on sectors.
 
+    Note the addition of sheet column to help differentiate the same rows from different sheets. 
     Args:
         model_df_tall (_type_): _description_
         new_capacity_plotting_mappings (_type_): _description_
@@ -437,20 +443,20 @@ def merge_capacity_mappings(model_df_tall, new_capacity_plotting_mappings, capac
     plotting_name = new_capacity_plotting_mappings['plotting_name_column'].unique()[0]
     plotting_name_to_aggregate_name = capacity_plotting_mappings[[plotting_name, 'aggregate_name']].drop_duplicates()
     new_capacity_plotting_mappings = new_capacity_plotting_mappings.merge(plotting_name_to_aggregate_name, how='left', left_on='plotting_name', right_on=plotting_name)
-    
-    for unique_col in new_capacity_plotting_mappings['reference_name_column'].unique():
-        columns_data = new_capacity_plotting_mappings[new_capacity_plotting_mappings['reference_name_column'] == unique_col]
-        columns_data = columns_data[['plotting_name', 'reference_name', 'aggregate_name']]
-        columns_data = model_df_tall.merge(columns_data, how='inner', left_on=unique_col, right_on='reference_name')
+    for unique_col, sheet in new_capacity_plotting_mappings[['reference_name_column', 'sheet']].drop_duplicates().values:
+        columns_data = new_capacity_plotting_mappings[(new_capacity_plotting_mappings['reference_name_column'] == unique_col) & (new_capacity_plotting_mappings['sheet'] == sheet)]
+        columns_data = columns_data[['plotting_name', 'reference_name', 'aggregate_name', 'sheet']]
+        columns_data = model_df_tall.merge(columns_data, how='inner', left_on=[unique_col,'sheet'], right_on=['reference_name','sheet'])
         new_model_df_tall = pd.concat([new_model_df_tall, columns_data])
     try:
-        check_missing_plotting_name_values_when_merging_mappings_to_modelled_data([ 'sectors', 'sub1sectors', 'sub2sectors', 'sub3sectors','sub4sectors'], new_capacity_plotting_mappings['plotting_name_column'].unique()[0], new_capacity_plotting_mappings, capacity_plotting_mappings, new_model_df_tall, RAISE_ERROR=False)
+        check_missing_plotting_name_values_when_merging_mappings_to_modelled_data([ 'sectors', 'sub1sectors', 'sub2sectors', 'sub3sectors','sub4sectors', 'sheet'], new_capacity_plotting_mappings['plotting_name_column'].unique()[0], new_capacity_plotting_mappings, capacity_plotting_mappings, new_model_df_tall, RAISE_ERROR=False)
     except Exception as e:
-        check_missing_plotting_name_values_when_merging_mappings_to_modelled_data([ 'sectors', 'sub1sectors', 'sub2sectors', 'sub3sectors','sub4sectors'], new_capacity_plotting_mappings['plotting_name_column'].unique()[0], new_capacity_plotting_mappings, capacity_plotting_mappings, new_model_df_tall, RAISE_ERROR=False)
+        check_missing_plotting_name_values_when_merging_mappings_to_modelled_data([ 'sectors', 'sub1sectors', 'sub2sectors', 'sub3sectors','sub4sectors', 'sheet'], new_capacity_plotting_mappings['plotting_name_column'].unique()[0], new_capacity_plotting_mappings, capacity_plotting_mappings, new_model_df_tall, RAISE_ERROR=False)
     # Drop unnecessary columns
     new_model_df_tall = new_model_df_tall.drop(columns=['sectors', 'sub1sectors', 'sub2sectors', 'sub3sectors', 'sub4sectors', 'reference_name'])
 
     new_model_df_tall = new_model_df_tall.rename(columns={'plotting_name': 'capacity_plotting'})
+    
     return new_model_df_tall
 
 
