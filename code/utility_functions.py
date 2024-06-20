@@ -14,7 +14,7 @@ ECONOMY_ID = '09_ROK'#08_JPN
 FILE_DATE_ID = datetime.now().strftime('%Y%m%d')
 
 # FILE_DATE_ID = '20231110'
-total_plotting_names=['Total', 'TPES', 'Total primary energy supply','TFEC', 'TFC', 'Total_industry', 'Total_transport']
+total_plotting_names=['Total', 'TPES', 'Total primary energy supply','TFEC', 'TFC', 'Total_industry', 'Total_transport', 'Total_fuels']
 MIN_YEAR = 2000
 
 EXPECTED_COLS = ['source', 'table_number', 'chart_type','plotting_name', 'plotting_name_column','aggregate_name', 'aggregate_name_column', 'scenario', 'unit', 'table_id', 'dimensions', 'chart_title', 'year', 'value','sheet_name']

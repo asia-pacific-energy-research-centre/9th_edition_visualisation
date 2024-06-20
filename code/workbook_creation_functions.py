@@ -17,11 +17,18 @@ def create_sheets_from_mapping_df(workbook, charts_mapping, total_plotting_names
     
     #filter for MIN_YEAR
     charts_mapping = charts_mapping.loc[charts_mapping['year'].astype(int) >= MIN_YEAR].copy()
-    #make values 1 decimal place
-    charts_mapping['value'] = charts_mapping['value'].round(1).copy()
+    # If chart_title is Passenger stock shares or Freight stock shares, round the values to 3 decimal places instead of 1
+    if charts_mapping['chart_title'].isin(['Passenger stock shares', 'Freight stock shares']).any():
+        charts_mapping['value'] = charts_mapping['value'].round(3).copy()
+    else:
+        #make values 1 decimal place
+        charts_mapping['value'] = charts_mapping['value'].round(1).copy()
     # Replace NaNs with 0 except for 'Transport stocks' and 'Intensity' sheets
     mask = ~charts_mapping['sheet_name'].isin(['Transport stocks', 'Intensity', 'Renewables share'])
     charts_mapping.loc[mask, 'value'] = charts_mapping.loc[mask, 'value'].fillna(0).copy()
+    # Replace 0s with NaNs for 'Transport stocks' only for years before OUTLOOK_BASE_YEAR
+    mask2 = (charts_mapping['sheet_name'] == 'Transport stocks') & (charts_mapping['year'].astype(int) < OUTLOOK_BASE_YEAR)
+    charts_mapping.loc[mask2, 'value'] = charts_mapping.loc[mask2, 'value'].replace(0, np.nan).copy()
 
     
     # Getting the max values for each sheet and chart type to make the charts' y-axis consistent
@@ -381,7 +388,11 @@ def create_charts(table, chart_types, plotting_specifications, workbook, num_tab
         # Get the y_axis_max from max_and_min_values_dict by including the table_id in the key
         # if table_id == 'Industry_3':
         #     breakpoint()
-        y_axis_max = max_and_min_values_dict.get((sheet, chart, table_id, "max"))
+        # If chart_title is Passenger stock shares or Freight stock shares, set y_axis_max to 100
+        if chart_title in ['Passenger stock shares', 'Freight stock shares']:
+            y_axis_max = 100
+        else:
+            y_axis_max = max_and_min_values_dict.get((sheet, chart, table_id, "max"))
         y_axis_min = max_and_min_values_dict.get((sheet, chart, table_id, "min"))
         if y_axis_max is None:
             continue  # Skip the chart creation if y_axis_max is None
@@ -480,6 +491,10 @@ def format_table(table,plotting_names_order,plotting_name_to_label_dict):
     year_cols_start = table.columns.get_loc(first_non_object_col)
     
     year_cols = table.columns[year_cols_start:]
+    
+    # Adjust num_cols for 'Transport stocks' sheet
+    if sheet_name == 'Transport stocks':
+        num_cols += 1
 
     ############################################
     # Modification of the tables in Excel
@@ -703,7 +718,8 @@ def create_bar_chart(num_table_rows, table, plotting_name_column, sheet, current
                     'categories': [sheet, table_start_row, year_cols_start - 1, table_start_row, num_cols - 1],
                     'values':     [sheet, table_start_row + row_i + 1, year_cols_start - 1, table_start_row + row_i + 1, num_cols - 1],
                     'fill':       {'none': True},
-                    'border':     {'none': True}
+                    'border':     {'none': True},
+                    'gap':        '20'
                     })
             elif 'rise' in series_name or 'fall' in series_name:
                 # Apply transparent fill for 'rise' or 'fall'
@@ -806,9 +822,7 @@ def create_percentage_bar_chart(num_table_rows, table, plotting_name_column, she
                 'name':       [sheet, table_start_row + row_i + 1, plotting_name_column_index],
                 'categories': [sheet, table_start_row, year_cols_start - 1, table_start_row, num_cols - 1],
                 'values':     [sheet, table_start_row + row_i + 1, year_cols_start - 1, table_start_row + row_i + 1, num_cols - 1],
-                'border':     {'none': True},
-                'gap':        '0',
-                'overlap':    '100'
+                'border':     {'none': True}
             }
             if 'CCS' in series_name or 'idle' in series_name:
                 # Apply a pattern fill for 'CCS' or 'idle'
@@ -1068,7 +1082,7 @@ def combined_plotting_specifications(workbook, plotting_specifications, y_axis_m
 
 def percentage_bar_plotting_specifications(workbook, plotting_specifications):
     # Create a percentage bar chart config
-    percentage_bar_chart = workbook.add_chart({'type': 'column', 'subtype': 'percent_stacked'})
+    percentage_bar_chart = workbook.add_chart({'type': 'area', 'subtype': 'percent_stacked'})
     percentage_bar_chart.set_size({
         'width': plotting_specifications['width_pixels'],
         'height': plotting_specifications['height_pixels']
@@ -1145,20 +1159,28 @@ def check_plotting_name_label_in_plotting_name_to_label_dict(colours_dict, plott
             plotting_name_to_label_dict[plotting_name] = plotting_name
     return plotting_name_to_label_dict
 
+import re
+
 def check_plotting_names_in_colours_dict(charts_mapping, colours_dict, RAISE_ERROR_IF_NOT_IN_DICT=False):
-    #cehck that all unique plotting names are in colours_dict, otherwise we will get an error when we try to save the workbook to excel
+    # Check that all unique plotting names are in colours_dict, otherwise we will get an error when we try to save the workbook to Excel
     unique_plotting_names = colours_dict.keys()
     plotting_names_in_charts_mapping = charts_mapping.copy()
     plotting_names_in_charts_mapping = plotting_names_in_charts_mapping['plotting_name'].unique()
     plotting_names_not_in_colours_dict = [x for x in plotting_names_in_charts_mapping if x not in unique_plotting_names]
+    
     if len(plotting_names_not_in_colours_dict) > 0:
         if RAISE_ERROR_IF_NOT_IN_DICT:
             raise Exception('The following plotting names are not in colours_dict: {}'.format(plotting_names_not_in_colours_dict))
         else:
-            #set the missing values to random colours
+            # Set the missing values to random colours
             print('WARNING: The following plotting names are not in colours_dict, they will have random colors assigned: {}'.format(plotting_names_not_in_colours_dict))
             import random
             for plotting_name in plotting_names_not_in_colours_dict:
                 colours_dict[plotting_name] = '#{:06x}'.format(random.randint(0, 256**3-1))
-    return colours_dict
     
+    # Validate that all colors in colours_dict are valid hex colors
+    for plotting_name, color in colours_dict.items():
+        if not re.match(r"#[0-9a-fA-F]{6}", color):
+            raise Exception("Color '%s' isn't a valid Excel color for plotting name '%s'" % (color, plotting_name))
+
+    return colours_dict

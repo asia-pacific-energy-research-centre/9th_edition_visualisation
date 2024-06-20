@@ -616,27 +616,37 @@ def copy_and_modify_rows_with_conversion(df):
     # Find rows that match the criteria
     criteria = (df['sectors'] == '02_imports') & (df['fuels'] == '17_electricity') & (df['sub1sectors'] == 'x')
     matching_rows = df[criteria]
-
-    # If no matching rows, return the original dataframe
-    if matching_rows.empty:
-        return df
+    # matching_rows.to_csv('../intermediate_data/matching_rows.csv')
 
     # Identify year columns
     year_columns = [col for col in df.columns if col.isdigit()]
 
     # Copy the matching rows and modify specified columns
-    new_rows = matching_rows.copy()
-    new_rows['sectors'] = '18_electricity_output_in_gwh'
-    new_rows['sub1sectors'] = '18_01_electricity_plants'
-    new_rows['fuels'] = '19_imports'
+    if not matching_rows.empty:
+        new_rows = matching_rows.copy()
+        new_rows['sectors'] = '18_electricity_output_in_gwh'
+        new_rows['sub1sectors'] = 'x'
+        new_rows['fuels'] = '22_imports'
 
-    # Convert values from PJ to TWh for the year columns in the new rows
-    conversion_factor = 0.277778  # 1 PJ = 0.277778 TWh
-    new_rows[year_columns] = new_rows[year_columns] * conversion_factor
+        # Convert values from PJ to TWh for the year columns in the new rows
+        conversion_factor = 0.277778  # 1 PJ = 0.277778 TWh
+        new_rows[year_columns] = new_rows[year_columns] * conversion_factor
+    else:
+        # Create new rows with 0 values if no matching rows
+        new_rows = pd.DataFrame([{
+            **{col: matching_rows.iloc[0][col] if col not in year_columns else 0 for col in df.columns},
+            'sectors': '18_electricity_output_in_gwh',
+            'sub1sectors': 'x',
+            'fuels': '22_imports'
+        }])
+
+    # new_rows.to_csv('../intermediate_data/new_rows.csv')
 
     # Append the new rows to the original dataframe
     modified_df = pd.concat([df, new_rows], ignore_index=True)
-    
+
+    # modified_df.to_csv('../intermediate_data/modified_df.csv')
+
     return modified_df
 
 def modify_gas_to_gas_ccs(df):
@@ -773,6 +783,29 @@ def copy_and_modify_power_sector_rows(df):
 
     # Append the modified rows to the original dataframe
     df = pd.concat([df, filtered_rows], ignore_index=True)
+
+    return df
+
+def modify_subtotal_columns(df):
+    """
+    Modifies the 'subtotal_layout' and 'subtotal_results' columns by setting it to True for specific rows based on the conditions.
+    
+    Parameters:
+    - df (pd.DataFrame): The dataframe to modify.
+    
+    Returns:
+    - df (pd.DataFrame): The modified dataframe.
+    """
+    # Define the conditions for the rows to modify
+    conditions = (
+        ((df['sectors'] == '14_industry_sector') & (df['sub1sectors'] != 'x') & (df['fuels'] == '20_total_renewables')) |
+        ((df['sectors'] == '15_transport_sector') & (df['sub1sectors'] != 'x') & (df['fuels'] == '20_total_renewables')) |
+        ((df['sectors'] == '16_other_sector') & (df['sub1sectors'] == '16_01_buildings') & (df['sub2sectors'] != 'x') & (df['fuels'] == '20_total_renewables')) |
+        ((df['sectors'] == '16_other_sector') & (df['sub1sectors'] == 'x') & (df['fuels'] == '20_total_renewables'))
+    )
+
+    # Apply the modifications
+    df.loc[conditions, ['subtotal_layout', 'subtotal_results']] = True
 
     return df
 
