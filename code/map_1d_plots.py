@@ -25,12 +25,12 @@ def map_9th_data_to_one_dimensional_plots(ECONOMY_ID, EXPECTED_COLS, total_emiss
     #to keep things tidy we will follow the process of: 
     #for each unique dataset we want to plot, create a function where we extract and calculate the data, and then put it in the format we want the tabel to be in, and then put it in a dictionary with the kind of plot we would like to use as an entry.
     #e.g. 
-    breakpoint()
     all_1d_plotting_dfs = pd.DataFrame()
     population_df, gdp_df, gdp_per_capita_df = extract_macro_data(ECONOMY_ID)
     all_1d_plotting_dfs = pd.concat([all_1d_plotting_dfs, population_df, gdp_df, gdp_per_capita_df], axis=0)
     
     energy_intensity_df, emissions_intensity_df, energy_df, emissions_df = calculate_and_extract_intensity_data(ECONOMY_ID, total_emissions)
+    
     all_1d_plotting_dfs = pd.concat([all_1d_plotting_dfs, energy_intensity_df, emissions_intensity_df], axis=0)
     
     renewable_share_df, electricity_renewable_share = calculate_and_extract_renewable_share_data(ECONOMY_ID)
@@ -46,7 +46,6 @@ def map_9th_data_to_one_dimensional_plots(ECONOMY_ID, EXPECTED_COLS, total_emiss
     charts_mapping_1d = map_all_1d_plotting_dfs_to_charts_mapping(all_1d_plotting_dfs, EXPECTED_COLS)
     
     charts_mapping_1d = mapping_functions.format_chart_titles(charts_mapping_1d, ECONOMY_ID)
-    breakpoint()
     # charts_mapping_1d.to_csv('../intermediate_data/charts_mapping_1d.csv')
     return charts_mapping_1d
     
@@ -92,9 +91,8 @@ def map_all_1d_plotting_dfs_to_charts_mapping(all_1d_plotting_dfs, EXPECTED_COLS
         raise Exception('There are rows in charts_mapping that are left only. This should not happen.')
     #drop merge col
     charts_mapping.drop(columns=['_merge'], inplace=True)
-    
+    #create table_id
     charts_mapping['table_id'] = charts_mapping.apply(lambda x: f"{x['source']}_{x['sheet_name']}_{x['table_number']}", axis=1)
-    
     #check the columns are the ones we expect:
     missing_cols = [x for x in EXPECTED_COLS if x not in charts_mapping.columns]
     extra_cols = [x for x in charts_mapping.columns if x not in EXPECTED_COLS]
@@ -139,7 +137,6 @@ def extract_macro_data(ECONOMY_ID):
 
 def calculate_and_extract_intensity_data(ECONOMY_ID, total_emissions):
     #to do this we need to use total energy consumption and total emissions and then divide by gdp. note that this will not go into detail on sectors, if that is ever needed it will need to be part of the 2d plots as it will 'intensity by sector'
-    breakpoint()
     all_model_df_wides_dict = mapping_functions.find_and_load_latest_data_for_all_sources(ECONOMY_ID, ['energy', 'emissions'])
     energy = all_model_df_wides_dict['energy'][1]
     # emissions = all_model_df_wides_dict['emissions'][1]
@@ -200,7 +197,6 @@ def calculate_and_extract_intensity_data(ECONOMY_ID, total_emissions):
     real_gdp.drop(columns=['plotting_name'], inplace=True)
     # I don't understand why it needs to be divided by 100. I will comment out this division for now.
     # real_gdp['value'] = real_gdp['value']/100 #to get 10,000 which seems to be similar magnitude to energy and emissions
-    breakpoint()
     energy_intensity = pd.merge(energy_total_melt, real_gdp, how='left', on=['year'])
     # Energy intensity is calculated as TPES divided by GDP
     energy_intensity['value'] = energy_intensity['energy_total']/energy_intensity['value']
@@ -407,21 +403,21 @@ def calculate_and_extract_kaya_identity_data(ECONOMY_ID, energy_df, emissions_df
         new_value_diff = new_value - previous_value
         plotting_name = 'rise' if new_value_diff > 0 else 'fall'
         new_value_diff = abs(new_value_diff)
-        
-        kaya_df = kaya_df.append({
-            'scenario': scenario,
-            'year': year,
-            'plotting_name': plotting_name,
-            'value': new_value_diff,
-        }, ignore_index=True)
+        kaya_df = pd.concat([kaya_df, pd.DataFrame({
+            'scenario': [scenario],
+            'year': [year],
+            'plotting_name': [plotting_name],
+            'value': [new_value_diff]
+        })], ignore_index=True)
         
         base_value = previous_value if plotting_name == 'rise' else previous_value - new_value_diff
-        kaya_df = kaya_df.append({
-            'scenario': scenario,
-            'year': year,
-            'plotting_name': 'base',
-            'value': base_value,
-        }, ignore_index=True)
+        new_row = pd.DataFrame({
+            'scenario': [scenario],
+            'year': [year],
+            'plotting_name': ['base'],
+            'value': [base_value]
+        })
+        kaya_df = pd.concat([kaya_df, new_row], ignore_index=True)
         
         return kaya_df, new_value
 

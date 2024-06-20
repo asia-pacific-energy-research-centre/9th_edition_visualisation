@@ -249,13 +249,17 @@ def check_data_matches_expectations(model_df_wide_economy, model_variables,RAISE
 
     #we first need to check that the columns in the Variables sheet match the columns in the Data sheet
     object_columns = model_df_wide_economy.select_dtypes(include=['object']).columns.to_list()
-    #drop source col
-    object_columns.remove('source')
+    #drop source and sheet cols if they exist
+    if 'source' in object_columns:
+        object_columns.remove('source')
+    if 'sheet' in object_columns:
+        object_columns.remove('sheet')    
     #check the difference between the columns in the Variables sheet and the columns in the Data sheet
     diff = set(object_columns) - set(model_variables.columns.to_list())
     if len(list(diff)) > 0:
         print('The following columns between the Variables sheet and the Data are different: ', diff)
-        raise Exception('The columns in the Variables sheet do not match the columns in the Data sheet')
+        breakpoint()
+        raise Exception(f'The following columns in the Variables sheet do not match the columns in the Data sheet: {diff}')
 
     #Now check that the unique variables in the columns in the Variables sheet match the unique variables in the columns in the Data sheet
     for col in object_columns:
@@ -631,8 +635,8 @@ def copy_and_modify_rows_with_conversion(df):
     new_rows[year_columns] = new_rows[year_columns] * conversion_factor
 
     # Append the new rows to the original dataframe
-    modified_df = df.append(new_rows, ignore_index=True)
-
+    modified_df = pd.concat([df, new_rows], ignore_index=True)
+    
     return modified_df
 
 def modify_gas_to_gas_ccs(df):
