@@ -12,9 +12,9 @@ STRICT_DATA_CHECKING = False
 #     else:
 #         print(message)
 
-def create_sheets_from_mapping_df(workbook, charts_mapping, total_plotting_names, MIN_YEAR, colours_dict, cell_format1, cell_format2, header_format, plotting_specifications, plotting_names_order, plotting_name_to_label_dict, writer, EXPECTED_COLS, ECONOMY_ID): 
+def create_sheets_from_mapping_df(workbook, charts_mapping_df, total_plotting_names, MIN_YEAR, colours_dict, cell_format1, cell_format2, header_format, plotting_specifications, plotting_names_order, plotting_name_to_label_dict, writer, EXPECTED_COLS, ECONOMY_ID): 
     #PREPARE DATA ########################################
-    
+    charts_mapping = charts_mapping_df.copy()
     #filter for MIN_YEAR
     charts_mapping = charts_mapping.loc[charts_mapping['year'].astype(int) >= MIN_YEAR].copy()
     # If chart_title is Passenger stock shares or Freight stock shares, round the values to 3 decimal places instead of 1
@@ -23,12 +23,35 @@ def create_sheets_from_mapping_df(workbook, charts_mapping, total_plotting_names
     else:
         #make values 1 decimal place
         charts_mapping['value'] = charts_mapping['value'].round(1).copy()
-    # Replace NaNs with 0 except for 'Transport secondary' and 'Intensity' sheets
-    mask = ~charts_mapping['sheet_name'].isin(['Transport secondary', 'Intensity', 'Renewables share'])
+    # Replace NaNs with 0 except for 'Transport stocks', 'Transport activity' and 'Intensity' sheets
+    mask = ~charts_mapping['sheet_name'].isin(['Transport stocks', 'Transport activity', 'Intensity', 'Renewables share'])
     charts_mapping.loc[mask, 'value'] = charts_mapping.loc[mask, 'value'].fillna(0).copy()
-    # Replace 0s with NaNs for 'Transport secondary' only for years before OUTLOOK_BASE_YEAR
-    mask2 = (charts_mapping['sheet_name'] == 'Transport secondary') & (charts_mapping['year'].astype(int) < OUTLOOK_BASE_YEAR)
-    charts_mapping.loc[mask2, 'value'] = charts_mapping.loc[mask2, 'value'].replace(0, np.nan).copy()
+    ########################################
+    #Addition to handle transport capacity data not having data from before the base year. It sets the data from the base year as the data for all years before the base year. This is a pretty quick hack but unnoticable in the final output, as long as there is onyl 1 or 2 years before the base year.
+    #double check there are only 1 or 2 years before the base year
+    if len(charts_mapping[charts_mapping['sheet_name'].isin(['Transport stocks', 'Transport activity'])]) > 0:
+        years_less = charts_mapping[(charts_mapping['year'].astype(int) < OUTLOOK_BASE_YEAR)].copy()
+        if len(years_less['year'].unique()) > 2:
+            breakpoint()
+            raise Exception('There are more than 2 years before the base year. This is not expected. Please check the data')
+            
+        mask2 = (charts_mapping['sheet_name'].isin(['Transport stocks', 'Transport activity'])) & (charts_mapping['year'].astype(int) < OUTLOOK_BASE_YEAR)
+        mask3 = (charts_mapping['sheet_name'].isin(['Transport stocks', 'Transport activity'])) & (charts_mapping['year'].astype(int) == OUTLOOK_BASE_YEAR)
+        # Replace 0s with the data from the OUTLOOK_BASE_YEAR for 'Transport stocks', 'Transport activity' only for years before OUTLOOK_BASE_YEAR.
+        EXPECTED_COLS_no_year = EXPECTED_COLS.copy()
+        EXPECTED_COLS_no_year.remove('year')
+        EXPECTED_COLS_no_year.remove('value')
+        df_to_merge = charts_mapping.loc[mask3].copy()
+        
+        # Perform the merge
+        charts_mapping = pd.merge(charts_mapping, df_to_merge, on=EXPECTED_COLS_no_year, how='left', suffixes=('', '_y'))
+        
+        #where mask2 is true, replace the value with the value from the base year
+        charts_mapping.loc[mask2, 'value'] = charts_mapping.loc[mask2, 'value_y'].copy()
+        
+        # Drop the unnecessary columns 
+        charts_mapping.drop(columns=[col for col in charts_mapping.columns if '_y' in col], inplace=True)
+    ########################################
 
     
     # Getting the max values for each sheet and chart type to make the charts' y-axis consistent
@@ -492,15 +515,15 @@ def format_table(table,plotting_names_order,plotting_name_to_label_dict):
     
     year_cols = table.columns[year_cols_start:]
     
-    # Adjust num_cols for 'Transport secondary' sheet
-    if sheet_name == 'Transport secondary':
+    # Adjust num_cols for 'Transport stocks' and 'Transport activity' sheet
+    if sheet_name == 'Transport stocks' or sheet_name == 'Transport activity':
         num_cols += 1
 
     ############################################
     # Modification of the tables in Excel
     ############################################
     # Conditional removal of rows where all data columns are zeros, excluding specific sheet names
-    if sheet_name not in ['Generation capacity', 'Transport secondary']:
+    if sheet_name not in ['Generation capacity', 'Transport stocks', 'Transport activity']:
         # If no rows have the specified 'sheet_name', remove rows where all year columns are zeros
         table = table.loc[~(table[year_cols] == 0).all(axis=1)]
     
