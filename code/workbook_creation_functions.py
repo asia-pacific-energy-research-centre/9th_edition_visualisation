@@ -516,8 +516,8 @@ def format_table(table,plotting_names_order,plotting_name_to_label_dict):
     year_cols = table.columns[year_cols_start:]
     
     # Adjust num_cols for 'Transport stocks' and 'Transport activity' sheet
-    if sheet_name == 'Transport stocks' or sheet_name == 'Transport activity':
-        num_cols += 1
+    # if sheet_name == 'Transport stocks' or sheet_name == 'Transport activity':
+    #     num_cols += 1
 
     ############################################
     # Modification of the tables in Excel
