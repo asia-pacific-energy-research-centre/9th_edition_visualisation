@@ -1,3 +1,10 @@
+#TODO:
+#WHY ARE OTHER OIL EMISSIONS IN TRANSPORT SO HIGH. 
+# HOW TO CAPTURE GENERATION EMISSIONS AND INCLUDE THEM
+
+
+
+
 
 # Purpose: This script will create the 9th edition workbook for each economy.
 #it is the main script for creating the workbook. it will call functions from workbook_creation_functions.py
@@ -12,6 +19,7 @@ import workbook_creation_functions
 from map_2d_plots import map_9th_data_to_two_dimensional_plots
 from map_1d_plots import map_9th_data_to_one_dimensional_plots
 from utility_functions import *
+import csv
 def data_checking_warning_or_error(message):
     if STRICT_DATA_CHECKING:
         raise Exception(message)
@@ -22,10 +30,10 @@ def data_checking_warning_or_error(message):
 #%%
 map_data = True
 if map_data:
-    map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COLS, RAISE_ERROR=False)
+    total_emissions = map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COLS, RAISE_ERROR=False)
     
 #%%
-charts_mapping_1d = map_9th_data_to_one_dimensional_plots(ECONOMY_ID, EXPECTED_COLS)
+charts_mapping_1d = map_9th_data_to_one_dimensional_plots(ECONOMY_ID, EXPECTED_COLS, total_emissions)
 #%%
 #######################################################
 #read in titles, only, from charts mapping for each available economy for the FILE_DATE_ID. e.g. charts_mapping_9th_{economy_x}_{FILE_DATE_ID}.pkl. We will use each of these to create a workbook, for each economy
@@ -39,7 +47,6 @@ for source in sources:
     charts_mapping_files = [x for x in charts_mapping_files if ECONOMY_ID in x]
     if len(charts_mapping_files)>1:
         print(f'We have more than 1 charts mapping input for the source {source}, economy {ECONOMY_ID}: {charts_mapping_files}')
-        breakpoint()
     all_charts_mapping_files_dict[source] = []
     for mappping_file in charts_mapping_files:
         charts_mapping_df = pd.read_pickle(f'../intermediate_data/data/{mappping_file}')
@@ -91,7 +98,5 @@ for source in all_charts_mapping_files_dict.keys():
 #todo add code for macro and renewable share and so on/ 
 #save the workbook
 writer.close()
-
-#%%
 
 #%%

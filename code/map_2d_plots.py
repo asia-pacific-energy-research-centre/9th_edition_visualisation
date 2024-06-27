@@ -43,6 +43,19 @@ def map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COL
     """
     
     all_model_df_wides_dict = mapping_functions.find_and_load_latest_data_for_all_sources(ECONOMY_ID, sources)
+    
+    # Modify the data to match the plotting template
+    all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'energy', mapping_functions.modify_losses_and_own_use_values).copy()
+    all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'emissions', mapping_functions.modify_losses_and_own_use_values).copy()
+    all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'energy', mapping_functions.convert_electricity_output_to_twh).copy()
+    all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'energy', mapping_functions.copy_and_modify_rows_with_conversion).copy()
+    all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'energy', mapping_functions.modify_gas_to_gas_ccs).copy()
+    all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'energy', mapping_functions.modify_subtotal_columns).copy()
+    # all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'energy', mapping_functions.modify_hydrogen_green_electricity).copy()
+    all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'emissions', mapping_functions.drop_hydrogen_transformation_rows).copy()
+    all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'emissions', mapping_functions.rename_sectors_and_negate_values_based_on_ccs_cap).copy()
+    all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'emissions', mapping_functions.copy_and_modify_power_sector_rows).copy()
+    # all_model_df_wides_dict['energy'][1].to_csv(f'../model_df_wide_{ECONOMY_ID}_{FILE_DATE_ID}.csv')
             
     ##############################################################################
 
@@ -66,8 +79,9 @@ def map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COL
     transformation_sector_mappings = pd.read_excel('../config/master_config.xlsx', sheet_name='transformation_sector_mappings')
     # transformation_sector_mappings.columns: input_fuel	transformation_sectors	sub1sectors
 
-    charts_mapping = pd.read_excel('../config/master_config.xlsx', sheet_name='two_dimensional_plots', header = 1)
-
+    charts_mapping = pd.read_excel('../config/master_config.xlsx', sheet_name='two_dimensional_plots', header = 0)
+    economy_specific_chart_mapping = pd.read_excel('../config/master_config.xlsx', sheet_name='economy_specific_2d', header = 0)
+    
     colors_df = pd.read_excel('../config/master_config.xlsx', sheet_name='colors')
 
     #take in aggregate_name_to_unit form master_config.xlsx
@@ -89,6 +103,10 @@ def map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COL
 
     #############################
     #FORMAT THE MAPPINGS
+    #add any economy specific mappings to the charts_mappings
+    if ECONOMY_ID in economy_specific_chart_mapping['economy'].unique():
+        charts_mapping = pd.concat([charts_mapping, economy_specific_chart_mapping.loc[economy_specific_chart_mapping['economy'] == ECONOMY_ID].drop(columns=['economy'])])
+        
     #for fuel and sector mappings we will extract the most sepcific reference for each row and then record it's column in a column called 'column'.
     #so for example, where we want to extract the reference for the sectors_plotting value Agriculture, we find the rightmost column that is not na (this is the msot specific column), set 'reference_sector' to that value in the most specific column, and then the column to the name of the most specific column
     all_plotting_mapping_dicts = {'sector_energy': {'df': sector_plotting_mappings, 
@@ -104,11 +122,11 @@ def map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COL
                                         'source': 'emissions',
                                         'plotting_name_column': 'emissions_sectors_plotting'},
                             'fuel_emissions': {'df': emissions_fuel_plotting_mappings,
-                                        'columns': ['fuels', 'subfuels'],
+                                        'columns': ['subfuels', 'fuels'],
                                         'source': 'emissions',
                                         'plotting_name_column': 'emissions_fuels_plotting'},
                             'capacity': {'df': capacity_plotting_mappings,
-                                        'columns': ['sub2sectors', 'sub1sectors', 'sectors'],
+                                        'columns': ['sub4sectors','sub3sectors', 'sub2sectors', 'sub1sectors', 'sectors','sheet'],
                                         'source': 'capacity',
                                         'plotting_name_column': 'capacity_plotting'}
                             }    
@@ -215,7 +233,6 @@ def map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COL
                 elif source == 'energy':
                     old_sector_plotting_mappings= sector_plotting_mappings
                     old_fuel_plotting_mappings = fuel_plotting_mappings
-                    
                 model_df_tall_sectors = mapping_functions.merge_sector_mappings(model_df_tall, new_sector_plotting_mappings,old_sector_plotting_mappings, RAISE_ERROR=RAISE_ERROR)            
                 new_fuel_plotting_mappings = all_plotting_mapping_dicts['fuel'+'_'+source]['df']
                 model_df_tall_sectors_fuels = mapping_functions.merge_fuel_mappings(model_df_tall_sectors, new_fuel_plotting_mappings,old_fuel_plotting_mappings, RAISE_ERROR=RAISE_ERROR)#losing access to 19_total because of filtering for lowest level values. not sure how to avoid
@@ -236,18 +253,19 @@ def map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COL
             #next step will include creating new datasets which create aggregations of data to match some of the categories plotted in the 8th edition. 
             #for example we need an aggregation of the transformation sector input and output values to create entries for Power, Refining or Hydrogen
             # breakpoint()#we get nas in the transformation sector mappings. why??
-            if source in ['energy']:
+            if source in ['energy', 'emissions']:
                 input_transformation, output_transformation = mapping_functions.merge_transformation_sector_mappings(model_df_tall, transformation_sector_mappings,new_fuel_plotting_mappings,RAISE_ERROR=RAISE_ERROR)
                 #concat all the dataframes together?
                 plotting_df = pd.concat([model_df_tall_sectors_fuels, input_transformation, output_transformation])
+                if source == 'emissions':
+                    plotting_df.rename(columns={'sectors_plotting':'emissions_sectors_plotting', 'fuels_plotting':'emissions_fuels_plotting'}, inplace=True)
             elif source == 'capacity':
                 plotting_df = model_df_tall_capacity.copy()
-            elif source == 'emissions':
-                plotting_df = model_df_tall_sectors_fuels.copy()
-                #rename sectors_plotting and fuels_plotting to emissions_sectors_plotting and emissions_fuels_plotting
-                plotting_df.rename(columns={'sectors_plotting':'emissions_sectors_plotting', 'fuels_plotting':'emissions_fuels_plotting'}, inplace=True)
+            # elif source == 'emissions':
+            #     plotting_df = model_df_tall_sectors_fuels.copy()
+            #     #rename sectors_plotting and fuels_plotting to emissions_sectors_plotting and emissions_fuels_plotting
+            #     plotting_df.rename(columns={'sectors_plotting':'emissions_sectors_plotting', 'fuels_plotting':'emissions_fuels_plotting'}, inplace=True)
             else:
-                breakpoint()
                 raise Exception('source is not valid')  
             
             # #identify where fuels_plotting is Solar and year is 2003:
@@ -304,18 +322,32 @@ def map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COL
             missing_cols = [x for x in EXPECTED_COLS if x not in economy_new_charts_mapping.columns]
             extra_cols = [x for x in economy_new_charts_mapping.columns if x not in EXPECTED_COLS]
             if len(extra_cols) > 0 or len(missing_cols) > 0:
-                breakpoint()
                 raise Exception(f'There are missing or extra columns in charts_mapping. Extra cols: {extra_cols}. Missing cols: {missing_cols}')
             
-            economy_new_charts_mapping = mapping_functions.format_chart_tiles(economy_new_charts_mapping, ECONOMY_ID)
+            economy_new_charts_mapping = mapping_functions.format_chart_titles(economy_new_charts_mapping, ECONOMY_ID)
             #############################
             
             #concat to charts_mapping_all_years 
             charts_mapping_all_years = pd.concat([charts_mapping_all_years, economy_new_charts_mapping])
-            
+        
+        # Modify dataframe to include percentage_bar chart_type
+        charts_mapping_all_years = mapping_functions.add_percentage_bar_chart_type(charts_mapping_all_years)
+        
         # Save the processed data to a pickle file
         charts_mapping_all_years.to_pickle(f'../intermediate_data/data/charts_mapping_{source}_{economy_x}_{FILE_DATE_ID}.pkl')
         print(f"Data for {economy_x} {source} saved.")
+        # charts_mapping_all_years.to_csv(f'../intermediate_data/charts_mapping_{source}_{economy_x}_{FILE_DATE_ID}.csv')
+        
+        # If sources is emissions, return the filtered data
+        
+        if source == 'emissions':
+            total_emissions = charts_mapping_all_years[(charts_mapping_all_years['sheet_name'] == 'Emissions') & (charts_mapping_all_years['plotting_name'].isin(['Agriculture','Buildings', 'Industry', 'Non-specified', 'Own-use and losses', 'Power_input', 'Transport'])) & (charts_mapping_all_years['aggregate_name'] == 'TFEC')].copy()
+            # Group by scenario and year, and sum the values
+            total_emissions = total_emissions.groupby(['scenario', 'year'])['value'].sum().reset_index()
+            # Drop table_number column
+            # total_emissions.drop(columns=['table_number'], inplace=True)
+            # total_emissions.to_csv(f'../intermediate_data/total_emissions_{economy_x}_{FILE_DATE_ID}.csv')
+            return total_emissions
 
 #%%
 # FILE_DATE_ID = '20231110'

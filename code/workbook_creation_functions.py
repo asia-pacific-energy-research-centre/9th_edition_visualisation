@@ -12,15 +12,47 @@ STRICT_DATA_CHECKING = False
 #     else:
 #         print(message)
 
-def create_sheets_from_mapping_df(workbook, charts_mapping, total_plotting_names, MIN_YEAR, colours_dict, cell_format1, cell_format2, header_format, plotting_specifications, plotting_names_order, plotting_name_to_label_dict, writer, EXPECTED_COLS, ECONOMY_ID): 
+def create_sheets_from_mapping_df(workbook, charts_mapping_df, total_plotting_names, MIN_YEAR, colours_dict, cell_format1, cell_format2, header_format, plotting_specifications, plotting_names_order, plotting_name_to_label_dict, writer, EXPECTED_COLS, ECONOMY_ID): 
     #PREPARE DATA ########################################
-    
+    charts_mapping = charts_mapping_df.copy()
     #filter for MIN_YEAR
     charts_mapping = charts_mapping.loc[charts_mapping['year'].astype(int) >= MIN_YEAR].copy()
-    #make values 1 decimal place
-    charts_mapping['value'] = charts_mapping['value'].round(1).copy()
-    #replace nas with 0
-    charts_mapping['value'] = charts_mapping['value'].fillna(0).copy()
+    # If chart_title is Passenger stock shares or Freight stock shares, round the values to 3 decimal places instead of 1
+    if charts_mapping['chart_title'].isin(['Passenger stock shares', 'Freight stock shares']).any():
+        charts_mapping['value'] = charts_mapping['value'].round(3).copy()
+    else:
+        #make values 1 decimal place
+        charts_mapping['value'] = charts_mapping['value'].round(1).copy()
+    # Replace NaNs with 0 except for 'Transport stocks', 'Transport activity' and 'Intensity' sheets
+    mask = ~charts_mapping['sheet_name'].isin(['Transport stocks', 'Transport activity', 'Intensity', 'Renewables share'])
+    charts_mapping.loc[mask, 'value'] = charts_mapping.loc[mask, 'value'].fillna(0).copy()
+    ########################################
+    #Addition to handle transport capacity data not having data from before the base year. It sets the data from the base year as the data for all years before the base year. This is a pretty quick hack but unnoticable in the final output, as long as there is onyl 1 or 2 years before the base year.
+    #double check there are only 1 or 2 years before the base year
+    if len(charts_mapping[charts_mapping['sheet_name'].isin(['Transport stocks', 'Transport activity'])]) > 0:
+        years_less = charts_mapping[(charts_mapping['year'].astype(int) < OUTLOOK_BASE_YEAR)].copy()
+        if len(years_less['year'].unique()) > 2:
+            breakpoint()
+            raise Exception('There are more than 2 years before the base year. This is not expected. Please check the data')
+            
+        mask2 = (charts_mapping['sheet_name'].isin(['Transport stocks', 'Transport activity'])) & (charts_mapping['year'].astype(int) < OUTLOOK_BASE_YEAR)
+        mask3 = (charts_mapping['sheet_name'].isin(['Transport stocks', 'Transport activity'])) & (charts_mapping['year'].astype(int) == OUTLOOK_BASE_YEAR)
+        # Replace 0s with the data from the OUTLOOK_BASE_YEAR for 'Transport stocks', 'Transport activity' only for years before OUTLOOK_BASE_YEAR.
+        EXPECTED_COLS_no_year = EXPECTED_COLS.copy()
+        EXPECTED_COLS_no_year.remove('year')
+        EXPECTED_COLS_no_year.remove('value')
+        df_to_merge = charts_mapping.loc[mask3].copy()
+        
+        # Perform the merge
+        charts_mapping = pd.merge(charts_mapping, df_to_merge, on=EXPECTED_COLS_no_year, how='left', suffixes=('', '_y'))
+        
+        #where mask2 is true, replace the value with the value from the base year
+        charts_mapping.loc[mask2, 'value'] = charts_mapping.loc[mask2, 'value_y'].copy()
+        
+        # Drop the unnecessary columns 
+        charts_mapping.drop(columns=[col for col in charts_mapping.columns if '_y' in col], inplace=True)
+    ########################################
+
     
     # Getting the max values for each sheet and chart type to make the charts' y-axis consistent
     max_and_min_values_dict = {}
@@ -36,21 +68,20 @@ def create_sheets_from_mapping_df(workbook, charts_mapping, total_plotting_names
     # #NOTE THAT THIS DOESNT WORK WITH THE WAY UNITS ARE IMPLEMENTED IN THE CHARTS MAPPING, BUT THE ITNENTION IS THAT ONCE WE START PLOTTING DIFFERENT UNITS THEN THIS WILL BE SOLVED IN THE CHARTS MAPPING, NOT HERE (SO THIS CODE WILL STAY THE SAME)
     unit_dict = charts_mapping[['sheet_name','unit']].drop_duplicates().groupby('sheet_name')['unit'].apply(lambda x: ', '.join(x)).to_dict() #TODO
 
-    # Custom order list #TODO custom order of sheets? 
-    custom_order = ['Buildings', 'Industry', 'Transport', 'Agriculture', 'Non-energy', 'TFC by fuel', 'Fuel consumption power sector', 'Refining']
+    # # Custom order list #TODO custom order of sheets? 
+    # custom_order = ['Buildings', 'Industry', 'Transport', 'Agriculture', 'Non-energy', 'TFC by fuel', 'Fuel consumption power sector', 'Refining']
 
-    # Sort the sheets according to the custom order
-    sheets = sorted(sheets, key=lambda x: custom_order.index(x) if x in custom_order else len(custom_order))
+    # # Sort the sheets according to the custom order
+    # sheets = sorted(sheets, key=lambda x: custom_order.index(x) if x in custom_order else len(custom_order))
 
     #then create a dictionary of the sheets and the dataframes we will use to populate them:
     sheet_dfs = {}
     for sheet in sheets:
-
         sheet_dfs[sheet] = ()
 
         sheet_data = charts_mapping.loc[charts_mapping['sheet_name'] == sheet]
 
-        #pivot the data and create order of cols so it is fsater to create tables
+        # Pivot the data and create an order of cols so it is faster to create tables
         EXPECTED_COLS_wide = EXPECTED_COLS.copy()
         EXPECTED_COLS_wide.remove('year')
         EXPECTED_COLS_wide.remove('value')
@@ -62,20 +93,40 @@ def create_sheets_from_mapping_df(workbook, charts_mapping, total_plotting_names
 
         #sort by table_number
         sheet_data = sheet_data.sort_values(by=['table_number'])
-        for scenario in sheet_data['scenario'].unique():
-            if str(scenario) == 'nan':
-                scenario_data = sheet_data.copy()
-            else:   
-                #extract scenario data
-                scenario_data = sheet_data.loc[(sheet_data['scenario'] == scenario)]
-            #add tables to tuple, by table number
-            for table in scenario_data['table_number'].unique():
-                table_data = scenario_data.loc[(scenario_data['table_number'] == table)]
-                #drop table number from table data
-                table_data = table_data.drop(columns = ['table_number'])
+        # for scenario in sheet_data['scenario'].unique():
+        #     if str(scenario) == 'nan':
+        #         scenario_data = sheet_data.copy()
+        #     else:   
+        #         #extract scenario data
+        #         scenario_data = sheet_data.loc[(sheet_data['scenario'] == scenario)]
+        #     #add tables to tuple, by table number
+        #     for table in scenario_data['table_number'].unique():
+        #         table_data = scenario_data.loc[(scenario_data['table_number'] == table)]
+        #         #drop table number from table data
+        #         table_data = table_data.drop(columns = ['table_number'])
 
-                #add table data to tuple
+        #         #add table data to tuple
+        #         sheet_dfs[sheet] = sheet_dfs[sheet] + (table_data,)
+        if sheet in ['Intensity', 'Renewables share']:
+            # Handle all data as one scenario block for "Intensity" or "Renewables share" sheet
+            for table in sheet_data['table_number'].unique():
+                table_data = sheet_data.loc[(sheet_data['table_number'] == table)]
+                table_data = table_data.drop(columns=['table_number'])
+                # Update 'plotting_name' based on 'scenario' values
+                table_data['plotting_name'] = table_data['scenario'].apply(lambda x: x.capitalize() if x in ['reference', 'target'] else table_data['plotting_name'])
                 sheet_dfs[sheet] = sheet_dfs[sheet] + (table_data,)
+        else:
+            # Process each scenario individually for other sheets
+            for scenario in sheet_data['scenario'].unique():
+                if str(scenario) == 'nan':
+                    scenario_data = sheet_data.copy()
+                else:
+                    scenario_data = sheet_data.loc[(sheet_data['scenario'] == scenario)]
+
+                for table in scenario_data['table_number'].unique():
+                    table_data = scenario_data.loc[(scenario_data['table_number'] == table)]
+                    table_data = table_data.drop(columns=['table_number'])
+                    sheet_dfs[sheet] = sheet_dfs[sheet] + (table_data,)
     #PREPARE DATA END  ########################################
     #now we have a dictionary of dataframes for each sheet, we can iterate through them and create the charts and tables we need.
     #every table has the format (var might change)
@@ -100,12 +151,18 @@ def create_sheets_from_mapping_df(workbook, charts_mapping, total_plotting_names
         for table in sheet_dfs[sheet]:
             dimensions = table['dimensions'].unique()[0]
             if len(table['dimensions'].unique()) > 1:
-                breakpoint()
                 raise Exception('we should only have one dimension type per table')
             ########################
             current_row, current_scenario, worksheet = add_section_titles(current_row, current_scenario, sheet, worksheet, cell_format1, cell_format2, space_under_titles, table, space_under_tables,unit_dict, ECONOMY_ID)
             ########################
-            table, chart_types, table_id, plotting_name_column, year_cols_start,num_cols, chart_titles = format_table(table,plotting_names_order,plotting_name_to_label_dict)
+            table, chart_types, table_id, plotting_name_column, year_cols_start,num_cols, chart_titles, first_year_col, sheet_name = format_table(table,plotting_names_order,plotting_name_to_label_dict)
+            
+            try:
+                # Try to convert 'first_year_col' to an integer and use it
+                first_year_col = int(first_year_col)
+            except ValueError:
+                # If conversion fails, default to MIN_YEAR
+                first_year_col = MIN_YEAR
             
             #make the cols for plotting_name_column and the one before it a bit wider so the text fits
             plotting_name_column_index = table.columns.get_loc(plotting_name_column)
@@ -123,8 +180,22 @@ def create_sheets_from_mapping_df(workbook, charts_mapping, total_plotting_names
             ########################
             #if chart_type len is 1 and it is a bar chart, we need to edit the table to work for bar charts:
             
-            if len(chart_types) == 1 and 'bar' in chart_types:   
-                table = create_bar_chart_table(table,year_cols_start,plotting_specifications['bar_years'])
+            if len(chart_types) == 1 and 'bar' in chart_types and not sheet == 'CO2 emissions components':   
+                table = create_bar_chart_table(table,year_cols_start,plotting_specifications['bar_years'], sheet_name)
+            ########################
+            # Define the mapping dictionary
+            column_mapping = {
+                3000: f'Emissions {OUTLOOK_BASE_YEAR}',
+                3001: 'Population',
+                3002: 'GDP per capita',
+                3003: 'Energy intensity',
+                3004: 'Emissions intensity',
+                3005: f'Emissions {OUTLOOK_LAST_YEAR}'
+            }
+            # If sheet is CO2 emissions components, rename the years
+            if sheet == 'CO2 emissions components':
+                # Rename the columns using the mapping dictionary
+                table.rename(columns=column_mapping, inplace=True)
             ########################
             #write table to sheet
             table.to_excel(writer, sheet_name = sheet, index = False, startrow = current_row)
@@ -134,7 +205,7 @@ def create_sheets_from_mapping_df(workbook, charts_mapping, total_plotting_names
             #identify and format charts we need to create
             chart_positions = identify_chart_positions(current_row,num_table_rows,space_under_tables,column_row, space_above_charts, space_under_charts, plotting_specifications,chart_types)
             # print('max_and_min_values_dict', max_and_min_values_dict, 'for sheet', sheet)
-            charts_to_plot = create_charts(table, chart_types, plotting_specifications, workbook,num_table_rows, plotting_name_column, table_id, sheet, current_row, space_under_tables, column_row, year_cols_start, num_cols, colours_dict,total_plotting_names, max_and_min_values_dict, chart_titles)
+            charts_to_plot = create_charts(table, chart_types, plotting_specifications, workbook,num_table_rows, plotting_name_column, table_id, sheet, current_row, space_under_tables, column_row, year_cols_start, num_cols, colours_dict,total_plotting_names, max_and_min_values_dict, chart_titles, first_year_col, sheet_name)
             ########################
 
             #write charts to sheet
@@ -153,7 +224,6 @@ def create_sheets_from_mapping_df(workbook, charts_mapping, total_plotting_names
                         # Check if a warning occurred
                         if len(w) > 0:
                             print("Warning caught: ", str(w[-1].message))
-                            breakpoint()
                 except Exception as e:
                     print("Error: ", str(e))
             
@@ -163,8 +233,8 @@ def create_sheets_from_mapping_df(workbook, charts_mapping, total_plotting_names
             # except:
             #     breakpoint()
             #     print('writer close failed')
-    
-    workbook = order_sheets(workbook, plotting_specifications, sheets)
+
+    workbook = order_sheets(workbook, plotting_specifications)
     # breakpoint()
     return workbook, writer
 
@@ -187,7 +257,7 @@ def add_section_titles(current_row, current_scenario, sheet, worksheet, cell_for
         worksheet.write(current_row, 0, ECONOMY_ID, cell_format1)
         worksheet.write(current_row+1, 0, sheet, cell_format1)
         if str(current_scenario) != 'nan':
-            worksheet.write(current_row+2, 0, current_scenario, cell_format1)
+            worksheet.write(current_row+2, 0, current_scenario.capitalize(), cell_format1)
         current_row += space_under_titles                
     else:
         #add one line space between tables of same scenario
@@ -250,6 +320,11 @@ def extract_max_and_min_values(data, max_and_min_values_dict, total_plotting_nam
                     continue
                 #set value to 0 where plotting name is one of the total plotting names. This is so that the max/min y value is not affected by the total plotting names, since they arent plotted 
                 subset.loc[subset['plotting_name'].isin(total_plotting_names), 'value'] = 0
+                
+                # if chart_type is combined, set value to 0 where plotting name is 'Net emissions'
+                if chart_type == 'combined':
+                    subset.loc[subset['plotting_name'] == 'Net emissions', 'value'] = 0
+
                 # if subset.aggregate_name_column.iloc[0] == 'fuels_plotting':
                 #     subset.loc[subset['plotting_name_column'].isin(total_plotting_names), 'value'] = 0
                 # elif subset.aggregate_name_column.iloc[0] == 'sectors_plotting':
@@ -313,7 +388,7 @@ def calculate_y_axis_value(value):
     if value > 0:
         y_axis_value = value + (0.05 * value)
     else:
-        y_axis_value = value - (0.05 * value)
+        y_axis_value = value - (0.1 * abs(value))
 
     # Use absolute value to handle the logarithm for negatives
     order_of_magnitude = 10 ** math.floor(math.log10(abs(y_axis_value)))
@@ -324,27 +399,31 @@ def calculate_y_axis_value(value):
         y_axis_value = math.ceil(y_axis_value / rounding_step) * rounding_step
     else:
         y_axis_value = math.floor(y_axis_value / rounding_step) * rounding_step
+
     return y_axis_value
 
-def create_charts(table, chart_types, plotting_specifications, workbook, num_table_rows, plotting_name_column, table_id, sheet, current_row, space_under_tables, column_row, year_cols_start, num_cols, colours_dict, total_plotting_names, max_and_min_values_dict, chart_titles):
+def create_charts(table, chart_types, plotting_specifications, workbook, num_table_rows, plotting_name_column, table_id, sheet, current_row, space_under_tables, column_row, year_cols_start, num_cols, colours_dict, total_plotting_names, max_and_min_values_dict, chart_titles, first_year_col, sheet_name):
     # Depending on the chart type, create different charts. Then add them to the worksheet according to their positions
     charts_to_plot = []
     plotting_name_column_index = table.columns.get_loc(plotting_name_column)
     for i, chart in enumerate(chart_types):
-        chart_title = chart_titles[i-1]
+        chart_title = chart_titles[0]
         # Get the y_axis_max from max_and_min_values_dict by including the table_id in the key
         # if table_id == 'Industry_3':
         #     breakpoint()
-        y_axis_max = max_and_min_values_dict.get((sheet, chart, table_id, "max"))
+        # If chart_title is Passenger stock shares or Freight stock shares, set y_axis_max to 100
+        if chart_title in ['Passenger stock shares', 'Freight stock shares']:
+            y_axis_max = 100
+        else:
+            y_axis_max = max_and_min_values_dict.get((sheet, chart, table_id, "max"))
         y_axis_min = max_and_min_values_dict.get((sheet, chart, table_id, "min"))
         if y_axis_max is None:
             continue  # Skip the chart creation if y_axis_max is None
         if y_axis_min is None:
-            breakpoint()
             raise Exception("y_axis_min is None. We werent expecting this. perhaps its ok but need to check")
         if chart == 'line':
             # Configure the chart with the updated y_axis_max
-            line_chart = line_plotting_specifications(workbook, plotting_specifications, y_axis_max, y_axis_min)
+            line_chart = line_plotting_specifications(workbook, plotting_specifications, y_axis_max, y_axis_min, first_year_col)
             line_thickness = plotting_specifications['line_thickness']
             line_chart = create_line_chart(num_table_rows, table, plotting_name_column, sheet, current_row, space_under_tables, column_row, plotting_name_column_index, year_cols_start, num_cols, colours_dict, line_chart, total_plotting_names, line_thickness, table_id, chart_title)
             if not line_chart:
@@ -353,7 +432,7 @@ def create_charts(table, chart_types, plotting_specifications, workbook, num_tab
 
         elif chart == 'area':
             # Configure the chart with the updated y_axis_max, y_axis_min
-            area_chart = area_plotting_specifications(workbook, plotting_specifications, y_axis_max, y_axis_min)
+            area_chart = area_plotting_specifications(workbook, plotting_specifications, y_axis_max, y_axis_min, first_year_col)
             area_chart = create_area_chart(num_table_rows, table, plotting_name_column, sheet, current_row, space_under_tables, column_row, plotting_name_column_index, year_cols_start, num_cols, colours_dict, area_chart, total_plotting_names, table_id, chart_title)
             if not area_chart:
                 continue
@@ -361,11 +440,26 @@ def create_charts(table, chart_types, plotting_specifications, workbook, num_tab
 
         elif chart == 'bar':
             # Configure the chart with the updated y_axis_max and y_axis_min
-            bar_chart = bar_plotting_specifications(workbook, plotting_specifications, y_axis_max, y_axis_min)
+            bar_chart = bar_plotting_specifications(workbook, plotting_specifications, y_axis_max, y_axis_min, sheet_name)
             bar_chart = create_bar_chart(num_table_rows, table, plotting_name_column, sheet, current_row, space_under_tables, column_row, plotting_name_column_index, year_cols_start, len(table.columns), colours_dict, bar_chart, total_plotting_names, table_id, chart_title)
             if not bar_chart:
                 continue
             charts_to_plot.append(bar_chart)
+
+        elif chart == 'combined':
+            primary_chart, secondary_chart = combined_plotting_specifications(workbook, plotting_specifications, y_axis_max, y_axis_min, first_year_col)
+            line_thickness = plotting_specifications['line_thickness']
+            combined_chart = create_combined_chart(num_table_rows, table, plotting_name_column, sheet, current_row,space_under_tables,column_row, plotting_name_column_index, year_cols_start, num_cols, colours_dict, primary_chart, secondary_chart, total_plotting_names, line_thickness, table_id, chart_title, plotting_specifications)
+            if not combined_chart:
+                continue
+            charts_to_plot.append(combined_chart)
+
+        elif chart == 'percentage_bar':
+            percentage_bar_chart = percentage_bar_plotting_specifications(workbook, plotting_specifications)
+            percentage_bar_chart = create_percentage_bar_chart(num_table_rows, table, plotting_name_column, sheet, current_row, space_under_tables, column_row, plotting_name_column_index, year_cols_start, num_cols, colours_dict, percentage_bar_chart, total_plotting_names, table_id, chart_title)
+            if not percentage_bar_chart:
+                continue
+            charts_to_plot.append(percentage_bar_chart)
 
     return charts_to_plot
 
@@ -406,21 +500,55 @@ def format_table(table,plotting_names_order,plotting_name_to_label_dict):
     
     chart_types = np.sort(table['chart_type'].unique())
     table_id = table['table_id'].iloc[0]
+    sheet_name = table['sheet_name'].iloc[0]
     chart_titles = table['chart_title'].unique()
     #make sure that we only have data for one of the cahrt ttypes. The data should be the same since its based on the same table, so jsut take the first one
     table = table[table['chart_type']==chart_types[0]].copy()
     
     #then drop these columns
-    table = table.drop(columns = ['aggregate_name_column', 'plotting_name_column', 'chart_type','table_id', 'dimensions', 'chart_title', 'scenario', 'unit','sheet_name'])#not sure if we should remove scenario and unit but it seems right since they are at the top of the section for that sheet. if it becomes a issue i think we should focus on making it clearer, not adding it to the table
+    table = table.drop(columns = ['aggregate_name_column', 'plotting_name_column', 'chart_type','table_id', 'dimensions', 'chart_title', 'scenario', 'unit', 'sheet_name'])#not sure if we should remove scenario and unit but it seems right since they are at the top of the section for that sheet. if it becomes a issue i think we should focus on making it clearer, not adding it to the table
     
     #format some cols:
     num_cols = len(table.dropna(axis='columns', how='all').columns) - 1
     first_non_object_col = table.select_dtypes(exclude=['object']).columns[0]
     year_cols_start = table.columns.get_loc(first_non_object_col)
     
-    #set order of columns and table, dependent on what the aggregate column is:
     year_cols = table.columns[year_cols_start:]
     
+    # Adjust num_cols for 'Transport stocks' and 'Transport activity' sheet
+    # if sheet_name == 'Transport stocks' or sheet_name == 'Transport activity':
+    #     num_cols += 1
+
+    ############################################
+    # Modification of the tables in Excel
+    ############################################
+    # Conditional removal of rows where all data columns are zeros, excluding specific sheet names
+    if sheet_name not in ['Generation capacity', 'Transport stocks', 'Transport activity']:
+        # If no rows have the specified 'sheet_name', remove rows where all year columns are zeros
+        table = table.loc[~(table[year_cols] == 0).all(axis=1)]
+    
+    # # Conditional removal of first year column(s) if all values are zeros in the beginning year(s) for all rows
+    # cols_to_remove = []
+    # for col in year_cols:
+    #     if (table[col] == 0).all():
+    #         cols_to_remove.append(col)
+    #     else:
+    #         # Stop removing columns once you encounter a column with a non-zero value
+    #         break
+
+    # # Remove the identified columns
+    # table = table.drop(columns=cols_to_remove)
+    
+    ############################################
+    
+    # # Ensure year_cols is updated after potentially removing columns
+    # year_cols = table.columns[year_cols_start:]  # This initializes year_cols as a pandas.Index
+    # year_cols = year_cols.intersection(table.columns)  # This filters year_cols, keeping it as a pandas.Index
+    
+    # Get the year of the first year column for crossing
+    first_year_col = year_cols[0]
+
+    #set order of columns and table, dependent on what the aggregate column is:
     table = sort_table_rows_and_columns(table,table_id,plotting_names_order,year_cols)
     
     #rename fuels_plotting, emissions_fuels_plotting and emissions_sectors_plotting, sectors_plotting, capacity_plotting to Fuel and Sector respectively
@@ -455,9 +583,13 @@ def format_table(table,plotting_names_order,plotting_name_to_label_dict):
     #convert plotting column and aggregate columns names to labels if any of them need converting:
     table[plotting_name_column] = table[plotting_name_column].map(plotting_name_to_label_dict)#todo test i dont delete data here
     
-    return table, chart_types, table_id, plotting_name_column, year_cols_start,num_cols, chart_titles
+    return table, chart_types, table_id, plotting_name_column, year_cols_start,num_cols, chart_titles, first_year_col, sheet_name
 
-def create_bar_chart_table(table,year_cols_start,bar_years):
+def create_bar_chart_table(table,year_cols_start,bar_years, sheet_name):
+    # Directly return the original table without modifications if sheet_name is 'Emissions'
+    if sheet_name == 'Emissions':
+        return table
+    
     #create a new table of data so we only have data for every year that is a mutliple of 10. If the first year is not a multiple of 10 then include this too. This will be written 2 row under the table this is based on
     USE_BAR_YEARS=True
     if USE_BAR_YEARS:
@@ -475,12 +607,12 @@ def identify_chart_positions(current_row,num_table_rows,space_under_tables,colum
     #get table id and extract the chart types and, if there are more than one charts, their positions
     chart_positions = []
     #if chart_types has more than one chart then we will need to estimate what column the next chart should be in since it is in the same row
-    for chart in chart_types:
-        #based on the position in the list of chart types, we can estimate the position of the chart
-        index_of_chart = np.where(chart_types == chart)[0][0]
+    for i, chart in enumerate(chart_types):
+        # #based on the position in the list of chart types, we can estimate the position of the chart
+        # index_of_chart = np.where(chart_types == chart)[0][0]
         #default column width is 59 pixels. so take the chart width in pixels, divide by 59 and round up to get the number of columns to space for a chart
-        num_cols_to_space = math.ceil(plotting_specifications['width_pixels']/59)
-        col_number = 4 + (index_of_chart * num_cols_to_space)
+        num_cols_to_space = math.ceil(plotting_specifications['width_pixels'] / 59)
+        col_number = 4 + (i * num_cols_to_space)
         #convert col number to letter. It will be the index of the letter in the alphabet 
         column_letter = get_column_letter(col_number)
         chart_positions.append(column_letter + str(table_start_row - plotting_specifications['height'] + space_above_charts - space_under_charts))
@@ -516,28 +648,33 @@ def create_area_chart(num_table_rows, table, plotting_name_column, sheet, curren
     # Extract the series of data for the chart from the excels sheets data.
     table_start_row = current_row - num_table_rows - space_under_tables - column_row
     for row_i in range(num_table_rows):
-        if table[plotting_name_column].iloc[row_i] in total_plotting_names:
+        series_name = table[plotting_name_column].iloc[row_i]
+        if series_name in total_plotting_names:
             pass
         # elif sheet == 'Buildings' and table[plotting_name_column].iloc[row_i] == 'Buildings':
         #     pass
         # elif sheet == 'Industry' and table[plotting_name_column].iloc[row_i] == 'Industry':
         #     pass
         else:
-            area_chart.add_series({#each series here is of the format [sheetname, first_row, first_col, last_row, last_col] which refers to where the data is coming from
-                
-                'name':     [sheet, table_start_row + row_i + 1, plotting_name_column_index], # refers to labels
-                #[sheet, (chart_height*len(num_table_rows_list)) + row_i + 1, 0],#referring to the name of the series #TEMP for now we are using 'table_id'
+            if 'CCS' in series_name or 'idle' in series_name:
+                # Apply a pattern fill for 'CCS' or 'idle'
+                area_chart.add_series({
+                    'name':       [sheet, table_start_row + row_i + 1, plotting_name_column_index],
+                    'categories': [sheet, table_start_row, year_cols_start - 1, table_start_row, num_cols - 1],
+                    'values':     [sheet, table_start_row + row_i + 1, year_cols_start - 1, table_start_row + row_i + 1, num_cols - 1],
+                    'pattern':    {'pattern': 'wide_downward_diagonal', 'fg_color': table[plotting_name_column].map(colours_dict).iloc[row_i], 'bg_color': 'white'},
+                    'border':     {'none': True}
+                    })
+            else:
+                # Apply a solid fill for others
+                area_chart.add_series({
+                    'name':       [sheet, table_start_row + row_i + 1, plotting_name_column_index],
+                    'categories': [sheet, table_start_row, year_cols_start - 1, table_start_row, num_cols - 1],
+                    'values':     [sheet, table_start_row + row_i + 1, year_cols_start - 1, table_start_row + row_i + 1, num_cols - 1],
+                    'fill':       {'color': table[plotting_name_column].map(colours_dict).iloc[row_i]},
+                    'border':     {'none': True}
+                    })
 
-                'categories': [sheet,  table_start_row, year_cols_start - 1,  table_start_row, num_cols - 1],#refers to x axis
-                #[sheet,  (chart_height*len(num_table_rows_list)), plotting_name_column_index,  (chart_height*len(num_table_rows_list)), num_cols - 1],
-
-                'values':    [sheet,  table_start_row + row_i + 1, year_cols_start - 1, table_start_row + row_i + 1, num_cols - 1], #[sheet,  (chart_height*len(num_table_rows_list)) + row_i + 1, 4, (chart_height*len(num_table_rows_list)) + row_i + 1, num_cols - 1],
-
-                'fill':       {'color': table[plotting_name_column].map(colours_dict).iloc[row_i]},
-                'border':     {'none': True}
-
-            })   
-    
     # Add a title to the chart
     area_chart.set_title({'name': chart_title,'name_font': {'size': 9}})
     
@@ -580,6 +717,7 @@ def create_bar_chart(num_table_rows, table, plotting_name_column, sheet, current
     # Extract the series of data for the chart from the excels sheets data.
     table_start_row = current_row - num_table_rows - space_under_tables - column_row
     for row_i in range(num_table_rows):
+        series_name = table[plotting_name_column].iloc[row_i]
         if table[plotting_name_column].iloc[row_i] in total_plotting_names:
             pass
         # elif sheet == 'Buildings' and table[plotting_name_column].iloc[row_i] == 'Buildings':
@@ -587,16 +725,50 @@ def create_bar_chart(num_table_rows, table, plotting_name_column, sheet, current
         # elif sheet == 'Industry' and table[plotting_name_column].iloc[row_i] == 'Industry':
         #     pass
         else:
-            bar_chart.add_series({
-                'name':       [sheet, table_start_row + row_i + 1, plotting_name_column_index],
-                'categories': [sheet, table_start_row, year_cols_start - 1, table_start_row, num_cols - 1],
-                'values':     [sheet, table_start_row + row_i + 1, year_cols_start - 1, table_start_row + row_i + 1, num_cols - 1],
-                'fill':       {'color': table[plotting_name_column].map(colours_dict).iloc[row_i]},
-                'border':     {'none': True}
-            })   
+            if 'CCS' in series_name or 'idle' in series_name:
+                # Apply a pattern fill for 'CCS' or 'idle'
+                bar_chart.add_series({
+                    'name':       [sheet, table_start_row + row_i + 1, plotting_name_column_index],
+                    'categories': [sheet, table_start_row, year_cols_start - 1, table_start_row, num_cols - 1],
+                    'values':     [sheet, table_start_row + row_i + 1, year_cols_start - 1, table_start_row + row_i + 1, num_cols - 1],
+                    'pattern':    {'pattern': 'wide_downward_diagonal', 'fg_color': table[plotting_name_column].map(colours_dict).iloc[row_i], 'bg_color': 'white'},
+                    'border':     {'none': True}
+                    })
+            elif series_name == 'base':
+                # Apply no fill for base
+                bar_chart.add_series({
+                    'name':       [sheet, table_start_row + row_i + 1, plotting_name_column_index],
+                    'categories': [sheet, table_start_row, year_cols_start - 1, table_start_row, num_cols - 1],
+                    'values':     [sheet, table_start_row + row_i + 1, year_cols_start - 1, table_start_row + row_i + 1, num_cols - 1],
+                    'fill':       {'none': True},
+                    'border':     {'none': True},
+                    'gap':        '20'
+                    })
+            elif 'rise' in series_name or 'fall' in series_name:
+                # Apply transparent fill for 'rise' or 'fall'
+                bar_chart.add_series({
+                    'name':       [sheet, table_start_row + row_i + 1, plotting_name_column_index],
+                    'categories': [sheet, table_start_row, year_cols_start - 1, table_start_row, num_cols - 1],
+                    'values':     [sheet, table_start_row + row_i + 1, year_cols_start - 1, table_start_row + row_i + 1, num_cols - 1],
+                    'fill':       {'color': table[plotting_name_column].map(colours_dict).iloc[row_i], 'transparency': 50},
+                    'border':     {'none': True}
+                    })
+            else:
+                # Apply a solid fill for others
+                bar_chart.add_series({
+                    'name':       [sheet, table_start_row + row_i + 1, plotting_name_column_index],
+                    'categories': [sheet, table_start_row, year_cols_start - 1, table_start_row, num_cols - 1],
+                    'values':     [sheet, table_start_row + row_i + 1, year_cols_start - 1, table_start_row + row_i + 1, num_cols - 1],
+                    'fill':       {'color': table[plotting_name_column].map(colours_dict).iloc[row_i]},
+                    'border':     {'none': True}
+                    })
     
     # Add a title to the chart
     bar_chart.set_title({'name': chart_title,'name_font': {'size': 9}})
+    
+    # Exclude legend if sheet is 'CO2 emissions components'
+    if sheet == 'CO2 emissions components':
+        bar_chart.set_legend({'none': True})
     
     #double check if chart is empty, if so let user know and skip the chart
     if len(bar_chart.series) == 0:
@@ -605,10 +777,102 @@ def create_bar_chart(num_table_rows, table, plotting_name_column, sheet, current
     else:
         return bar_chart
 
+def create_combined_chart(num_table_rows, table, plotting_name_column, sheet, current_row, space_under_tables, column_row, plotting_name_column_index, year_cols_start, num_cols, colours_dict, primary_chart, secondary_chart, total_plotting_names, line_thickness, table_id, chart_title, plotting_specifications):
+    table_start_row = current_row - num_table_rows - space_under_tables - column_row
+
+    # Set the gap and overlap for the primary chart
+    # It is only necessary to apply the gap and overlap property to one series in the primary chart.
+    gap = 33  # Set the gap between columns to 33
+    overlap = 100  # Set the overlap between columns to 100
+
+    # Add series to primary chart
+    for row_i in range(num_table_rows):
+        series_name = table[plotting_name_column].iloc[row_i]
+        if series_name in total_plotting_names:
+            continue  # Skip this series
+        else:
+            series_options = {
+                'name':       [sheet, table_start_row + row_i + 1, plotting_name_column_index],
+                'categories': [sheet, table_start_row, year_cols_start - 1, table_start_row, num_cols - 1],
+                'values':     [sheet, table_start_row + row_i + 1, year_cols_start - 1, table_start_row + row_i + 1, num_cols - 1],
+                'border':     {'none': True}
+            }
+            if not 'Net emissions' in series_name:
+                if 'CCS' in series_name or 'carbon capture' in series_name:
+                    # Apply a pattern fill for 'CCS' or 'carbon capture'
+                    series_options.update({
+                        'pattern': {'pattern': 'wide_downward_diagonal', 'fg_color': table[plotting_name_column].map(colours_dict).iloc[row_i], 'bg_color': 'white'}
+                    })
+                else:
+                    # Apply a solid fill for others
+                    series_options.update({
+                        'fill': {'color': table[plotting_name_column].map(colours_dict).iloc[row_i]}
+                    })
+                # Only apply gap and overlap to the first series
+                if row_i == 0:
+                    series_options.update({'gap': gap, 'overlap': overlap})
+                primary_chart.add_series(series_options)
+            elif 'Net emissions' in series_name:
+                # This part remains unchanged
+                # Add a series to secondary chart with line settings
+                secondary_chart.add_series({
+                    'name':       [sheet, table_start_row + row_i + 1, plotting_name_column_index],
+                    'categories': [sheet, table_start_row, year_cols_start - 1, table_start_row, num_cols - 1],
+                    'values':     [sheet, table_start_row + row_i + 1, year_cols_start - 1, table_start_row + row_i + 1, num_cols - 1],
+                    'line':       {'color': table[plotting_name_column].map(colours_dict).iloc[row_i], 'width': line_thickness}
+                })
+
+    # Combine the charts and configure the combined chart as before
+    primary_chart.combine(secondary_chart)
+    primary_chart.set_title({'name': chart_title, 'name_font': {'size': 9}})
+    primary_chart.set_size({'width': plotting_specifications['width_pixels'], 'height': plotting_specifications['height_pixels']})
+
+    if len(primary_chart.series) == 0:
+        print('Chart for ' + sheet + ' with table_id ' + table_id + ' is empty. Skipping...')
+        return False
+    else:
+        return primary_chart
+
+def create_percentage_bar_chart(num_table_rows, table, plotting_name_column, sheet, current_row, space_under_tables, column_row, plotting_name_column_index, year_cols_start, num_cols, colours_dict, percentage_bar_chart, total_plotting_names, table_id, chart_title):
+    # Extract the series of data for the chart from the excel sheets data.
+    table_start_row = current_row - num_table_rows - space_under_tables - column_row
+    for row_i in range(num_table_rows):
+        series_name = table[plotting_name_column].iloc[row_i]
+        if series_name in total_plotting_names:
+            pass
+        else:
+            series_options = {
+                'name':       [sheet, table_start_row + row_i + 1, plotting_name_column_index],
+                'categories': [sheet, table_start_row, year_cols_start - 1, table_start_row, num_cols - 1],
+                'values':     [sheet, table_start_row + row_i + 1, year_cols_start - 1, table_start_row + row_i + 1, num_cols - 1],
+                'border':     {'none': True}
+            }
+            if 'CCS' in series_name or 'idle' in series_name:
+                # Apply a pattern fill for 'CCS' or 'idle'
+                series_options.update({
+                    'pattern': {'pattern': 'wide_downward_diagonal', 'fg_color': table[plotting_name_column].map(colours_dict).iloc[row_i], 'bg_color': 'white', 'transparency': 15}
+                })
+            else:
+                series_options.update({
+                    'fill': {'color': table[plotting_name_column].map(colours_dict).iloc[row_i], 'transparency': 15}
+                })
+            
+            percentage_bar_chart.add_series(series_options)
+
+    # Add a title to the chart
+    percentage_bar_chart.set_title({'name': chart_title, 'name_font': {'size': 9}})
+
+    # Double check if chart is empty, if so let user know and skip the chart
+    if len(percentage_bar_chart.series) == 0:
+        print('Chart for ' + sheet + ' with table_id ' + table_id + ' is empty. Skipping...')
+        return False
+    else:
+        return percentage_bar_chart
+
 #######################################
 #CHART CONFIGS
 #######################################
-def area_plotting_specifications(workbook, plotting_specifications, y_axis_max, y_axis_min):
+def area_plotting_specifications(workbook, plotting_specifications, y_axis_max, y_axis_min, first_year_col):
 
     # Create an area charts config
     area_chart = workbook.add_chart({'type': 'area', 'subtype': 'stacked'})
@@ -624,7 +888,7 @@ def area_plotting_specifications(workbook, plotting_specifications, y_axis_max, 
     area_chart.set_x_axis({
         # 'name': 'Year',
         'label_position': 'low',
-        'crossing': OUTLOOK_BASE_YEAR - MIN_YEAR + 1,
+        'crossing': (OUTLOOK_BASE_YEAR - first_year_col) + 1,
         'major_tick_mark': 'none',
         'minor_tick_mark': 'none',
         'num_font': {'name': 'Segoe UI', 'size': 9, 'color': '#323232'},
@@ -659,7 +923,7 @@ def area_plotting_specifications(workbook, plotting_specifications, y_axis_max, 
 
     return area_chart
 
-def bar_plotting_specifications(workbook, plotting_specifications, y_axis_max, y_axis_min):
+def bar_plotting_specifications(workbook, plotting_specifications, y_axis_max, y_axis_min, sheet_name):
     # Create a another chart
     bar_chart = workbook.add_chart({'type': 'column', 'subtype': 'stacked'})#can make this percent_stacked to make it a percentage stacked bar chart!
     bar_chart.set_size({
@@ -670,16 +934,26 @@ def bar_plotting_specifications(workbook, plotting_specifications, y_axis_max, y
     bar_chart.set_chartarea({
         'border': {'none': True}
     })
-    
-    bar_chart.set_x_axis({
-        # 'name': 'Year',
-        'label_position': 'low',
-        'major_tick_mark': 'none',
-        'minor_tick_mark': 'none',
-        'num_font': {'name': 'Segoe UI', 'size': 9, 'color': '#323232'},
-        'interval_unit': 1,
-        'line': {'color': '#bebebe'}
-    })
+    if sheet_name == 'Emissions':
+        bar_chart.set_x_axis({
+            # 'name': 'Year',
+            'label_position': 'low',
+            'major_tick_mark': 'none',
+            'minor_tick_mark': 'none',
+            'num_font': {'name': 'Segoe UI', 'size': 9, 'color': '#323232'},
+            'interval_unit': 10,
+            'line': {'color': '#bebebe'}
+        })
+    else:
+        bar_chart.set_x_axis({
+            # 'name': 'Year',
+            'label_position': 'low',
+            'major_tick_mark': 'none',
+            'minor_tick_mark': 'none',
+            'num_font': {'name': 'Segoe UI', 'size': 9, 'color': '#323232'},
+            'interval_unit': 1,
+            'line': {'color': '#bebebe'}
+        })
         
     bar_chart.set_y_axis({
         'major_tick_mark': 'none', 
@@ -720,7 +994,7 @@ def bar_plotting_specifications(workbook, plotting_specifications, y_axis_max, y
 
     return bar_chart
 
-def line_plotting_specifications(workbook, plotting_specifications, y_axis_max, y_axis_min):
+def line_plotting_specifications(workbook, plotting_specifications, y_axis_max, y_axis_min, first_year_col):
     # Create a FED line chart with higher level aggregation
     line_chart = workbook.add_chart({'type': 'line'})
     line_chart.set_size({
@@ -735,7 +1009,7 @@ def line_plotting_specifications(workbook, plotting_specifications, y_axis_max, 
     line_chart.set_x_axis({
         # 'name': 'Year',
         'label_position': 'low',
-        'crossing': OUTLOOK_BASE_YEAR - MIN_YEAR + 1,
+        'crossing': (OUTLOOK_BASE_YEAR - first_year_col) + 1,
         'major_tick_mark': 'none',
         'minor_tick_mark': 'none',
         'num_font': {'name': 'Segoe UI', 'size': 9, 'color': '#323232'},
@@ -780,25 +1054,124 @@ def line_plotting_specifications(workbook, plotting_specifications, y_axis_max, 
 
     return line_chart
 
-def order_sheets(workbook, plotting_specifications, sheets):
+def combined_plotting_specifications(workbook, plotting_specifications, y_axis_max, y_axis_min, first_year_col):
+
+    # Create a combined charts config
+    primary_chart = workbook.add_chart({'type': 'column', 'subtype': 'stacked'})
+    # Create secondary line chart
+    secondary_chart = workbook.add_chart({'type': 'line', 'secondary': True})
+
+    primary_chart.set_chartarea({
+        'border': {'none': True}
+    })
+
+    # Set the x-axis and y-axis configurations
+    primary_chart.set_x_axis({
+        'label_position': 'low',
+        'crossing': (OUTLOOK_BASE_YEAR - first_year_col) + 1,
+        'major_tick_mark': 'none',
+        'minor_tick_mark': 'none',
+        'num_font': {'name': 'Segoe UI', 'size': 9, 'color': '#323232'},
+        'position_axis': 'on_tick',
+        'interval_unit': 10,
+        'line': {'color': '#bebebe'}
+    })
+        
+    primary_chart.set_y_axis({
+        'major_tick_mark': 'none', 
+        'minor_tick_mark': 'none',
+        'label_position': 'low',
+        'num_font': {'name': 'Segoe UI', 'size': 9, 'color': '#323232'},
+        'num_format': '# ### ### ##0',
+        'major_gridlines': {
+            'visible': True,
+            'line': {'color': '#bebebe'}
+        },
+        'line': {'color': '#323232', 'width': 1, 'dash_type': 'square_dot'},
+        'min': y_axis_min,
+        'max': y_axis_max  # Set the max value for y-axis
+    })
+        
+    primary_chart.set_legend({
+        'font': {'name': 'Segoe UI', 'size': 9}
+        #'none': True
+    })
+        
+    primary_chart.set_title({
+        'name_font': {'size': 9}  # Set the size of the title text
+    })
+
+    return primary_chart, secondary_chart
+
+def percentage_bar_plotting_specifications(workbook, plotting_specifications):
+    # Create a percentage bar chart config
+    percentage_bar_chart = workbook.add_chart({'type': 'area', 'subtype': 'percent_stacked'})
+    percentage_bar_chart.set_size({
+        'width': plotting_specifications['width_pixels'],
+        'height': plotting_specifications['height_pixels']
+    })
+    
+    percentage_bar_chart.set_chartarea({
+        'border': {'none': True}
+    })
+
+    percentage_bar_chart.set_x_axis({
+        # 'name': 'Year',
+        'label_position': 'low',
+        'major_tick_mark': 'none',
+        'minor_tick_mark': 'none',
+        'num_font': {'name': 'Segoe UI', 'size': 9, 'color': '#323232'},
+        'interval_unit': 10,
+        'line': {'color': '#bebebe'}
+    })
+        
+    percentage_bar_chart.set_y_axis({
+        'major_tick_mark': 'none', 
+        'minor_tick_mark': 'none',
+        'label_position': 'low',
+        'num_font': {'name': 'Segoe UI', 'size': 9, 'color': '#323232'},
+        'num_format': '0%',
+        'major_gridlines': {
+            'visible': True,
+            'line': {'color': '#bebebe'}
+        },
+        'line': {'color': '#bebebe'}
+    })
+        
+    percentage_bar_chart.set_legend({
+        'font': {'name': 'Segoe UI', 'size': 9}
+        #'none': True
+    })
+        
+    percentage_bar_chart.set_title({
+        'name_font': {'size': 9}  # Set the size of the title text
+    })
+
+    return percentage_bar_chart
+
+def order_sheets(workbook, plotting_specifications):
     #order the sheets in the workbook accoridng to the custom order in master_config>plotting_specifications>sheet_order. If a sheet is not in the sheet_order list then it will be added to the end of the workbook
+    #note that the workbook may hjave more sheets than are just in sheets. so order all sheets in the workbook not just the ones in sheets
+    
+    # Get a list of all worksheets in the workbook
+    worksheets = workbook.worksheets()
+    # Get the names of all worksheets
+    worksheet_names = [worksheet.get_name() for worksheet in worksheets]
+    
     sheet_order = ast.literal_eval(plotting_specifications['sheet_order'])
     #since sh
     worksheet_order = []
     end_sheets = []
     for sheet in sheet_order:
-        if sheet in sheets:
+        if sheet in worksheet_names:
             worksheet_order.append(sheet)
     
     #find sheets not in sheet_order and add them to the end of the list. they will be in worksheets_objs:
-    # Get a list of all worksheets in the workbook
-    worksheets = workbook.worksheets()
-    # Get the names of all worksheets
-    worksheet_names = [worksheet.get_name() for worksheet in worksheets]
-    end_sheets = [sheet for sheet in worksheet_names if sheet not in worksheet_order]
+    end_sheets = [sheet for sheet in worksheet_names if sheet not in sheet_order]
     worksheet_order = worksheet_order + end_sheets
     
     workbook.worksheets_objs.sort(key=lambda x: worksheet_order.index(x.get_name()))#should add a check here to make sure all sheets are in the workbook
+    
     return workbook
 
 
@@ -809,20 +1182,28 @@ def check_plotting_name_label_in_plotting_name_to_label_dict(colours_dict, plott
             plotting_name_to_label_dict[plotting_name] = plotting_name
     return plotting_name_to_label_dict
 
+import re
+
 def check_plotting_names_in_colours_dict(charts_mapping, colours_dict, RAISE_ERROR_IF_NOT_IN_DICT=False):
-    #cehck that all unique plotting names are in colours_dict, otherwise we will get an error when we try to save the workbook to excel
+    # Check that all unique plotting names are in colours_dict, otherwise we will get an error when we try to save the workbook to Excel
     unique_plotting_names = colours_dict.keys()
     plotting_names_in_charts_mapping = charts_mapping.copy()
     plotting_names_in_charts_mapping = plotting_names_in_charts_mapping['plotting_name'].unique()
     plotting_names_not_in_colours_dict = [x for x in plotting_names_in_charts_mapping if x not in unique_plotting_names]
+    
     if len(plotting_names_not_in_colours_dict) > 0:
         if RAISE_ERROR_IF_NOT_IN_DICT:
             raise Exception('The following plotting names are not in colours_dict: {}'.format(plotting_names_not_in_colours_dict))
         else:
-            #set the missing values to random colours
+            # Set the missing values to random colours
             print('WARNING: The following plotting names are not in colours_dict, they will have random colors assigned: {}'.format(plotting_names_not_in_colours_dict))
             import random
             for plotting_name in plotting_names_not_in_colours_dict:
                 colours_dict[plotting_name] = '#{:06x}'.format(random.randint(0, 256**3-1))
-    return colours_dict
     
+    # Validate that all colors in colours_dict are valid hex colors
+    for plotting_name, color in colours_dict.items():
+        if not re.match(r"#[0-9a-fA-F]{6}", color):
+            raise Exception("Color '%s' isn't a valid Excel color for plotting name '%s'" % (color, plotting_name))
+
+    return colours_dict
