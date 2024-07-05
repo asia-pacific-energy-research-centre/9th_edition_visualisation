@@ -26,6 +26,23 @@ def data_checking_warning_or_error(message):
     else:
         print(message)
 
+# Modify macro data file to include aggregate economies
+# # Load the macro data file
+# macro_data_files = pd.read_csv('../input_data/macro/APEC_GDP_data_20230731.csv')
+
+# # Modify macro data file to append APEC totals
+# macro_mod = macro_data_files.copy()
+# macro_mod['economy_code'] = '00_APEC'
+# macro_mod['economy'] = 'APEC'
+# macro_mod = macro_mod.groupby(['economy_code', 'economy', 'year', 'variable', 'units'], as_index=False)['value'].sum()
+
+# # Concatenate the original data with the modified data containing APEC totals
+# macro_data_files = pd.concat([macro_data_files, macro_mod])
+
+# # Save the concatenated data back to the CSV file
+# macro_data_files.to_csv('../input_data/macro/APEC_GDP_data_20230731.csv', index=False)
+
+
 #######################################################
 #%%
 map_data = True
