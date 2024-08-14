@@ -659,6 +659,8 @@ def modify_gas_to_gas_ccs(df):
     """
     Searches for rows with '18_01_02_gas_power_ccs' under 'sub2sectors' column and changes
     '08_gas' under 'fuels' column to '08_gas_ccs'.
+    Additionally, searches for rows with '14_03_01_03_ccs', '14_03_02_02_ccs', or '14_03_04_01_ccs' 
+    under 'sub3sectors' column and changes '08_gas' under 'fuels' column to '08_gas_ccs'.
     
     Parameters:
     - df (pd.DataFrame): The dataframe to modify.
@@ -666,8 +668,14 @@ def modify_gas_to_gas_ccs(df):
     Returns:
     - df (pd.DataFrame): The modified dataframe.
     """
-    # Define the condition for the rows to modify
-    condition = (df['sub2sectors'] == '18_01_02_gas_power_ccs') & (df['fuels'] == '08_gas')
+    # Define the condition for the rows to modify in sub2sectors
+    condition_sub2 = (df['sub2sectors'] == '18_01_02_gas_power_ccs') & (df['fuels'] == '08_gas')
+    
+    # Define the condition for the rows to modify in sub3sectors
+    condition_sub3 = (df['sub3sectors'].isin(['14_03_01_03_ccs', '14_03_02_02_ccs', '14_03_04_01_ccs'])) & (df['fuels'] == '08_gas')
+    
+    # Combine both conditions
+    condition = condition_sub2 | condition_sub3
     
     # Apply the modification
     df.loc[condition, 'fuels'] = '08_gas_ccs'

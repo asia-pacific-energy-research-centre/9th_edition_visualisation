@@ -51,9 +51,13 @@ def create_sheets_from_mapping_df(workbook, charts_mapping_df, total_plotting_na
         
         # Drop the unnecessary columns 
         charts_mapping.drop(columns=[col for col in charts_mapping.columns if '_y' in col], inplace=True)
-    ########################################
-
     
+    # Additional code to handle Electricity sheet
+    if 'Electricity demand' in charts_mapping['sheet_name'].unique():
+        electricity_sheet_mask = charts_mapping['sheet_name'] == 'Electricity demand'
+        charts_mapping.loc[electricity_sheet_mask, 'unit'] = 'TWh'
+        charts_mapping.loc[electricity_sheet_mask, 'value'] = (charts_mapping.loc[electricity_sheet_mask, 'value'].astype(float) / 3.6).round(1)
+    ########################################
     # Getting the max values for each sheet and chart type to make the charts' y-axis consistent
     max_and_min_values_dict = {}
     max_and_min_values_dict = extract_max_and_min_values(charts_mapping, max_and_min_values_dict, total_plotting_names)
