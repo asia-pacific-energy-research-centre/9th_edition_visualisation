@@ -26,21 +26,48 @@ def data_checking_warning_or_error(message):
     else:
         print(message)
 
-# Modify macro data file to include aggregate economies
-# Load the macro data file
-macro_data_files = pd.read_csv('../input_data/macro/APEC_GDP_data_2024_09_02.csv')
+# # Dictionary of economy codes
+# economy_codes = {
+#     '00_APEC': ['01_AUS', '02_BD', '03_CDA', '04_CHL', '05_PRC', '06_HKC', '07_INA', '08_JPN', '09_ROK', '10_MAS', '11_MEX', '12_NZ', '13_PNG', '14_PE', '15_PHL', '16_RUS', '17_SGP', '18_CT', '19_THA', '20_USA', '21_VN'],
+#     '22_SEA': ['02_BD', '07_INA', '10_MAS', '15_PHL', '17_SGP', '19_THA', '21_VN'],
+#     '23_NEA': ['05_PRC', '06_HKC', '08_JPN', '09_ROK', '18_CT'],
+#     '23b_ONEA': ['01_AUS', '05_PRC', '06_HKC', '08_JPN', '09_ROK', '12_NZ', '13_PNG', '18_CT'],
+#     '24_OAM': ['01_AUS', '03_CDA', '04_CHL', '11_MEX', '12_NZ', '13_PNG', '14_PE', '20_USA'],
+#     '25_OCE': ['01_AUS', '02_BD', '05_PRC', '06_HKC', '07_INA', '08_JPN', '09_ROK', '10_MAS', '12_NZ', '13_PNG', '15_PHL', '17_SGP', '18_CT', '19_THA', '21_VN']
+# } 
 
-# Modify macro data file to append APEC totals
-macro_mod = macro_data_files.copy()
-macro_mod['economy_code'] = '00_APEC'
-macro_mod['economy'] = 'APEC'
-macro_mod = macro_mod.groupby(['economy_code', 'economy', 'year', 'variable', 'units'], as_index=False)['value'].sum()
+# # Modify macro data file to include aggregate economies
+# # Function to check and group economies in the GDP data file
+# def group_economies(df, economy_codes):
+#     for group_code, economies in economy_codes.items():
+#         # Clean the group_code by removing numbers and underscores inline
+#         clean_code = re.sub(r'[^A-Z]', '', group_code)
+        
+#         # Check if the group_code already exists in the 'economy_code' column
+#         if group_code not in df['economy_code'].values:
+#             # Filter the rows based on the economies in the current group
+#             filtered_df = df[df['economy_code'].isin(economies)]
+#             filtered_df['economy_code'] = group_code
+#             filtered_df['economy'] = clean_code
+            
+#             # Add new rows with the group_code and the corresponding data
+#             macro_mod = filtered_df.groupby(['economy_code', 'economy', 'year', 'variable', 'units'], as_index=False)['value'].sum()
+            
+#             # Concatenate the original data with the modified data containing the group_code
+#             df = pd.concat([df, macro_mod])
+#         else:
+#             print(f"{group_code} already exists in the file. Skipping...")
 
-# Concatenate the original data with the modified data containing APEC totals
-macro_data_files = pd.concat([macro_data_files, macro_mod])
+#     return df
 
-# Save the concatenated data back to the CSV file
-macro_data_files.to_csv('../input_data/macro/APEC_GDP_data_2024_09_02.csv', index=False)
+# # Load the macro data file
+# macro_data_files = pd.read_csv('../input_data/macro/APEC_GDP_data_2024_09_02.csv')
+
+# # Modify the macro data file to include the aggregate economies
+# macro_data_files = group_economies(macro_data_files, economy_codes)
+
+# # Save the concatenated data back to the CSV file
+# macro_data_files.to_csv('../input_data/macro/APEC_GDP_data_2024_09_02.csv', index=False)
 
 
 #######################################################
