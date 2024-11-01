@@ -6,14 +6,14 @@ import os
 from datetime import datetime
 
 
-ECONOMY_ID = '04_CHL'#08_JPN
+ECONOMY_ID = '05_PRC'#08_JPN
 
 #######################################################
 #CONFIG PREPARATION
 #create FILE_DATE_ID for use in file names
-FILE_DATE_ID = datetime.now().strftime('%Y%m%d')
+# FILE_DATE_ID = datetime.now().strftime('%Y%m%d')
 
-# FILE_DATE_ID = '20231110'
+FILE_DATE_ID = '20241021'
 total_plotting_names=['Total', 'TPES', 'Total primary energy supply','TFEC', 'TFC', 'Total_industry', 'Total_transport', 'Total_fuels']
 MIN_YEAR = 2000
 

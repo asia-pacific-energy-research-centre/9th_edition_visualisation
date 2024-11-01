@@ -45,7 +45,7 @@ def find_most_recent_file_date_id(files):
         print("No files found with a valid date ID.")
     return most_recent_file
 
-def find_and_load_latest_data_for_all_sources(ECONOMY_ID, sources):
+def find_and_load_latest_data_for_all_sources(ECONOMY_ID, sources): 
     # Initialize variables
     all_file_paths = []
     folder =f'../input_data/{ECONOMY_ID}/'
