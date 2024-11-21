@@ -5,12 +5,6 @@ import ast
 import os
 import shutil
 from utility_functions import *
-STRICT_DATA_CHECKING = False
-# def data_checking_warning_or_error(message):
-#     if STRICT_DATA_CHECKING:
-#         raise Exception(message)
-#     else:
-#         print(message)
 
 def create_sheets_from_mapping_df(workbook, charts_mapping_df, total_plotting_names, MIN_YEAR, colours_dict, cell_format1, cell_format2, header_format, plotting_specifications, plotting_names_order, plotting_name_to_label_dict, writer, EXPECTED_COLS, ECONOMY_ID): 
     #PREPARE DATA ########################################
@@ -60,14 +54,14 @@ def create_sheets_from_mapping_df(workbook, charts_mapping_df, total_plotting_na
     ########################################
     # Getting the max values for each sheet and chart type to make the charts' y-axis consistent
     max_and_min_values_dict = {}
-    max_and_min_values_dict = extract_max_and_min_values(charts_mapping, max_and_min_values_dict, total_plotting_names)
+    max_and_min_values_dict = extract_max_and_min_values(charts_mapping, max_and_min_values_dict, total_plotting_names, plotting_specifications)
     
     colours_dict = check_plotting_names_in_colours_dict(charts_mapping, colours_dict)
     plotting_name_to_label_dict = check_plotting_name_label_in_plotting_name_to_label_dict(colours_dict, plotting_name_to_label_dict)
 
     #so firstly, extract the unique sheets we will create:
     sheets = charts_mapping['sheet_name'].unique()
-
+    
     #create a unit dictionary to map units to the correct sheet, if there are multiple units per sheet then concatenate them 
     # #NOTE THAT THIS DOESNT WORK WITH THE WAY UNITS ARE IMPLEMENTED IN THE CHARTS MAPPING, BUT THE ITNENTION IS THAT ONCE WE START PLOTTING DIFFERENT UNITS THEN THIS WILL BE SOLVED IN THE CHARTS MAPPING, NOT HERE (SO THIS CODE WILL STAY THE SAME)
     unit_dict = charts_mapping[['sheet_name','unit']].drop_duplicates().groupby('sheet_name')['unit'].apply(lambda x: ', '.join(x)).to_dict() #TODO
@@ -90,7 +84,13 @@ def create_sheets_from_mapping_df(workbook, charts_mapping_df, total_plotting_na
         EXPECTED_COLS_wide.remove('year')
         EXPECTED_COLS_wide.remove('value')
         
-        sheet_data = sheet_data.pivot(index=EXPECTED_COLS_wide, columns='year', values='value')
+        try:
+            sheet_data = sheet_data.pivot(index=EXPECTED_COLS_wide, columns='year', values='value')
+        except Exception as e:
+            #check for duplicates
+            if sheet_data.duplicated(subset=EXPECTED_COLS_wide).any():
+                dupes = sheet_data[sheet_data.duplicated(subset=EXPECTED_COLS_wide)]
+            breakpoint()
         # #potentially here we get nas from missing years for certain rows, so replace with 0
         # sheet_data = sheet_data.fillna(0)#decided against it because it seems the nas are useful
         sheet_data = sheet_data.reset_index()
@@ -141,7 +141,12 @@ def create_sheets_from_mapping_df(workbook, charts_mapping_df, total_plotting_na
         # if sheet == 'Production':
         #     breakpoint()#checkingw why production has negative bvlaues
         #create sheet in workbook
-        workbook.add_worksheet(sheet)
+        try:
+            workbook.add_worksheet(sheet)
+        except Exception as e:
+            print('Error adding sheet', sheet, 'to workbook. Error:', e)
+            breakpoint()
+            workbook.add_worksheet(sheet)
         worksheet = workbook.get_worksheet_by_name(sheet)
 
         space_under_tables = 1
@@ -159,6 +164,7 @@ def create_sheets_from_mapping_df(workbook, charts_mapping_df, total_plotting_na
             ########################
             current_row, current_scenario, worksheet = add_section_titles(current_row, current_scenario, sheet, worksheet, cell_format1, cell_format2, space_under_titles, table, space_under_tables,unit_dict, ECONOMY_ID)
             ########################
+            
             table, chart_types, table_id, plotting_name_column, year_cols_start,num_cols, chart_titles, first_year_col, sheet_name = format_table(table,plotting_names_order,plotting_name_to_label_dict)
             
             try:
@@ -200,6 +206,9 @@ def create_sheets_from_mapping_df(workbook, charts_mapping_df, total_plotting_na
             if sheet == 'CO2 emissions components':
                 # Rename the columns using the mapping dictionary
                 table.rename(columns=column_mapping, inplace=True)
+                #need to reset the year_cols_start (it wasnt correct before either)
+                year_cols_start = table.columns.get_loc(f'Emissions {OUTLOOK_BASE_YEAR}') + 1
+                
             ########################
             #write table to sheet
             table.to_excel(writer, sheet_name = sheet, index = False, startrow = current_row)
@@ -213,24 +222,8 @@ def create_sheets_from_mapping_df(workbook, charts_mapping_df, total_plotting_na
             ########################
 
             #write charts to sheet
-            for i, chart in enumerate(charts_to_plot):
-                chart_position = chart_positions[i]
-                import warnings
-
-                try:
-                    with warnings.catch_warnings(record=True) as w:
-                        # Cause all warnings to always be triggered.
-                        warnings.simplefilter("always")
-
-                        # Attempt to insert the chart
-                        worksheet.insert_chart(chart_position, chart)
-
-                        # Check if a warning occurred
-                        if len(w) > 0:
-                            print("Warning caught: ", str(w[-1].message))
-                except Exception as e:
-                    print("Error: ", str(e))
-            
+            worksheet = write_charts_to_sheet(charts_to_plot, chart_positions, worksheet)
+                        
             # #create a copy of the writer and try to close it, if it fails we set breakpoitn so we can see what is going on
             # try:
             #     writer.close()
@@ -242,7 +235,29 @@ def create_sheets_from_mapping_df(workbook, charts_mapping_df, total_plotting_na
     # breakpoint()
     return workbook, writer
 
+def write_charts_to_sheet(charts_to_plot, chart_positions, worksheet):
+    #write charts to sheet
+    for i, chart in enumerate(charts_to_plot):
+        chart_position = chart_positions[i]
+        import warnings
+
+        try:
+            with warnings.catch_warnings(record=True) as w:
+                # Cause all warnings to always be triggered.
+                warnings.simplefilter("always")
+
+                # Attempt to insert the chart
+                worksheet.insert_chart(chart_position, chart)
+
+                # Check if a warning occurred
+                if len(w) > 0:
+                    print("Warning caught: ", str(w[-1].message))
+        except Exception as e:
+            print("Error: ", str(e))
+    return worksheet
+        
 def add_section_titles(current_row, current_scenario, sheet, worksheet, cell_format1, cell_format2, space_under_titles, table, space_under_tables,unit_dict, ECONOMY_ID):
+    
     if current_scenario == '':
         #this is the first table. we will also use this opportunity to add the title of the sheet:
         current_scenario = table['scenario'].iloc[0]
@@ -306,7 +321,7 @@ def prepare_workbook_for_all_charts(ECONOMY_ID, FILE_DATE_ID):
 
     return workbook, writer, space_format, percentage_format, header_format, cell_format1, cell_format2
 
-def extract_max_and_min_values(data, max_and_min_values_dict, total_plotting_names):
+def extract_max_and_min_values(data, max_and_min_values_dict, total_plotting_names, plotting_specifications):
 
     unique_sheets = data['sheet_name'].unique()
     unique_chart_types = data['chart_type'].unique()
@@ -325,9 +340,9 @@ def extract_max_and_min_values(data, max_and_min_values_dict, total_plotting_nam
                 #set value to 0 where plotting name is one of the total plotting names. This is so that the max/min y value is not affected by the total plotting names, since they arent plotted 
                 subset.loc[subset['plotting_name'].isin(total_plotting_names), 'value'] = 0
                 
-                # if chart_type is combined, set value to 0 where plotting name is 'Net emissions'
-                if chart_type == 'combined':
-                    subset.loc[subset['plotting_name'] == 'Net emissions', 'value'] = 0
+                # if chart_type is combined, set value to 0 where plotting name is in plotting_specifications['combined_line_bar_chart_lines_plotting_names']
+                if chart_type == 'combined_line_bar':
+                    subset.loc[subset['plotting_name'].isin(plotting_specifications['combined_line_bar_chart_lines_plotting_names']), 'value'] = 0
 
                 # if subset.aggregate_name_column.iloc[0] == 'fuels_plotting':
                 #     subset.loc[subset['plotting_name_column'].isin(total_plotting_names), 'value'] = 0
@@ -395,21 +410,27 @@ def calculate_y_axis_value(value):
         y_axis_value = value - (0.1 * abs(value))
 
     # Use absolute value to handle the logarithm for negatives
-    order_of_magnitude = 10 ** math.floor(math.log10(abs(y_axis_value)))
-    rounding_step = order_of_magnitude / 2
+    if y_axis_value != 0:
+        order_of_magnitude = 10 ** math.floor(math.log10(abs(y_axis_value)))
+        rounding_step = order_of_magnitude / 2
 
-    # If the value is positive, round up. If negative, round down.
-    if y_axis_value > 0:
-        y_axis_value = math.ceil(y_axis_value / rounding_step) * rounding_step
-    else:
-        y_axis_value = math.floor(y_axis_value / rounding_step) * rounding_step
+        # If the value is positive, round up. If negative, round down.
+        if y_axis_value > 0:
+            y_axis_value = math.ceil(y_axis_value / rounding_step) * rounding_step
+        else:
+            y_axis_value = math.floor(y_axis_value / rounding_step) * rounding_step
 
     return y_axis_value
 
 def create_charts(table, chart_types, plotting_specifications, workbook, num_table_rows, plotting_name_column, table_id, sheet, current_row, space_under_tables, column_row, year_cols_start, num_cols, colours_dict, total_plotting_names, max_and_min_values_dict, chart_titles, first_year_col, sheet_name):
+    
+    #check the colors here again, jsut in case since its really tough to spot the error if the colors are wrong:
+    colours_dict = check_plotting_names_in_colours_dict(table, colours_dict, plotting_name_column=plotting_name_column)
+    
     # Depending on the chart type, create different charts. Then add them to the worksheet according to their positions
     charts_to_plot = []
     plotting_name_column_index = table.columns.get_loc(plotting_name_column)
+    
     for i, chart in enumerate(chart_types):
         chart_title = chart_titles[0]
         # Get the y_axis_max from max_and_min_values_dict by including the table_id in the key
@@ -435,6 +456,7 @@ def create_charts(table, chart_types, plotting_specifications, workbook, num_tab
             charts_to_plot.append(line_chart)
 
         elif chart == 'area':
+            
             # Configure the chart with the updated y_axis_max, y_axis_min
             area_chart = area_plotting_specifications(workbook, plotting_specifications, y_axis_max, y_axis_min, first_year_col)
             area_chart = create_area_chart(num_table_rows, table, plotting_name_column, sheet, current_row, space_under_tables, column_row, plotting_name_column_index, year_cols_start, num_cols, colours_dict, area_chart, total_plotting_names, table_id, chart_title)
@@ -450,21 +472,32 @@ def create_charts(table, chart_types, plotting_specifications, workbook, num_tab
                 continue
             charts_to_plot.append(bar_chart)
 
-        elif chart == 'combined':
-            primary_chart, secondary_chart = combined_plotting_specifications(workbook, plotting_specifications, y_axis_max, y_axis_min, first_year_col)
+        elif chart == 'combined_line_bar':
+            
+            primary_chart, secondary_chart = combined_line_bar_plotting_specifications(workbook, plotting_specifications, y_axis_max, y_axis_min, first_year_col)
             line_thickness = plotting_specifications['line_thickness']
-            combined_chart = create_combined_chart(num_table_rows, table, plotting_name_column, sheet, current_row,space_under_tables,column_row, plotting_name_column_index, year_cols_start, num_cols, colours_dict, primary_chart, secondary_chart, total_plotting_names, line_thickness, table_id, chart_title, plotting_specifications)
+            combined_chart = create_combined_line_bar_chart(num_table_rows, table, plotting_name_column, sheet, current_row,space_under_tables,column_row, plotting_name_column_index, year_cols_start, num_cols, colours_dict, primary_chart, secondary_chart, total_plotting_names, line_thickness, table_id, chart_title, plotting_specifications)
             if not combined_chart:
                 continue
             charts_to_plot.append(combined_chart)
 
         elif chart == 'percentage_bar':
+            
             percentage_bar_chart = percentage_bar_plotting_specifications(workbook, plotting_specifications)
             percentage_bar_chart = create_percentage_bar_chart(num_table_rows, table, plotting_name_column, sheet, current_row, space_under_tables, column_row, plotting_name_column_index, year_cols_start, num_cols, colours_dict, percentage_bar_chart, total_plotting_names, table_id, chart_title)
             if not percentage_bar_chart:
                 continue
             charts_to_plot.append(percentage_bar_chart)
-
+        # elif chart == 'combined_line_bar':
+        #     bar_chart = bar_plotting_specifications(workbook, plotting_specifications, y_axis_max, y_axis_min, sheet_name)
+        #     line_chart = line_plotting_specifications(workbook, plotting_specifications, y_axis_max, y_axis_min, first_year_col)
+            
+        #     combined_chart = combine_bar_and_line_chart_specs(workbook, bar_chart, line_chart, plotting_specifications)
+            
+        #     combined_chart = create_combined_bar_and_line_chart(num_table_rows, table, plotting_name_column, sheet, current_row, space_under_tables, column_row, plotting_name_column_index, year_cols_start, num_cols, colours_dict, bar_chart, line_chart, total_plotting_names, plotting_specifications['line_thickness'], table_id, chart_title)
+            
+        #     charts_to_plot.append(combined_chart)
+            
     return charts_to_plot
 
 
@@ -507,16 +540,23 @@ def format_table(table,plotting_names_order,plotting_name_to_label_dict):
     sheet_name = table['sheet_name'].iloc[0]
     chart_titles = table['chart_title'].unique()
     #make sure that we only have data for one of the cahrt ttypes. The data should be the same since its based on the same table, so jsut take the first one
-    table = table[table['chart_type']==chart_types[0]].copy()
-    
+    number_unique_charts = len(table['chart_type'].unique())
+    # table = table[table['chart_type']==chart_types[0]].copy()
+    if len(table['chart_type'].unique()) > 1:
+        #remove duplicates where we exclude the chart type column and if that contains exactly x/number_unique_charts then the rows then we can assume that the chart types are different for the same table, so we will choose to keep the first chart type to keep previous behaviour of the system
+        if len(table.drop_duplicates(subset = table.columns.difference(['chart_type']))) == len(table)/number_unique_charts:
+            table = table[table['chart_type']==chart_types[0]].copy()
+        else:
+            pass
+            #trying to work out whether having multiple chart types is an issue since we want to be able to od this for the bar line chart type but it seems that given the fix aboev it should be fine
     #then drop these columns
     table = table.drop(columns = ['aggregate_name_column', 'plotting_name_column', 'chart_type','table_id', 'dimensions', 'chart_title', 'scenario', 'unit', 'sheet_name'])#not sure if we should remove scenario and unit but it seems right since they are at the top of the section for that sheet. if it becomes a issue i think we should focus on making it clearer, not adding it to the table
     
     #format some cols:
     num_cols = len(table.dropna(axis='columns', how='all').columns) - 1
-    first_non_object_col = table.select_dtypes(exclude=['object']).columns[0]
-    year_cols_start = table.columns.get_loc(first_non_object_col)
+    year_cols = [col for col in table.columns if re.search(r'\d{4}', str(col))]
     
+    year_cols_start = table.columns.get_loc(year_cols[0])
     year_cols = table.columns[year_cols_start:]
     
     # Adjust num_cols for 'Transport stocks' and 'Transport activity' sheet
@@ -551,24 +591,16 @@ def format_table(table,plotting_names_order,plotting_name_to_label_dict):
     
     # Get the year of the first year column for crossing
     first_year_col = year_cols[0]
-
+    
     #set order of columns and table, dependent on what the aggregate column is:
     table = sort_table_rows_and_columns(table,table_id,plotting_names_order,year_cols)
     
     #rename fuels_plotting, emissions_fuels_plotting and emissions_sectors_plotting, sectors_plotting, capacity_plotting to Fuel and Sector respectively
-    if plotting_name_column == 'fuels_plotting':
+    if plotting_name_column == 'fuels_plotting' or plotting_name_column == 'emissions_fuels_plotting':
         table.rename(columns = {'plotting_name':'Fuel', 'aggregate_name':'Sector'}, inplace = True)
         plotting_name_column = 'Fuel'
         aggregate_name_column = 'Sector'
-    elif plotting_name_column == 'emissions_fuels_plotting':
-        table.rename(columns = {'plotting_name':'Fuel', 'aggregate_name':'Sector'}, inplace = True)
-        plotting_name_column = 'Fuel'
-        aggregate_name_column = 'Sector'
-    elif plotting_name_column == 'sectors_plotting':
-        table.rename(columns = {'plotting_name':'Sector', 'aggregate_name':'Fuel'}, inplace = True)
-        plotting_name_column = 'Sector'
-        aggregate_name_column = 'Fuel'
-    elif plotting_name_column == 'emissions_sectors_plotting':
+    elif plotting_name_column == 'sectors_plotting' or plotting_name_column == 'emissions_sectors_plotting':
         table.rename(columns = {'plotting_name':'Sector', 'aggregate_name':'Fuel'}, inplace = True)
         plotting_name_column = 'Sector'
         aggregate_name_column = 'Fuel'
@@ -581,17 +613,29 @@ def format_table(table,plotting_names_order,plotting_name_to_label_dict):
         if str(aggregate_name_column) == 'nan':
             table.rename(columns = {'plotting_name':plotting_name_column}, inplace = True)
             table.drop(columns = ['aggregate_name'], inplace = True)
+            #since we dropped a column we need to update the year_cols_start to start at year_cols_start -1 (but for some reason year_cols_start = table.columns.get_loc(year_cols[0]) doesnt work)
+            year_cols_start -= 1 
         else:
             table.rename(columns = {'plotting_name':plotting_name_column, 'aggregate_name':aggregate_name_column}, inplace = True)
         
     #convert plotting column and aggregate columns names to labels if any of them need converting:
-    table[plotting_name_column] = table[plotting_name_column].map(plotting_name_to_label_dict)#todo test i dont delete data here
+    try:
+        table[plotting_name_column] = table[plotting_name_column].map(plotting_name_to_label_dict).fillna(table[plotting_name_column])
+    except:
+        # breakpoint()#TypeError: Cannot set a Categorical with another, without identical categories
+        table[plotting_name_column] = table[plotting_name_column].map(plotting_name_to_label_dict)
+        
+    #and just in case we now have any duplicated plotting anmes from the mapping, we will sum them
+    if aggregate_name_column in table.columns:
+        table = table.groupby([aggregate_name_column, plotting_name_column], observed=True, sort=False).sum().reset_index()
+    else:
+        table = table.groupby([plotting_name_column], observed=True, sort=False).sum().reset_index()
     
     return table, chart_types, table_id, plotting_name_column, year_cols_start,num_cols, chart_titles, first_year_col, sheet_name
 
 def create_bar_chart_table(table,year_cols_start,bar_years, sheet_name):
     # Directly return the original table without modifications if sheet_name is 'Emissions'
-    if sheet_name == 'Emissions':
+    if sheet_name in ['Emissions_co2', 'Emissions_ch4', 'Emissions_co2e', 'Emissions_no2']:
         return table
     
     #create a new table of data so we only have data for every year that is a mutliple of 10. If the first year is not a multiple of 10 then include this too. This will be written 2 row under the table this is based on
@@ -670,6 +714,10 @@ def create_area_chart(num_table_rows, table, plotting_name_column, sheet, curren
                     'border':     {'none': True}
                     })
             else:
+                #check if were missing the color so table[plotting_name_column].map(colours_dict).iloc[row_i] is nan and whether thats causing errors
+                if table[plotting_name_column].map(colours_dict).iloc[row_i] is np.nan:
+                    breakpoint()
+                    
                 # Apply a solid fill for others
                 area_chart.add_series({
                     'name':       [sheet, table_start_row + row_i + 1, plotting_name_column_index],
@@ -780,15 +828,17 @@ def create_bar_chart(num_table_rows, table, plotting_name_column, sheet, current
         return False
     else:
         return bar_chart
+    
 
-def create_combined_chart(num_table_rows, table, plotting_name_column, sheet, current_row, space_under_tables, column_row, plotting_name_column_index, year_cols_start, num_cols, colours_dict, primary_chart, secondary_chart, total_plotting_names, line_thickness, table_id, chart_title, plotting_specifications):
+def create_combined_line_bar_chart(num_table_rows, table, plotting_name_column, sheet, current_row, space_under_tables, column_row, plotting_name_column_index, year_cols_start, num_cols, colours_dict, primary_chart, secondary_chart, total_plotting_names, line_thickness, table_id, chart_title, plotting_specifications):
     table_start_row = current_row - num_table_rows - space_under_tables - column_row
-
+    
     # Set the gap and overlap for the primary chart
     # It is only necessary to apply the gap and overlap property to one series in the primary chart.
-    gap = 33  # Set the gap between columns to 33
+    
+    gap = 0  # Set the gap between columns to 33
     overlap = 100  # Set the overlap between columns to 100
-
+    GAP_OVERLAP_APPLIED = False
     # Add series to primary chart
     for row_i in range(num_table_rows):
         series_name = table[plotting_name_column].iloc[row_i]
@@ -801,7 +851,7 @@ def create_combined_chart(num_table_rows, table, plotting_name_column, sheet, cu
                 'values':     [sheet, table_start_row + row_i + 1, year_cols_start - 1, table_start_row + row_i + 1, num_cols - 1],
                 'border':     {'none': True}
             }
-            if not 'Net emissions' in series_name:
+            if series_name not in plotting_specifications['combined_line_bar_chart_lines_plotting_names']:
                 if 'CCS' in series_name or 'carbon capture' in series_name:
                     # Apply a pattern fill for 'CCS' or 'carbon capture'
                     series_options.update({
@@ -812,11 +862,13 @@ def create_combined_chart(num_table_rows, table, plotting_name_column, sheet, cu
                     series_options.update({
                         'fill': {'color': table[plotting_name_column].map(colours_dict).iloc[row_i]}
                     })
-                # Only apply gap and overlap to the first series
-                if row_i == 0:
+                # Only apply gap and overlap once to the series
+                if GAP_OVERLAP_APPLIED is False:
                     series_options.update({'gap': gap, 'overlap': overlap})
+                    GAP_OVERLAP_APPLIED = True
                 primary_chart.add_series(series_options)
-            elif 'Net emissions' in series_name:
+            elif series_name in plotting_specifications['combined_line_bar_chart_lines_plotting_names']:
+                
                 # This part remains unchanged
                 # Add a series to secondary chart with line settings
                 secondary_chart.add_series({
@@ -825,7 +877,6 @@ def create_combined_chart(num_table_rows, table, plotting_name_column, sheet, cu
                     'values':     [sheet, table_start_row + row_i + 1, year_cols_start - 1, table_start_row + row_i + 1, num_cols - 1],
                     'line':       {'color': table[plotting_name_column].map(colours_dict).iloc[row_i], 'width': line_thickness}
                 })
-
     # Combine the charts and configure the combined chart as before
     primary_chart.combine(secondary_chart)
     primary_chart.set_title({'name': chart_title, 'name_font': {'size': 9}})
@@ -836,7 +887,7 @@ def create_combined_chart(num_table_rows, table, plotting_name_column, sheet, cu
         return False
     else:
         return primary_chart
-
+    
 def create_percentage_bar_chart(num_table_rows, table, plotting_name_column, sheet, current_row, space_under_tables, column_row, plotting_name_column_index, year_cols_start, num_cols, colours_dict, percentage_bar_chart, total_plotting_names, table_id, chart_title):
     # Extract the series of data for the chart from the excel sheets data.
     table_start_row = current_row - num_table_rows - space_under_tables - column_row
@@ -938,7 +989,7 @@ def bar_plotting_specifications(workbook, plotting_specifications, y_axis_max, y
     bar_chart.set_chartarea({
         'border': {'none': True}
     })
-    if sheet_name == 'Emissions':
+    if sheet_name in ['Emissions_co2', 'Emissions_ch4', 'Emissions_co2e', 'Emissions_no2']:
         bar_chart.set_x_axis({
             # 'name': 'Year',
             'label_position': 'low',
@@ -1056,9 +1107,9 @@ def line_plotting_specifications(workbook, plotting_specifications, y_axis_max, 
     #             'line':       {'color': ref_fedfuel_1['fuel_code'].map(colours_dict).loc[i], 'width': 1}
     #         })
 
-    return line_chart
+    return line_chart   
 
-def combined_plotting_specifications(workbook, plotting_specifications, y_axis_max, y_axis_min, first_year_col):
+def combined_line_bar_plotting_specifications(workbook, plotting_specifications, y_axis_max, y_axis_min, first_year_col):
 
     # Create a combined charts config
     primary_chart = workbook.add_chart({'type': 'column', 'subtype': 'stacked'})
@@ -1162,7 +1213,7 @@ def order_sheets(workbook, plotting_specifications):
     # Get the names of all worksheets
     worksheet_names = [worksheet.get_name() for worksheet in worksheets]
     
-    sheet_order = ast.literal_eval(plotting_specifications['sheet_order'])
+    sheet_order = plotting_specifications['sheet_order']
     #since sh
     worksheet_order = []
     end_sheets = []
@@ -1188,11 +1239,11 @@ def check_plotting_name_label_in_plotting_name_to_label_dict(colours_dict, plott
 
 import re
 
-def check_plotting_names_in_colours_dict(charts_mapping, colours_dict, RAISE_ERROR_IF_NOT_IN_DICT=False):
+def check_plotting_names_in_colours_dict(charts_mapping, colours_dict, RAISE_ERROR_IF_NOT_IN_DICT=False, plotting_name_column='plotting_name'):
     # Check that all unique plotting names are in colours_dict, otherwise we will get an error when we try to save the workbook to Excel
     unique_plotting_names = colours_dict.keys()
     plotting_names_in_charts_mapping = charts_mapping.copy()
-    plotting_names_in_charts_mapping = plotting_names_in_charts_mapping['plotting_name'].unique()
+    plotting_names_in_charts_mapping = plotting_names_in_charts_mapping[plotting_name_column].unique()
     plotting_names_not_in_colours_dict = [x for x in plotting_names_in_charts_mapping if x not in unique_plotting_names]
     
     if len(plotting_names_not_in_colours_dict) > 0:
@@ -1211,3 +1262,135 @@ def check_plotting_names_in_colours_dict(charts_mapping, colours_dict, RAISE_ERR
             raise Exception("Color '%s' isn't a valid Excel color for plotting name '%s'" % (color, plotting_name))
 
     return colours_dict
+
+
+
+# def create_combined_bar_and_line_chart(num_table_rows, table, plotting_name_column, sheet, current_row, space_under_tables, column_row, 
+#                           plotting_name_column_index, year_cols_start, num_cols, colours_dict, bar_chart, line_chart, total_plotting_names, 
+#                           line_thickness, table_id, chart_title):
+#     """
+#     Creates a combined bar and line chart from the given data.
+    
+#     :param num_table_rows: Number of rows in the table to be plotted.
+#     :param table: The data table containing the plotting data.
+#     :param plotting_name_column: Column name used for labeling the series.
+#     :param sheet: Name of the Excel sheet.
+#     :param current_row: Current row position in the Excel sheet.
+#     :param space_under_tables: Space between tables in the sheet.
+#     :param column_row: Column row offset.
+#     :param plotting_name_column_index: Index of the plotting name column.
+#     :param year_cols_start: Column index for the year start.
+#     :param num_cols: Total number of columns.
+#     :param colours_dict: Dictionary mapping series names to colors.
+#     :param total_plotting_names: List of names to be excluded from plotting.
+#     :param line_thickness: Thickness of the line in the line chart.
+#     :param table_id: ID for the current table.
+#     :param chart_title: Title for the chart.
+    
+#     :return: A combined bar and line chart object.
+#     """
+#     table_start_row = current_row - num_table_rows - space_under_tables - column_row
+    
+#     # Extract bar chart series from the data
+#     for row_i in range(num_table_rows):
+#         series_name = table[plotting_name_column].iloc[row_i]
+#         if series_name in total_plotting_names:
+#             continue
+#         if 'CCS' in series_name or 'idle' in series_name or series_name == 'base' or 'rise' in series_name or 'fall' in series_name:
+#             raise Exception("Series name should not be 'CCS', 'idle', 'base', 'rise', or 'fall' for a combined bar and line chart.")
+#         else:
+#             # Apply a solid fill for others
+#             bar_chart.add_series({
+#                 'name':       [sheet, table_start_row + row_i + 1, plotting_name_column_index],
+#                 'categories': [sheet, table_start_row, year_cols_start - 1, table_start_row, num_cols - 1],
+#                 'values':     [sheet, table_start_row + row_i + 1, year_cols_start - 1, table_start_row + row_i + 1, num_cols - 1],
+#                 'fill':       {'color': table[plotting_name_column].map(colours_dict).iloc[row_i]},
+#                 'border':     {'none': True}
+#             })
+        
+#     # Extract line chart series from the data
+#     for row_i in range(num_table_rows):
+#         if table[plotting_name_column].iloc[row_i] in total_plotting_names:
+#             continue
+#         line_chart.add_series({
+#             'name':       [sheet, table_start_row + row_i + 1, plotting_name_column_index],
+#             'categories': [sheet, table_start_row, year_cols_start - 1, table_start_row, num_cols - 1],
+#             'values':     [sheet, table_start_row + row_i + 1, year_cols_start - 1, table_start_row + row_i + 1, num_cols - 1],
+#             'line':       {'color': table[plotting_name_column].map(colours_dict).iloc[row_i], 'width': line_thickness}
+#         })
+    
+#     # Combine the bar chart and line chart
+#     combined_chart = bar_chart
+#     combined_chart.combine(line_chart)
+#     breakpoint()
+#     # Add a title to the chart
+#     combined_chart.set_title({'name': chart_title,'name_font': {'size': 9}})
+    
+#     #double check if chart is empty, if so let user know and skip the chart
+#     if len(combined_chart.series) == 0:
+#         print('Chart for ' + sheet +' with table_id ' + table_id + ' is empty. Skipping...')
+#         return False
+#     else:
+#         return combined_chart
+
+    
+# def combine_bar_and_line_chart_specs(workbook, bar_chart, line_chart, plotting_specifications):
+#     """
+#     Combines a bar chart and a line chart into a single chart.
+    
+#     :param workbook: The xlsxwriter Workbook object.
+#     :param bar_chart: The existing bar chart object.
+#     :param line_chart: The existing line chart object.
+#     :param plotting_specifications: A dictionary containing specifications for the plot, like width and height.
+#     """
+    
+#     # Set the combined chart as a 'chart' type to allow combination
+#     combined_chart = workbook.add_chart({'type': 'column'})
+
+#     # Add the bar chart to the combined chart
+#     combined_chart.combine(line_chart)
+    
+#     # Apply the same chart specifications to the combined chart
+#     combined_chart.set_size({
+#         'width': plotting_specifications['width_pixels'],
+#         'height': plotting_specifications['height_pixels']
+#     })
+    
+#     combined_chart.set_chartarea({
+#         'border': {'none': True}
+#     })
+    
+#     # Configure X-axis and Y-axis properties
+#     combined_chart.set_x_axis({
+#         'label_position': 'low',
+#         'major_tick_mark': 'none',
+#         'minor_tick_mark': 'none',
+#         'num_font': {'name': 'Segoe UI', 'size': 9, 'color': '#323232'},
+#         'interval_unit': 1,
+#         'line': {'color': '#bebebe'}
+#     })
+    
+#     combined_chart.set_y_axis({
+#         'major_tick_mark': 'none',
+#         'minor_tick_mark': 'none',
+#         'label_position': 'low',
+#         'num_font': {'name': 'Segoe UI', 'size': 9, 'color': '#323232'},
+#         'num_format': '# ### ### ##0',
+#         'major_gridlines': {
+#             'visible': True,
+#             'line': {'color': '#bebebe'}
+#         },
+#         'line': {'color': '#bebebe'}
+#     })
+    
+#     # Set legend and title similar to bar chart
+#     combined_chart.set_legend({
+#         'font': {'name': 'Segoe UI', 'size': 9}
+#     })
+    
+#     combined_chart.set_title({
+#         'name': 'Combined Bar and Line Chart',
+#         'name_font': {'size': 9}
+#     })
+
+#     return combined_chart

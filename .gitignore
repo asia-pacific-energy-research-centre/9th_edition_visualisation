@@ -4,6 +4,7 @@
 # output/*
 # config/computer_generated/*
 **/archive
+**/exploration
 # original_preparation_code/*
 *.7z
 *.xlsx

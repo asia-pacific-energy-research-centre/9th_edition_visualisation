@@ -8,8 +8,81 @@ import collections
 import re
 from datetime import datetime
 from utility_functions import *
-STRICT_DATA_CHECKING = False
+import ast
 
+def load_and_format_configs():
+    # Import master_config xlsx
+    plotting_specifications = pd.read_excel('../config/master_config.xlsx', sheet_name='plotting_specifications')
+    plotting_name_to_label = pd.read_excel('../config/master_config.xlsx', sheet_name='plotting_name_to_label')
+    colours_dict = pd.read_excel('../config/master_config.xlsx', sheet_name='colors')
+    with open(f'../intermediate_data/config/plotting_names_order_{FILE_DATE_ID}.pkl', 'rb') as handle:
+        plotting_names_order = pickle.load(handle)
+    ################################################################################
+    # FORMAT CONFIGS
+    ################################################################################
+    # Convert into dictionary
+    if len(plotting_specifications.columns) != 2:
+        raise Exception('plotting_specifications must have exactly two columns')
+    plotting_specifications = plotting_specifications.set_index(plotting_specifications.columns[0]).to_dict()[plotting_specifications.columns[1]]
+    # format anything with [] in it as a list
+    for key in plotting_specifications.keys():
+        # e.g. 
+        # Format the bar_years as a list
+        # plotting_specifications['bar_years'] = ast.literal_eval(plotting_specifications['bar_years'])
+        if '[' in str(plotting_specifications[key]) and ']' in str(plotting_specifications[key]):
+            plotting_specifications[key] = ast.literal_eval(plotting_specifications[key])
+
+    plotting_name_to_label_dict = plotting_name_to_label.set_index(plotting_name_to_label.columns[0]).to_dict()[plotting_name_to_label.columns[1]]
+    colours_dict = colours_dict.set_index(colours_dict.columns[0]).to_dict()[colours_dict.columns[1]]
+    
+    return plotting_specifications, plotting_name_to_label_dict, colours_dict, plotting_names_order
+
+def gather_charts_mapping_dict(ECONOMY_ID, FILE_DATE_ID,sources = ['energy', 'emissions_co2', 'emissions_ch4', 'emissions_co2e', 'emissions_no2', 'capacity']):
+    charts_mapping_1d = load_checkpoint('charts_mapping_1d')
+    
+    # Read in titles, only, from charts mapping for each available economy for the FILE_DATE_ID
+    all_charts_mapping_files_dict = {}
+    co2e_charts_mapping_df = pd.DataFrame()
+    for source in sources:
+        charts_mapping_files = [x for x in os.listdir('../intermediate_data/data/') if 'charts_mapping' in x and source in x]
+        #just in case we accidentally pick up fiels from other sources that are named similarly, check that none of the others are in here:
+        #if the source is emissions_co2, we should not have emissions_co2e in the list of files! (this is a bit of a manual check)
+        if source == 'emissions_co2':
+            charts_mapping_files = [x for x in charts_mapping_files if 'emissions_co2e' not in x]
+        charts_mapping_files = [x for x in charts_mapping_files if 'pkl' in x]
+        charts_mapping_files = [x for x in charts_mapping_files if FILE_DATE_ID in x]
+        charts_mapping_files = [x for x in charts_mapping_files if ECONOMY_ID in x]
+        if len(charts_mapping_files) > 1:
+            print(f'We have more than 1 charts mapping input for the source {source}, economy {ECONOMY_ID}: {charts_mapping_files}')
+        
+        #also, we want to concatenate the files for emissions_ch4, emissions_co2e and emissions_no2 then cal their source emissions_co2e
+        if source in ['emissions_ch4', 'emissions_co2e', 'emissions_no2']:
+            pass
+        else:
+            all_charts_mapping_files_dict[source] = []
+            
+        for mapping_file in charts_mapping_files:
+            charts_mapping_df = pd.read_pickle(f'../intermediate_data/data/{mapping_file}')
+            
+            #rename their source to emissions_co2e as well as concatenate with similar files. we will add it to the dictionary at the end
+            if source in ['emissions_ch4', 'emissions_co2e', 'emissions_no2']:
+                charts_mapping_df['source'] = 'emissions_co2e'
+                co2e_charts_mapping_df = pd.concat([co2e_charts_mapping_df, charts_mapping_df])
+            else:
+                all_charts_mapping_files_dict[source].append(charts_mapping_df)
+
+    #add the co2e charts mapping to the dictionary
+    if len(co2e_charts_mapping_df) > 0:
+        all_charts_mapping_files_dict['emissions_co2e'] = [co2e_charts_mapping_df]
+
+    if len(charts_mapping_files) == 0:
+        raise Exception('No charts mapping files found for FILE_DATE_ID: {}'.format(FILE_DATE_ID))
+
+    # Add the unique sources from charts_mapping_1d to all_charts_mapping_files_dict
+    for source in charts_mapping_1d.source.unique():
+        all_charts_mapping_files_dict[source] = [charts_mapping_1d[charts_mapping_1d.source == source]]
+        
+    return all_charts_mapping_files_dict
 
 def find_most_recent_file_date_id(files):
     """Find the most recent file in a directory based on the date ID in the filename."""
@@ -45,7 +118,7 @@ def find_most_recent_file_date_id(files):
         print("No files found with a valid date ID.")
     return most_recent_file
 
-def find_and_load_latest_data_for_all_sources(ECONOMY_ID, sources):
+def find_and_load_latest_data_for_all_sources(ECONOMY_ID, sources): 
     # Initialize variables
     all_file_paths = []
     folder =f'../input_data/{ECONOMY_ID}/'
@@ -63,6 +136,12 @@ def find_and_load_latest_data_for_all_sources(ECONOMY_ID, sources):
     all_files_with_source = []
     for source in sources:
         all_file_paths_source = [file_path for file_path in all_file_paths if source in os.path.basename(file_path)]
+        
+        #########CHECK##########
+        #if the source is emissions_co2, we should not have emissions_co2e in the list of files! (this is a bit of a manual check)
+        if source == 'emissions_co2':
+            all_file_paths_source = [x for x in all_file_paths_source if 'emissions_co2e' not in x]
+        #########CHECK##########
         all_files_with_source = all_files_with_source + all_file_paths_source
         if len(all_file_paths_source) == 0:
             print(f'No file found for {source}')
@@ -524,7 +603,6 @@ def format_chart_titles(charts_mapping, ECONOMY_ID):
         return row['chart_title']
     
     charts_mapping['chart_title'] = charts_mapping.apply(lambda row: map_variable_to_value(row, ECONOMY_ID), axis=1)
-    
     return charts_mapping
 
 def modify_dataframe_content(all_model_df_wides_dict, source, modification_func):
@@ -706,99 +784,112 @@ def modify_hydrogen_green_electricity(df):
     return df
 
 # Temporary fix to exclude hydrogen in ccs emissions
-def drop_hydrogen_transformation_rows(df):
-    """
-    Drops rows from the DataFrame where 'sub1sectors' is '09_13_hydrogen_transformation'.
+# def drop_hydrogen_transformation_rows(df):
+#     """
+#     Drops rows from the DataFrame where 'sub1sectors' is '09_13_hydrogen_transformation'.
 
-    Parameters:
-    - df (pd.DataFrame): The dataframe to modify.
+#     Parameters:
+#     - df (pd.DataFrame): The dataframe to modify.
     
-    Returns:
-    - df (pd.DataFrame): The modified dataframe with specified rows dropped.
-    """
-    # Define the condition for rows to drop
-    condition = df['sub1sectors'] == '09_13_hydrogen_transformation'
+#     Returns:
+#     - df (pd.DataFrame): The modified dataframe with specified rows dropped.
+#     """
+#     # Define the condition for rows to drop
+#     condition = df['sub1sectors'] == '09_13_hydrogen_transformation'
     
-    # Drop rows that match the condition
-    df = df[~condition]
+#     # Drop rows that match the condition
+#     df = df[~condition]
 
-    return df
+#     return df
 
-def rename_sectors_and_negate_values_based_on_ccs_cap(df):
-    """
-    For rows with a suffix '_ccs_cap' in 'sub2sectors' or 'sub3sectors' columns:
-    - Adds '_emissions_cap' to the suffix of the category name in the 'sectors' column and ensures values in year columns are negative.
-    - Copies these rows, renames the category in 'sectors' to '_emissions_cap_pos', and makes the year values positive.
+# def create_net_emission_rows(df):
+#     #also want to create new lines for fuels == 23_total_combustion_emissions_net where their sectors now = 20_total_combustion_emissions
+#     #and then where sectors == 21_total_combustion_emissions_net,make thier fuels = 22_total_combustion_emissions
+#     condition = (df['sectors'] == '21_total_combustion_emissions_net') & (df['fuels'] == '23_total_combustion_emissions_net')
+#     new_rows1 = df[condition].copy()
+#     new_rows1['sectors'] = '20_total_combustion_emissions'
+#     new_rows2 = df[condition].copy()
+#     new_rows2['fuels'] = '22_total_combustion_emissions'
+#     df = pd.concat([df, new_rows1, new_rows2], ignore_index=True)
+#     return df
     
-    Parameters:
-    - df (pd.DataFrame): The dataframe to modify.
+# def rename_sectors_and_negate_values_based_on_ccs_cap(df):
+#     """
+#     For rows with a suffix '_ccs_captured_emissions' in 'sub2sectors' or 'sub3sectors' columns:
+#     - Creates more rows and adds '_captured_emissions' to the suffix of the category name in the 'sectors' column and checks values in year columns are negative.
+#     - Copies these rows, renames the category in 'sectors' to '_captured_emissions_pos', and makes the year values positive.
     
-    Returns:
-    - df (pd.DataFrame): The modified dataframe with additional rows appended.
-    """
-    # Identify year columns
-    year_columns = [col for col in df.columns if col.isdigit()]
-
-    # Define condition for rows to modify
-    condition = df['sub2sectors'].str.endswith('_ccs_cap') | df['sub3sectors'].str.endswith('_ccs_cap')
+#     Parameters:
+#     - df (pd.DataFrame): The dataframe to modify.
     
-    # Copy the rows that meet the condition, to modify and append them
-    rows = df.loc[condition].copy()
+#     Returns:
+#     - df (pd.DataFrame): The modified dataframe with additional rows appended.
+#     """
+#     # Identify year columns
+#     year_columns = [col for col in df.columns if col.isdigit()]
+
+#     # Define condition for rows to modify
+#     condition = df['sub2sectors'].str.endswith('_ccs_captured_emissions') | df['sub3sectors'].str.endswith('_ccs_captured_emissions')
     
-    # Update 'sectors' and year values for rows matching the condition
-    rows.loc[condition, 'sectors'] = rows.loc[condition, 'sectors'] + '_emissions_cap_neg'
-    for col in year_columns:
-        rows.loc[condition, col] = rows.loc[condition, col].apply(lambda x: -abs(x))
-
-    # Copy the rows that meet the condition, to modify and append them
-    new_rows = rows.loc[condition].copy()
-    new_rows['sectors'] = new_rows['sectors'].str.replace('_emissions_cap_neg', '_emissions_cap_pos')
-    for col in year_columns:
-        new_rows[col] = new_rows[col].abs()  # Make values positive
+#     # Copy the rows that meet the condition, to modify and append them
+#     rows = df.loc[condition].copy()
     
-    # Copy new rows and rename the category in 'sectors' to '_emissions_area'
-    new_rows_area = new_rows.copy()
-    new_rows_area['sectors'] = new_rows_area['sectors'].str.replace('_emissions_cap_pos', '_emissions_area')
+#     # Update 'sectors' and year values for rows matching the condition
+#     rows.loc[condition, 'sectors'] = rows.loc[condition, 'sectors'] + '_emissions_captured_emissions'
+#     for col in year_columns:
+#         #check if the values are negative, if not throw an error
+#         if (rows[col] > 0).any():
+#             raise Exception('There are positive values in the year columns for rows with "_ccs_captured_emissions" in "sub2sectors" or "sub3sectors".')
+#     # Copy the rows that meet the condition, to modify and append them
+#     new_rows = rows.loc[condition].copy()
+#     new_rows['sectors'] = new_rows['sectors'].str.replace('_captured_emissions', '_captured_emissions_pos')
+#     for col in year_columns:
+#         new_rows[col] = new_rows[col].abs()  # Make values positive
+    
+#     # Copy new rows and rename the category in 'sectors' to '_emissions_area'
+#     new_rows_area = new_rows.copy()
+#     new_rows_area['sectors'] = new_rows_area['sectors'].str.replace('_emissions_captured_emissions_pos', '_emissions_area')
 
-    # Concatenate the new rows to the original dataframe
-    df = pd.concat([df, rows, new_rows, new_rows_area], ignore_index=True)
+#     # Concatenate the new rows to the original dataframe
+#     df = pd.concat([df, rows, new_rows, new_rows_area], ignore_index=True)
 
-    return df
+#     return df	
+	
 
-def copy_and_modify_power_sector_rows(df):
-    """
-    Copies rows where 'sub1sectors' matches certain criteria and has negative values,
-    renames 'sectors' by adding '_net' to the end, turns the year values positive,
-    then appends them to the dataframe.
-    """
-    # Define the list of 'sub1sectors' values to filter
-    power_sectors = [
-        '09_01_electricity_plants',
-        '09_02_chp_plants',
-        '09_04_electric_boilers',
-        '09_05_chemical_heat_for_electricity_production',
-        '09_x_heat_plants'
-    ]
+# def copy_and_modify_power_sector_rows(df):
+#     """
+#     Copies rows where 'sub1sectors' matches certain criteria and has negative values,
+#     renames 'sectors' by adding '_net' to the end, turns the year values positive,
+#     then appends them to the dataframe.
+#     """
+#     # Define the list of 'sub1sectors' values to filter
+#     power_sectors = [
+#         '09_01_electricity_plants',
+#         '09_02_chp_plants',
+#         '09_04_electric_boilers',
+#         '09_05_chemical_heat_for_electricity_production',
+#         '09_x_heat_plants'
+#     ]
 
-    # Identify year columns
-    year_columns = [col for col in df.columns if col.isdigit()]
+#     # Identify year columns
+#     year_columns = [col for col in df.columns if col.isdigit()]
 
-    # Filter rows where 'sub1sectors' matches the criteria and has negative values in any year column
-    condition = (df['sectors'] == '09_total_transformation_sector') & df['sub1sectors'].isin(power_sectors) & (df[year_columns] < 0).any(axis=1)
+#     # Filter rows where 'sub1sectors' matches the criteria and has negative values in any year column
+#     condition = (df['sectors'] == '09_total_transformation_sector') & df['sub1sectors'].isin(power_sectors) & (df[year_columns] < 0).any(axis=1)
 
-    # Filter rows matching the condition
-    filtered_rows = df[condition].copy()
+#     # Filter rows matching the condition
+#     filtered_rows = df[condition].copy()
 
-    # Modify 'sectors' by adding '_net' to the end
-    filtered_rows['sectors'] += '_net'
+#     # Modify 'sectors' by adding '_net' to the end
+#     filtered_rows['sectors'] += '_net'
 
-    # Ensure all values in year columns are positive
-    filtered_rows[year_columns] = filtered_rows[year_columns].abs()
+#     # Ensure all values in year columns are positive
+#     filtered_rows[year_columns] = filtered_rows[year_columns].abs()
 
-    # Append the modified rows to the original dataframe
-    df = pd.concat([df, filtered_rows], ignore_index=True)
+#     # Append the modified rows to the original dataframe
+#     df = pd.concat([df, filtered_rows], ignore_index=True)
 
-    return df
+#     return df
 
 def modify_subtotal_columns(df):
     """

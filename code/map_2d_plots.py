@@ -10,18 +10,11 @@ import os
 import sys
 import glob
 import re
-from utility_functions import *
-STRICT_DATA_CHECKING = False
-def data_checking_warning_or_error(message):
-    if STRICT_DATA_CHECKING:
-        raise Exception(message)
-    else:
-        print(message)
-        
+from utility_functions import *        
 import mapping_functions
       
 
-def map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COLS, RAISE_ERROR=False, sources = ['energy', 'capacity', 'emissions']):
+def map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COLS, RAISE_ERROR=False, sources = ['energy', 'capacity', 'emissions_co2', 'emissions_ch4', 'emissions_co2e', 'emissions_no2']):
     """Maps the 9th edition data to the plotting template for 2d plots. Many of the functions in this file are from mapping_functions.py
 
     Args:
@@ -46,17 +39,18 @@ def map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COL
     
     # Modify the data to match the plotting template
     all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'energy', mapping_functions.modify_losses_and_own_use_values).copy()
-    all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'emissions', mapping_functions.modify_losses_and_own_use_values).copy()
+    all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'emissions_co2', mapping_functions.modify_losses_and_own_use_values).copy()
+    all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'emissions_ch4', mapping_functions.modify_losses_and_own_use_values).copy()
+    all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'emissions_co2e', mapping_functions.modify_losses_and_own_use_values).copy()
+    all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'emissions_no2', mapping_functions.modify_losses_and_own_use_values).copy()
     all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'energy', mapping_functions.convert_electricity_output_to_twh).copy()
     all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'energy', mapping_functions.copy_and_modify_rows_with_conversion).copy()
     all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'energy', mapping_functions.modify_gas_to_gas_ccs).copy()
     all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'energy', mapping_functions.modify_subtotal_columns).copy()
-    # all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'energy', mapping_functions.modify_hydrogen_green_electricity).copy()
-    all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'emissions', mapping_functions.drop_hydrogen_transformation_rows).copy()
-    all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'emissions', mapping_functions.rename_sectors_and_negate_values_based_on_ccs_cap).copy()
-    all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'emissions', mapping_functions.copy_and_modify_power_sector_rows).copy()
+    all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'energy', mapping_functions.modify_hydrogen_green_electricity).copy()
+    
     # all_model_df_wides_dict['energy'][1].to_csv(f'../model_df_wide_{ECONOMY_ID}_{FILE_DATE_ID}.csv')
-            
+    
     ##############################################################################
 
     #import mappings:
@@ -65,15 +59,18 @@ def map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COL
     #The mappings are used to reduce dataframe manipulations, as a lot of code is needed to manually extract the categories from the columns when they come from so many different columns and combinations. 
 
     sector_plotting_mappings = pd.read_excel('../config/master_config.xlsx', sheet_name='sectors_plotting')
-    # sector_plotting_mappings.columns Index(['sectors_plotting', 'sectors', 'sub1sectors', 'sub2sectors'], dtype='object')
+    sector_plotting_mappings['source'] = 'energy'
 
     fuel_plotting_mappings = pd.read_excel('../config/master_config.xlsx', sheet_name='fuels_plotting')
+    fuel_plotting_mappings['source'] = 'energy'
     
     capacity_plotting_mappings = pd.read_excel('../config/master_config.xlsx', sheet_name='capacity_plotting')
     
-    emissions_fuel_plotting_mappings = pd.read_excel('../config/master_config.xlsx', sheet_name='emissions_fuels_plotting')
+    emissions_fuel_plotting_mappings = pd.read_excel('../config/master_config.xlsx', sheet_name='fuels_plotting').rename(columns={'fuels_plotting':'emissions_fuels_plotting'})
+    emissions_fuel_plotting_mappings['source'] = 'emissions'
     
-    emissions_sector_plotting_mappings = pd.read_excel('../config/master_config.xlsx', sheet_name='emissions_sectors_plotting')
+    emissions_sector_plotting_mappings = pd.read_excel('../config/master_config.xlsx', sheet_name='sectors_plotting').rename(columns={'sectors_plotting':'emissions_sectors_plotting'})
+    emissions_sector_plotting_mappings['source'] = 'emissions'
     # fuel_plotting_mappings.columns Index(['fuels_plotting', 'fuels', 'subfuels'], dtype='object')
 
     transformation_sector_mappings = pd.read_excel('../config/master_config.xlsx', sheet_name='transformation_sector_mappings')
@@ -107,29 +104,65 @@ def map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COL
     if ECONOMY_ID in economy_specific_chart_mapping['economy'].unique():
         charts_mapping = pd.concat([charts_mapping, economy_specific_chart_mapping.loc[economy_specific_chart_mapping['economy'] == ECONOMY_ID].drop(columns=['economy'])])
         
+    #witihin the emissions_fuel_plotting_mappings and emissions_sector_plotting_mappings we will create a gas column and also update the soure to ahve the gas at the end of the source name (usually source = 'emissions' but now source is one of  'emissions_co2', 'emissions_ch4', 'emissions_co2e', 'emissions_no2')
+    new_emissions_fuel_plotting_mappings = pd.DataFrame()
+    new_emissions_sector_plotting_mappings = pd.DataFrame()
+    for gas in ['CO2', 'CH4', 'CO2e', 'NO2']:
+        emissions_fuel_plotting_mappings['gas'] = gas
+        emissions_sector_plotting_mappings['gas'] = gas
+        emissions_fuel_plotting_mappings['source'] = emissions_fuel_plotting_mappings['source'] + '_' + gas
+        new_emissions_fuel_plotting_mappings = pd.concat([new_emissions_fuel_plotting_mappings, emissions_fuel_plotting_mappings])
+        new_emissions_sector_plotting_mappings = pd.concat([new_emissions_sector_plotting_mappings, emissions_sector_plotting_mappings])
+    emissions_fuel_plotting_mappings = new_emissions_fuel_plotting_mappings
+    emissions_sector_plotting_mappings = new_emissions_sector_plotting_mappings
+    
     #for fuel and sector mappings we will extract the most sepcific reference for each row and then record it's column in a column called 'column'.
     #so for example, where we want to extract the reference for the sectors_plotting value Agriculture, we find the rightmost column that is not na (this is the msot specific column), set 'reference_sector' to that value in the most specific column, and then the column to the name of the most specific column
     all_plotting_mapping_dicts = {'sector_energy': {'df': sector_plotting_mappings, 
-                                       'columns': ['sub2sectors', 'sub1sectors', 'sectors'],
-                                       'source': 'energy',
-                                       'plotting_name_column': 'sectors_plotting'},
-                            'fuel_energy': {'df': fuel_plotting_mappings,
-                                        'columns': ['subfuels', 'fuels'],
-                                        'source': 'energy',
-                                        'plotting_name_column': 'fuels_plotting'},
-                            'sector_emissions': {'df': emissions_sector_plotting_mappings,
-                                        'columns': ['sub2sectors', 'sub1sectors', 'sectors'],
-                                        'source': 'emissions',
-                                        'plotting_name_column': 'emissions_sectors_plotting'},
-                            'fuel_emissions': {'df': emissions_fuel_plotting_mappings,
-                                        'columns': ['subfuels', 'fuels'],
-                                        'source': 'emissions',
-                                        'plotting_name_column': 'emissions_fuels_plotting'},
-                            'capacity': {'df': capacity_plotting_mappings,
-                                        'columns': ['sub4sectors','sub3sectors', 'sub2sectors', 'sub1sectors', 'sectors','sheet'],
-                                        'source': 'capacity',
-                                        'plotting_name_column': 'capacity_plotting'}
-                            }    
+                                           'columns': ['sub2sectors', 'sub1sectors', 'sectors'],
+                                           'source': 'energy',
+                                           'plotting_name_column': 'sectors_plotting'},
+                                'fuel_energy': {'df': fuel_plotting_mappings,
+                                            'columns': ['subfuels', 'fuels'],
+                                            'source': 'energy',
+                                            'plotting_name_column': 'fuels_plotting'},
+                                'sector_emissions_co2': {'df': emissions_sector_plotting_mappings.loc[emissions_sector_plotting_mappings['gas']=='CO2'],
+                                            'columns': ['sub2sectors', 'sub1sectors', 'sectors'],
+                                            'source': 'emissions_co2',
+                                            'plotting_name_column': 'emissions_sectors_plotting'},
+                                'fuel_emissions_co2': {'df': emissions_fuel_plotting_mappings.loc[emissions_fuel_plotting_mappings['gas']=='CO2'],
+                                            'columns': ['subfuels', 'fuels'],
+                                            'source': 'emissions_co2',
+                                            'plotting_name_column': 'emissions_fuels_plotting'},
+                                'sector_emissions_ch4': {'df': emissions_sector_plotting_mappings.loc[emissions_sector_plotting_mappings['gas']=='CH4'],
+                                            'columns': ['sub2sectors', 'sub1sectors', 'sectors'],
+                                            'source': 'emissions_ch4',
+                                            'plotting_name_column': 'emissions_sectors_plotting'},
+                                'fuel_emissions_ch4': {'df': emissions_fuel_plotting_mappings.loc[emissions_fuel_plotting_mappings['gas']=='CH4'],
+                                            'columns': ['subfuels', 'fuels'],
+                                            'source': 'emissions_ch4',
+                                            'plotting_name_column': 'emissions_fuels_plotting'},
+                                'sector_emissions_co2e': {'df': emissions_sector_plotting_mappings.loc[emissions_sector_plotting_mappings['gas']=='CO2e'],
+                                            'columns': ['sub2sectors', 'sub1sectors', 'sectors'],
+                                            'source': 'emissions_co2e',
+                                            'plotting_name_column': 'emissions_sectors_plotting'},
+                                'fuel_emissions_co2e': {'df': emissions_fuel_plotting_mappings.loc[emissions_fuel_plotting_mappings['gas']=='CO2e'],
+                                            'columns': ['subfuels', 'fuels'],
+                                            'source': 'emissions_co2e',
+                                            'plotting_name_column': 'emissions_fuels_plotting'},
+                                'sector_emissions_no2': {'df': emissions_sector_plotting_mappings.loc[emissions_sector_plotting_mappings['gas']=='NO2'],
+                                            'columns': ['sub2sectors', 'sub1sectors', 'sectors'],
+                                            'source': 'emissions_no2',
+                                            'plotting_name_column': 'emissions_sectors_plotting'},
+                                'fuel_emissions_no2': {'df': emissions_fuel_plotting_mappings.loc[emissions_fuel_plotting_mappings['gas']=='NO2'],
+                                            'columns': ['subfuels', 'fuels'],
+                                            'source': 'emissions_no2',
+                                            'plotting_name_column': 'emissions_fuels_plotting'},
+                                'capacity': {'df': capacity_plotting_mappings,
+                                            'columns': ['sub4sectors','sub3sectors', 'sub2sectors', 'sub1sectors', 'sectors','sheet'],
+                                            'source': 'capacity',
+                                            'plotting_name_column': 'capacity_plotting'}
+                                }    
     plotting_names = []
     for plotting_mapping in all_plotting_mapping_dicts.keys():
         plotting_mapping_dict = all_plotting_mapping_dicts[plotting_mapping]
@@ -145,7 +178,10 @@ def map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COL
     source_and_aggregate_name_column_to_plotting_name_column_mapping_dict = {}
     source_and_aggregate_name_column_to_plotting_name_column_mapping_dict['energy'] = {'sectors_plotting':'fuels_plotting', 'fuels_plotting':'sectors_plotting'}
     source_and_aggregate_name_column_to_plotting_name_column_mapping_dict['capacity'] = {'aggregate_name':'capacity_plotting'}
-    source_and_aggregate_name_column_to_plotting_name_column_mapping_dict['emissions'] = {'emissions_sectors_plotting':'emissions_fuels_plotting', 'emissions_fuels_plotting':'emissions_sectors_plotting'}
+    source_and_aggregate_name_column_to_plotting_name_column_mapping_dict['emissions_co2'] = {'emissions_sectors_plotting':'emissions_fuels_plotting', 'emissions_fuels_plotting':'emissions_sectors_plotting'}
+    source_and_aggregate_name_column_to_plotting_name_column_mapping_dict['emissions_ch4'] = {'emissions_sectors_plotting':'emissions_fuels_plotting', 'emissions_fuels_plotting':'emissions_sectors_plotting'}
+    source_and_aggregate_name_column_to_plotting_name_column_mapping_dict['emissions_co2e'] = {'emissions_sectors_plotting':'emissions_fuels_plotting', 'emissions_fuels_plotting':'emissions_sectors_plotting'}
+    source_and_aggregate_name_column_to_plotting_name_column_mapping_dict['emissions_no2'] = {'emissions_sectors_plotting':'emissions_fuels_plotting', 'emissions_fuels_plotting':'emissions_sectors_plotting'}
     
     new_charts_mapping = mapping_functions.format_charts_mapping(charts_mapping, source_and_aggregate_name_column_to_plotting_name_column_mapping_dict)
     mapping_functions.save_plotting_names_order(charts_mapping,FILE_DATE_ID)
@@ -224,10 +260,10 @@ def map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COL
             #############################
             #EXTRACT PLOTTING NAMES FROM MODEL DATA
             #and now these mappings can be joined to the model_df and used to extract the data needed for each plotting_name. it will create a df with only the fuel or sectors columns: fuels_plotting and sectors_plotting, which contains defintiions of all the possible combinations of fuels_plotting and sectors_plotting we could have.. i think.
-            if source in ['energy', 'emissions']:
-                #energy and emissions are mapped to both sector and fuel columns so we needed to identify the most specific sector and fuel columns for each row and then join on them. this requires two processes below:
+            if source in ['energy', 'emissions_co2', 'emissions_ch4', 'emissions_co2e', 'emissions_no2']:
+                #energy and emissions_co2 are mapped to both sector and fuel columns so we needed to identify the most specific sector and fuel columns for each row and then join on them. this requires two processes below:
                 new_sector_plotting_mappings = all_plotting_mapping_dicts['sector'+'_'+source]['df']
-                if source =='emissions':
+                if source in ['emissions_co2', 'emissions_ch4', 'emissions_co2e', 'emissions_no2']:
                     old_sector_plotting_mappings =emissions_sector_plotting_mappings
                     old_fuel_plotting_mappings = emissions_fuel_plotting_mappings
                 elif source == 'energy':
@@ -241,9 +277,10 @@ def map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COL
                 new_capacity_plotting_mappings = all_plotting_mapping_dicts['capacity']['df']
                 model_df_tall_capacity = mapping_functions.merge_capacity_mappings(model_df_tall, new_capacity_plotting_mappings, capacity_plotting_mappings, RAISE_ERROR=True)
                 # model_df_tall = model_df_tall_capacity.copy()
-            
-            # new_emissions_plotting_mappings = all_plotting_mapping_dicts['emissions']['df']
-            # model_df_tall_emissions = mapping_functions.merge_emissions_mappings(model_df_tall, new_emissions_plotting_mappings,emissions_plotting_mappings, RAISE_ERROR=RAISE_ERROR)
+                
+                
+            # new_emissions_co2_plotting_mappings = all_plotting_mapping_dicts['emissions_co2']['df']
+            # model_df_tall_emissions_co2 = mapping_functions.merge_emissions_co2_mappings(model_df_tall, new_emissions_co2_plotting_mappings,emissions_co2_plotting_mappings, RAISE_ERROR=RAISE_ERROR)
             # breakpoint()
             
             # #call it plotting_df
@@ -253,15 +290,15 @@ def map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COL
             #next step will include creating new datasets which create aggregations of data to match some of the categories plotted in the 8th edition. 
             #for example we need an aggregation of the transformation sector input and output values to create entries for Power, Refining or Hydrogen
             # breakpoint()#we get nas in the transformation sector mappings. why??
-            if source in ['energy', 'emissions']:
+            if source in ['energy', 'emissions_co2', 'emissions_ch4', 'emissions_co2e', 'emissions_no2']:
                 input_transformation, output_transformation = mapping_functions.merge_transformation_sector_mappings(model_df_tall, transformation_sector_mappings,new_fuel_plotting_mappings,RAISE_ERROR=RAISE_ERROR)
                 #concat all the dataframes together?
                 plotting_df = pd.concat([model_df_tall_sectors_fuels, input_transformation, output_transformation])
-                if source == 'emissions':
+                if source in ['emissions_co2', 'emissions_ch4', 'emissions_co2e', 'emissions_no2']:
                     plotting_df.rename(columns={'sectors_plotting':'emissions_sectors_plotting', 'fuels_plotting':'emissions_fuels_plotting'}, inplace=True)
             elif source == 'capacity':
                 plotting_df = model_df_tall_capacity.copy()
-            # elif source == 'emissions':
+            # elif source == 'emissions_co2':
             #     plotting_df = model_df_tall_sectors_fuels.copy()
             #     #rename sectors_plotting and fuels_plotting to emissions_sectors_plotting and emissions_fuels_plotting
             #     plotting_df.rename(columns={'sectors_plotting':'emissions_sectors_plotting', 'fuels_plotting':'emissions_fuels_plotting'}, inplace=True)
@@ -303,10 +340,13 @@ def map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COL
             #TEST WE COULD DELETE over
             #TEMP:
             #set unit to 'Petajoules'. for now we dont have any other units so can set it here but may have to change this later, depending on how we deal with that new data (eg activity data.)
-            unit_dict = {'energy': 'Petajoules', 'capacity': 'capacity', 'emissions': 'MtCO2e'}#TODO FIND SOMEWAY TO SET CPAACITY UNIT. PERHAPS SOURCE DOESNT NEED TO BE CPACITY, CAN BE GENERATION OR TRANSPORT STOCKS?
+            unit_dict = {'energy': 'Petajoules', 'capacity': 'capacity', 'emissions_co2': 'MtCO2', 'emissions_ch4': 'MtCO2e', 'emissions_co2e': 'MtCO2e', 'emissions_no2': 'MtCO2e'}
             economy_new_charts_mapping['unit'] = economy_new_charts_mapping['source'].map(unit_dict)
+            #check there are no dupes in aggregate name in unit df
+            if aggregate_name_to_unit.duplicated(['aggregate_name', 'source']).any():
+                raise Exception('There are duplicates in the aggregate_name column in aggregate_name_to_unit')
             #based on aggregate_name in economy_new_charts_mapping, set unit to the unit in aggregate_name_to_unit
-            economy_new_charts_mapping = economy_new_charts_mapping.merge(aggregate_name_to_unit, on='aggregate_name', how='left', suffixes=('','_y'))
+            economy_new_charts_mapping = economy_new_charts_mapping.merge(aggregate_name_to_unit, on=['aggregate_name', 'source'], how='left', suffixes=('','_y'))
             #if unit_y is not null, set unit to unit_y
             economy_new_charts_mapping.loc[economy_new_charts_mapping['unit_y'].notnull(), 'unit'] = economy_new_charts_mapping['unit_y']
             #drop unit_y
@@ -323,7 +363,8 @@ def map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COL
             extra_cols = [x for x in economy_new_charts_mapping.columns if x not in EXPECTED_COLS]
             if len(extra_cols) > 0 or len(missing_cols) > 0:
                 raise Exception(f'There are missing or extra columns in charts_mapping. Extra cols: {extra_cols}. Missing cols: {missing_cols}')
-            
+            if len(economy_new_charts_mapping) == 0:
+                raise Exception('There are no rows in economy_new_charts_mapping')
             economy_new_charts_mapping = mapping_functions.format_chart_titles(economy_new_charts_mapping, ECONOMY_ID)
             #############################
             
@@ -338,16 +379,7 @@ def map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COL
         print(f"Data for {economy_x} {source} saved.")
         # charts_mapping_all_years.to_csv(f'../intermediate_data/charts_mapping_{source}_{economy_x}_{FILE_DATE_ID}.csv')
         
-        # If sources is emissions, return the filtered data
-        
-        if source == 'emissions':
-            total_emissions = charts_mapping_all_years[(charts_mapping_all_years['sheet_name'] == 'Emissions') & (charts_mapping_all_years['plotting_name'].isin(['Agriculture','Buildings', 'Industry', 'Non-specified', 'Own-use and losses', 'Power_input', 'Transport'])) & (charts_mapping_all_years['aggregate_name'] == 'TFEC')].copy()
-            # Group by scenario and year, and sum the values
-            total_emissions = total_emissions.groupby(['scenario', 'year'])['value'].sum().reset_index()
-            # Drop table_number column
-            # total_emissions.drop(columns=['table_number'], inplace=True)
-            # total_emissions.to_csv(f'../intermediate_data/total_emissions_{economy_x}_{FILE_DATE_ID}.csv')
-            return total_emissions
+    return # total_emissions_co2, total_emissions_ch4, total_emissions_co2e, total_emissions_no2
 
 #%%
 # FILE_DATE_ID = '20231110'
