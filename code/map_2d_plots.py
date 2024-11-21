@@ -10,14 +10,7 @@ import os
 import sys
 import glob
 import re
-from utility_functions import *
-STRICT_DATA_CHECKING = False
-def data_checking_warning_or_error(message):
-    if STRICT_DATA_CHECKING:
-        raise Exception(message)
-    else:
-        print(message)
-        
+from utility_functions import *        
 import mapping_functions
       
 
@@ -55,20 +48,9 @@ def map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COL
     all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'energy', mapping_functions.modify_gas_to_gas_ccs).copy()
     all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'energy', mapping_functions.modify_subtotal_columns).copy()
     all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'energy', mapping_functions.modify_hydrogen_green_electricity).copy()
-    all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'emissions_co2', mapping_functions.drop_hydrogen_transformation_rows).copy()
-    all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'emissions_co2', mapping_functions.rename_sectors_and_negate_values_based_on_ccs_cap).copy()
-    all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'emissions_co2', mapping_functions.copy_and_modify_power_sector_rows).copy()
-    all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'emissions_ch4', mapping_functions.drop_hydrogen_transformation_rows).copy()
-    all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'emissions_ch4', mapping_functions.rename_sectors_and_negate_values_based_on_ccs_cap).copy()
-    all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'emissions_ch4', mapping_functions.copy_and_modify_power_sector_rows).copy()
-    all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'emissions_co2e', mapping_functions.drop_hydrogen_transformation_rows).copy()
-    all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'emissions_co2e', mapping_functions.rename_sectors_and_negate_values_based_on_ccs_cap).copy()
-    all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'emissions_co2e', mapping_functions.copy_and_modify_power_sector_rows).copy()
-    all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'emissions_no2', mapping_functions.drop_hydrogen_transformation_rows).copy()
-    all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'emissions_no2', mapping_functions.rename_sectors_and_negate_values_based_on_ccs_cap).copy()
-    all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'emissions_no2', mapping_functions.copy_and_modify_power_sector_rows).copy()
+    
     # all_model_df_wides_dict['energy'][1].to_csv(f'../model_df_wide_{ECONOMY_ID}_{FILE_DATE_ID}.csv')
-            
+    
     ##############################################################################
 
     #import mappings:
@@ -77,15 +59,18 @@ def map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COL
     #The mappings are used to reduce dataframe manipulations, as a lot of code is needed to manually extract the categories from the columns when they come from so many different columns and combinations. 
 
     sector_plotting_mappings = pd.read_excel('../config/master_config.xlsx', sheet_name='sectors_plotting')
-    # sector_plotting_mappings.columns Index(['sectors_plotting', 'sectors', 'sub1sectors', 'sub2sectors'], dtype='object')
+    sector_plotting_mappings['source'] = 'energy'
 
     fuel_plotting_mappings = pd.read_excel('../config/master_config.xlsx', sheet_name='fuels_plotting')
+    fuel_plotting_mappings['source'] = 'energy'
     
     capacity_plotting_mappings = pd.read_excel('../config/master_config.xlsx', sheet_name='capacity_plotting')
     
-    emissions_fuel_plotting_mappings = pd.read_excel('../config/master_config.xlsx', sheet_name='emissions_fuels_plotting')
+    emissions_fuel_plotting_mappings = pd.read_excel('../config/master_config.xlsx', sheet_name='fuels_plotting').rename(columns={'fuels_plotting':'emissions_fuels_plotting'})
+    emissions_fuel_plotting_mappings['source'] = 'emissions'
     
-    emissions_sector_plotting_mappings = pd.read_excel('../config/master_config.xlsx', sheet_name='emissions_sectors_plotting')
+    emissions_sector_plotting_mappings = pd.read_excel('../config/master_config.xlsx', sheet_name='sectors_plotting').rename(columns={'sectors_plotting':'emissions_sectors_plotting'})
+    emissions_sector_plotting_mappings['source'] = 'emissions'
     # fuel_plotting_mappings.columns Index(['fuels_plotting', 'fuels', 'subfuels'], dtype='object')
 
     transformation_sector_mappings = pd.read_excel('../config/master_config.xlsx', sheet_name='transformation_sector_mappings')
@@ -378,7 +363,8 @@ def map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COL
             extra_cols = [x for x in economy_new_charts_mapping.columns if x not in EXPECTED_COLS]
             if len(extra_cols) > 0 or len(missing_cols) > 0:
                 raise Exception(f'There are missing or extra columns in charts_mapping. Extra cols: {extra_cols}. Missing cols: {missing_cols}')
-            
+            if len(economy_new_charts_mapping) == 0:
+                raise Exception('There are no rows in economy_new_charts_mapping')
             economy_new_charts_mapping = mapping_functions.format_chart_titles(economy_new_charts_mapping, ECONOMY_ID)
             #############################
             
@@ -393,23 +379,7 @@ def map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COL
         print(f"Data for {economy_x} {source} saved.")
         # charts_mapping_all_years.to_csv(f'../intermediate_data/charts_mapping_{source}_{economy_x}_{FILE_DATE_ID}.csv')
         
-        # If sources is emissions_co2, return the filtered data
-        
-        if source == 'emissions_co2':
-            total_emissions_co2 = charts_mapping_all_years[(charts_mapping_all_years['sheet_name'] == 'Emissions_co2') & (charts_mapping_all_years['plotting_name'].isin(['Agriculture','Buildings', 'Industry', 'Non-specified', 'Own-use and losses', 'Power_input', 'Transport'])) & (charts_mapping_all_years['aggregate_name'] == 'TFEC')].copy()
-            # Group by scenario and year, and sum the values
-            total_emissions_co2 = total_emissions_co2.groupby(['scenario', 'year'])['value'].sum().reset_index()
-        if source == 'emissions_ch4':
-            total_emissions_ch4 = charts_mapping_all_years[(charts_mapping_all_years['sheet_name'] == 'Emissions_ch4') & (charts_mapping_all_years['plotting_name'].isin(['Agriculture','Buildings', 'Industry', 'Non-specified', 'Own-use and losses', 'Power_input', 'Transport'])) & (charts_mapping_all_years['aggregate_name'] == 'TFEC')].copy()
-            total_emissions_ch4 = total_emissions_ch4.groupby(['scenario', 'year'])['value'].sum().reset_index()
-        if source == 'emissions_co2e':
-            total_emissions_co2e = charts_mapping_all_years[(charts_mapping_all_years['sheet_name'] == 'Emissions_co2e') & (charts_mapping_all_years['plotting_name'].isin(['Agriculture','Buildings', 'Industry', 'Non-specified', 'Own-use and losses', 'Power_input', 'Transport'])) & (charts_mapping_all_years['aggregate_name'] == 'TFEC')].copy()
-            total_emissions_co2e = total_emissions_co2e.groupby(['scenario', 'year'])['value'].sum().reset_index()
-        if source == 'emissions_no2':
-            total_emissions_no2 = charts_mapping_all_years[(charts_mapping_all_years['sheet_name'] == 'Emissions_no2') & (charts_mapping_all_years['plotting_name'].isin(['Agriculture','Buildings', 'Industry', 'Non-specified', 'Own-use and losses', 'Power_input', 'Transport'])) & (charts_mapping_all_years['aggregate_name'] == 'TFEC')].copy()
-            total_emissions_no2 = total_emissions_no2.groupby(['scenario', 'year'])['value'].sum().reset_index()
-            
-    return total_emissions_co2, total_emissions_ch4, total_emissions_co2e, total_emissions_no2
+    return # total_emissions_co2, total_emissions_ch4, total_emissions_co2e, total_emissions_no2
 
 #%%
 # FILE_DATE_ID = '20231110'

@@ -5,12 +5,6 @@ import ast
 import os
 import shutil
 from utility_functions import *
-STRICT_DATA_CHECKING = False
-# def data_checking_warning_or_error(message):
-#     if STRICT_DATA_CHECKING:
-#         raise Exception(message)
-#     else:
-#         print(message)
 
 def create_sheets_from_mapping_df(workbook, charts_mapping_df, total_plotting_names, MIN_YEAR, colours_dict, cell_format1, cell_format2, header_format, plotting_specifications, plotting_names_order, plotting_name_to_label_dict, writer, EXPECTED_COLS, ECONOMY_ID): 
     #PREPARE DATA ########################################
@@ -93,6 +87,9 @@ def create_sheets_from_mapping_df(workbook, charts_mapping_df, total_plotting_na
         try:
             sheet_data = sheet_data.pivot(index=EXPECTED_COLS_wide, columns='year', values='value')
         except Exception as e:
+            #check for duplicates
+            if sheet_data.duplicated(subset=EXPECTED_COLS_wide).any():
+                dupes = sheet_data[sheet_data.duplicated(subset=EXPECTED_COLS_wide)]
             breakpoint()
         # #potentially here we get nas from missing years for certain rows, so replace with 0
         # sheet_data = sheet_data.fillna(0)#decided against it because it seems the nas are useful
@@ -167,6 +164,7 @@ def create_sheets_from_mapping_df(workbook, charts_mapping_df, total_plotting_na
             ########################
             current_row, current_scenario, worksheet = add_section_titles(current_row, current_scenario, sheet, worksheet, cell_format1, cell_format2, space_under_titles, table, space_under_tables,unit_dict, ECONOMY_ID)
             ########################
+            
             table, chart_types, table_id, plotting_name_column, year_cols_start,num_cols, chart_titles, first_year_col, sheet_name = format_table(table,plotting_names_order,plotting_name_to_label_dict)
             
             try:
@@ -206,9 +204,10 @@ def create_sheets_from_mapping_df(workbook, charts_mapping_df, total_plotting_na
             }
             # If sheet is CO2 emissions components, rename the years
             if sheet == 'CO2 emissions components':
-                breakpoint()
                 # Rename the columns using the mapping dictionary
                 table.rename(columns=column_mapping, inplace=True)
+                #need to reset the year_cols_start (it wasnt correct before either)
+                year_cols_start = table.columns.get_loc(f'Emissions {OUTLOOK_BASE_YEAR}') + 1
                 
             ########################
             #write table to sheet
@@ -556,8 +555,8 @@ def format_table(table,plotting_names_order,plotting_name_to_label_dict):
     #format some cols:
     num_cols = len(table.dropna(axis='columns', how='all').columns) - 1
     year_cols = [col for col in table.columns if re.search(r'\d{4}', str(col))]
-    year_cols_start = table.columns.get_loc(year_cols[0])
     
+    year_cols_start = table.columns.get_loc(year_cols[0])
     year_cols = table.columns[year_cols_start:]
     
     # Adjust num_cols for 'Transport stocks' and 'Transport activity' sheet
@@ -592,24 +591,16 @@ def format_table(table,plotting_names_order,plotting_name_to_label_dict):
     
     # Get the year of the first year column for crossing
     first_year_col = year_cols[0]
-
+    
     #set order of columns and table, dependent on what the aggregate column is:
     table = sort_table_rows_and_columns(table,table_id,plotting_names_order,year_cols)
     
     #rename fuels_plotting, emissions_fuels_plotting and emissions_sectors_plotting, sectors_plotting, capacity_plotting to Fuel and Sector respectively
-    if plotting_name_column == 'fuels_plotting':
+    if plotting_name_column == 'fuels_plotting' or plotting_name_column == 'emissions_fuels_plotting':
         table.rename(columns = {'plotting_name':'Fuel', 'aggregate_name':'Sector'}, inplace = True)
         plotting_name_column = 'Fuel'
         aggregate_name_column = 'Sector'
-    elif plotting_name_column == 'emissions_fuels_plotting':
-        table.rename(columns = {'plotting_name':'Fuel', 'aggregate_name':'Sector'}, inplace = True)
-        plotting_name_column = 'Fuel'
-        aggregate_name_column = 'Sector'
-    elif plotting_name_column == 'sectors_plotting':
-        table.rename(columns = {'plotting_name':'Sector', 'aggregate_name':'Fuel'}, inplace = True)
-        plotting_name_column = 'Sector'
-        aggregate_name_column = 'Fuel'
-    elif plotting_name_column == 'emissions_sectors_plotting':
+    elif plotting_name_column == 'sectors_plotting' or plotting_name_column == 'emissions_sectors_plotting':
         table.rename(columns = {'plotting_name':'Sector', 'aggregate_name':'Fuel'}, inplace = True)
         plotting_name_column = 'Sector'
         aggregate_name_column = 'Fuel'
@@ -622,6 +613,8 @@ def format_table(table,plotting_names_order,plotting_name_to_label_dict):
         if str(aggregate_name_column) == 'nan':
             table.rename(columns = {'plotting_name':plotting_name_column}, inplace = True)
             table.drop(columns = ['aggregate_name'], inplace = True)
+            #since we dropped a column we need to update the year_cols_start to start at year_cols_start -1 (but for some reason year_cols_start = table.columns.get_loc(year_cols[0]) doesnt work)
+            year_cols_start -= 1 
         else:
             table.rename(columns = {'plotting_name':plotting_name_column, 'aggregate_name':aggregate_name_column}, inplace = True)
         
@@ -632,6 +625,12 @@ def format_table(table,plotting_names_order,plotting_name_to_label_dict):
         # breakpoint()#TypeError: Cannot set a Categorical with another, without identical categories
         table[plotting_name_column] = table[plotting_name_column].map(plotting_name_to_label_dict)
         
+    #and just in case we now have any duplicated plotting anmes from the mapping, we will sum them
+    if aggregate_name_column in table.columns:
+        table = table.groupby([aggregate_name_column, plotting_name_column], observed=True, sort=False).sum().reset_index()
+    else:
+        table = table.groupby([plotting_name_column], observed=True, sort=False).sum().reset_index()
+    
     return table, chart_types, table_id, plotting_name_column, year_cols_start,num_cols, chart_titles, first_year_col, sheet_name
 
 def create_bar_chart_table(table,year_cols_start,bar_years, sheet_name):
@@ -839,7 +838,7 @@ def create_combined_line_bar_chart(num_table_rows, table, plotting_name_column, 
     
     gap = 0  # Set the gap between columns to 33
     overlap = 100  # Set the overlap between columns to 100
-
+    GAP_OVERLAP_APPLIED = False
     # Add series to primary chart
     for row_i in range(num_table_rows):
         series_name = table[plotting_name_column].iloc[row_i]
@@ -863,9 +862,10 @@ def create_combined_line_bar_chart(num_table_rows, table, plotting_name_column, 
                     series_options.update({
                         'fill': {'color': table[plotting_name_column].map(colours_dict).iloc[row_i]}
                     })
-                # Only apply gap and overlap to the first series
-                if row_i == 0:
+                # Only apply gap and overlap once to the series
+                if GAP_OVERLAP_APPLIED is False:
                     series_options.update({'gap': gap, 'overlap': overlap})
+                    GAP_OVERLAP_APPLIED = True
                 primary_chart.add_series(series_options)
             elif series_name in plotting_specifications['combined_line_bar_chart_lines_plotting_names']:
                 
@@ -877,7 +877,6 @@ def create_combined_line_bar_chart(num_table_rows, table, plotting_name_column, 
                     'values':     [sheet, table_start_row + row_i + 1, year_cols_start - 1, table_start_row + row_i + 1, num_cols - 1],
                     'line':       {'color': table[plotting_name_column].map(colours_dict).iloc[row_i], 'width': line_thickness}
                 })
-    
     # Combine the charts and configure the combined chart as before
     primary_chart.combine(secondary_chart)
     primary_chart.set_title({'name': chart_title, 'name_font': {'size': 9}})
@@ -1263,314 +1262,6 @@ def check_plotting_names_in_colours_dict(charts_mapping, colours_dict, RAISE_ERR
             raise Exception("Color '%s' isn't a valid Excel color for plotting name '%s'" % (color, plotting_name))
 
     return colours_dict
-
-
-def create_extra_graphs(workbook, all_charts_mapping_files_dict, total_plotting_names, MIN_YEAR,  plotting_specifications, plotting_names_order,plotting_name_to_label_dict, colours_dict, cell_format1, cell_format2, new_charts_dict, header_format, writer, EXPECTED_COLS,ECONOMY_ID):
-    scenarios_list=['reference', 'target']
-    #use this to create graphs that are a little more complex than the standard ones. tehse will be deisgned on a case by case basis, using explicit code.
-            
-    for new_chart in new_charts_dict.keys():
-        source = new_charts_dict[new_chart]['source']
-        sheet_name = new_charts_dict[new_chart]['sheet_name']
-        function = new_charts_dict[new_chart]['function']
-        chart_types = new_charts_dict[new_chart]['chart_types']
-        if len(all_charts_mapping_files_dict[source]) != 1:
-            raise Exception(f'Expected exactly 1 charts mapping file for create_extra_graphs() for source {source}, but found {len(all_charts_mapping_files_dict[source])}')
-        #check charttypes is  list
-        if not isinstance(chart_types, list):
-            chart_types = [chart_types]
-            
-        charts_mapping = all_charts_mapping_files_dict[source][0]
-        # charts_mapping
-        #cols: source	table_number	sheet_name	chart_type	chart_title	plotting_name_column	plotting_name	aggregate_name_column	aggregate_name	scenario	year	table_id	value	unit	dimensions
-        
-        #drop percentage from the chart_type:
-        charts_mapping = charts_mapping[~charts_mapping['chart_type'].isin(['percentage', 'percentage_bar'])]
-        charts_mapping = charts_mapping[charts_mapping.year >= MIN_YEAR]
-        
-        #pivot the data so that we have one row per plotting_name, and one column per year
-        EXPECTED_COLS_wide = EXPECTED_COLS.copy()
-        EXPECTED_COLS_wide.remove('year')
-        EXPECTED_COLS_wide.remove('value')
-        
-        charts_mapping = charts_mapping.pivot(index=EXPECTED_COLS_wide, columns='year', values='value').reset_index()  
-        
-        workbook.add_worksheet(sheet_name)
-        scenario_num = 0
-        for scenario in scenarios_list:
-            
-            ##############
-            #todo, not sure whatto do anbout diff scenarios here
-            worksheet = workbook.get_worksheet_by_name(sheet_name)
-            charts_mapping_scenario = charts_mapping[charts_mapping.scenario == scenario]
-            charts_to_plot, chart_positions, worksheet = function(charts_mapping_scenario, sheet_name,plotting_names_order,plotting_name_to_label_dict, worksheet,workbook,  colours_dict, cell_format1, cell_format2, scenario_num, scenarios_list, header_format, plotting_specifications, writer, chart_types,ECONOMY_ID)
-            scenario_num+=1
-            worksheet = write_charts_to_sheet(charts_to_plot, chart_positions, worksheet)
-            ###############
-    workbook = order_sheets(workbook, plotting_specifications)
-    return workbook, writer
-        
-def create_refined_products_bar_and_net_imports_line(charts_mapping, sheet,plotting_names_order,plotting_name_to_label_dict, worksheet,workbook,  colours_dict,cell_format1, cell_format2,  scenario_num,scenarios_list, header_format,plotting_specifications, writer, chart_types,ECONOMY_ID):
-    """    
-    # Add the new chart creation function to the new_charts_dict
-    new_charts_dict = {
-        'Refined products and crude oil net imports': {
-            'source': 'energy',
-            'sheet_name': 'Refined products and crude oil net imports',
-            'function': create_refined_products_bar_and_net_imports_line,
-            'chart_type': 'combined_line_bar'
-        }
-    }
-    """
-    if len(chart_types)!=1:
-        breakpoint()
-        raise Exception('Expected exactly 1 chart type in create_refined_products_bar_and_net_imports_line()')
-    
-    #extract the data we want to use for the refined products graph, then do wahtever manipulations and calculations are needed to get it into the right format, then plotit
-
-    refined_products = charts_mapping[(charts_mapping.table_id == 'energy_Refining_3')]
-    if len(refined_products) == 0:
-        breakpoint()
-        raise Exception('No data found for sheet Refining in create_refined_products_bar_and_crude_oil_supply_line()')
-    refined_products.loc[:, 'chart_title'] = 'Refined products and crude oil supply'
-    refined_products.loc[:, 'table_id'] = sheet
-    refined_products.loc[:, 'aggregate_name'] = 'Refined products'
-    refined_products.loc[:, 'sheet_name'] = sheet
-    refined_products.loc[:, 'chart_type'] = 'bar'
-    refined_products.loc[:, 'scenario'] = scenarios_list[scenario_num]
-    ######
-    crude_oil_supply_line_IMPORTS = charts_mapping[(charts_mapping.table_id == 'energy_Refining_7') & (charts_mapping.plotting_name.isin(['Imports'])) & (charts_mapping.aggregate_name == 'Crude oil & NGL')]
-    crude_oil_supply_line_EXPORTS = charts_mapping[(charts_mapping.table_id == 'energy_Refining_7') & (charts_mapping.plotting_name.isin(['Exports'])) & (charts_mapping.aggregate_name == 'Crude oil & NGL')]
-    
-    crude_oil_supply_line_production = charts_mapping[(charts_mapping.table_id == 'energy_Refining_7') & (charts_mapping.plotting_name.isin(['Production'])) & (charts_mapping.aggregate_name == 'Crude oil & NGL')]
-    #extract the year cols forw hich we will calculate the net imports by finding 4 digits in the column name
-    year_cols = [col for col in crude_oil_supply_line_IMPORTS.columns if re.search(r'\d{4}', str(col))]
-    #calculate the net imports by taking the difference between imports and exports)
-    crude_oil_supply_line_net_imports = crude_oil_supply_line_IMPORTS.copy()
-    for year in year_cols:
-        if len(crude_oil_supply_line_IMPORTS[year].values) != 1 or len(crude_oil_supply_line_EXPORTS[year].values) != 1:
-            raise Exception(f'Expected exactly 1 value for imports and exports for year {year} in create_refined_products_bar_and_crude_oil_supply_line()')
-        crude_oil_supply_line_net_imports[year] = crude_oil_supply_line_IMPORTS[year].values[0] - crude_oil_supply_line_EXPORTS[year].values[0]
-    ######
-    
-    # crude_oil_supply_line.loc[:, 'plotting_name'] = 'Net crude imports'
-    crude_oil_supply_line_IMPORTS.loc[:, 'plotting_name'] = 'Crude imports'
-    crude_oil_supply_line_EXPORTS.loc[:, 'plotting_name'] = 'Crude exports'
-    crude_oil_supply_line_production.loc[:, 'plotting_name'] = 'Crude production'
-    #add the IMPORTS and EXPORTS to the crude_oil_supply_line df
-    crude_oil_supply_line =pd.concat([crude_oil_supply_line_IMPORTS, crude_oil_supply_line_EXPORTS, crude_oil_supply_line_production])#crude_oil_supply_line_net_imports
-    crude_oil_supply_line.loc[:, 'chart_title'] = 'Refined products and crude oil supply'
-    crude_oil_supply_line.loc[:, 'table_id'] = sheet
-    crude_oil_supply_line.loc[:, 'aggregate_name'] = 'Crude oil & NGL'
-    crude_oil_supply_line.loc[:, 'sheet_name'] = sheet
-    crude_oil_supply_line.loc[:, 'chart_type'] = 'line'
-    crude_oil_supply_line.loc[:, 'scenario'] = scenarios_list[scenario_num]
-
-    if len(crude_oil_supply_line) == 0:
-        breakpoint()
-        raise Exception('No data found for sheet Crude oil & NGL in create_refined_products_bar_and_crude_oil_supply_line()')
-    #now concatenate the two dataframes
-    refined_products_and_net_imports = pd.concat([refined_products, crude_oil_supply_line])
-    
-    #drop table_number since this is not needed
-    refined_products_and_net_imports = refined_products_and_net_imports.drop(columns=['table_number'])
-    
-    ##################
-    max_and_min_values_dict = {}
-    #we woud be better of doing these max and min values manually here sincewe want them to match for the two chart types (and they wont if we use the funciton below)
-    #the max vlaue will ave to be the max betwene the sum of the refined products and the max of the net imports:
-    max_value_refined = refined_products[year_cols].sum(axis=0).max()#will this work?
-    max_value_crude_oil_supply = crude_oil_supply_line_net_imports[year_cols].max().max()
-    max_value_crude_oil_supply = crude_oil_supply_line.loc[crude_oil_supply_line.plotting_name.isin(['Production', 'Exports', 'Imports']), year_cols].max().max()
-    max_value = max(max_value_refined, max_value_crude_oil_supply) 
-    max_value = calculate_y_axis_value(max_value)
-        
-    key_max_line = (sheet, 'line', sheet, "max")
-    key_max_bar = (sheet, 'bar', sheet, "max")
-    key_max_bar_line = (sheet, 'combined_line_bar', sheet, "max")
-    #the min value will be the min of the sum of the NEGATIVE refined products and the min of the net imports:#first melt, then filter and then group by and sum
-    non_year_cols = [col for col in refined_products.columns if col not in year_cols]
-    negatives = refined_products.melt(id_vars=non_year_cols, value_vars=year_cols, var_name='year', value_name='value').copy()
-    #filter
-    negatives = negatives[negatives['value'] < 0]
-    #group by and sum
-    negatives = negatives.groupby(['year'])['value'].sum().reset_index()
-    
-    min_value_refined = negatives.value.min()
-    
-    min_value_crude_oil_supply = crude_oil_supply_line_net_imports[year_cols].min().min()
-    min_value_crude_oil_supply = crude_oil_supply_line.loc[crude_oil_supply_line.plotting_name.isin(['Production', 'Exports', 'Imports']), year_cols].min().min()
-    
-    min_value = min(min_value_refined, min_value_crude_oil_supply)
-    min_value = calculate_y_axis_value(min_value)
-        
-    key_min_line = (sheet, 'line', sheet, "min")
-    key_min_bar = (sheet, 'bar', sheet, "min")
-    key_min_bar_line = (sheet, 'combined_line_bar', sheet, "min")
-    
-    max_and_min_values_dict[key_max_line] = max_value
-    max_and_min_values_dict[key_max_bar] = max_value
-    max_and_min_values_dict[key_min_line] = min_value
-    max_and_min_values_dict[key_min_bar] = min_value
-    max_and_min_values_dict[key_max_bar_line] = max_value
-    max_and_min_values_dict[key_min_bar_line] = min_value
-    ##################
-    
-    colours_dict = check_plotting_names_in_colours_dict(charts_mapping, colours_dict)
-    plotting_name_to_label_dict = check_plotting_name_label_in_plotting_name_to_label_dict(colours_dict, plotting_name_to_label_dict)
-    
-    unit_dict = {sheet: 'PJ'}
-    
-    charts_to_plot, chart_positions, worksheet = format_sheet_for_other_graphs(refined_products_and_net_imports,plotting_names_order,plotting_name_to_label_dict, scenario_num, scenarios_list, header_format, worksheet, workbook, plotting_specifications, writer, sheet, colours_dict,cell_format1, cell_format2,  max_and_min_values_dict, total_plotting_names, chart_types, ECONOMY_ID, unit_dict)
-    
-    return charts_to_plot, chart_positions, worksheet
-
-
-def format_sheet_for_other_graphs(refined_products_and_net_imports,plotting_names_order,plotting_name_to_label_dict, scenario_num, scenarios_list, header_format, worksheet,workbook, plotting_specifications, writer, sheet, colours_dict, cell_format1, cell_format2, max_and_min_values_dict, total_plotting_names, chart_types, ECONOMY_ID,unit_dict):
-    #########################
-    table, chart_types_unused, table_id, plotting_name_column, year_cols_start,num_cols, chart_titles, first_year_col, sheet_name = format_table(refined_products_and_net_imports,plotting_names_order,plotting_name_to_label_dict)
-    #########################
-    column_row = 1
-    space_under_tables = 1
-    space_above_charts = 1
-    space_under_charts = 1
-    space_under_titles = 1
-    
-    #calcualte current row using the table times the scenario number
-    num_table_rows = table.shape[0]
-    if scenario_num == 0:
-        current_row = 1
-        current_scenario = ''#for seom reason we have to do this? my bad lol
-    else:#add space as if we have already done this
-        current_scenario = scenarios_list[scenario_num - 1]#technical detail just to make add_section_titles work as expected. - it got removed in format_table but it wasnt set right anyway
-        current_row = num_table_rows * scenario_num + space_under_tables + column_row + space_above_charts + space_under_charts + plotting_specifications['height'] + 1
-    table['scenario'] = scenarios_list[scenario_num]# - it got removed in format_table 
-    current_row, current_scenario, worksheet = add_section_titles(current_row, current_scenario, sheet, worksheet, cell_format1, cell_format2, space_under_titles, table, space_under_tables,unit_dict, ECONOMY_ID)
-    
-    #drop the scenario column since we dont need it in the table
-    table = table.drop(columns=['scenario'])
-    
-    if len(chart_types) > 0:
-        current_row += plotting_specifications['height'] 
-        
-    worksheet.set_row(current_row, None, header_format)#21 for ref
-    
-    #write table to sheet
-    table.to_excel(writer, sheet_name = sheet, index = False, startrow = current_row)
-    current_row += len(table.index) + space_under_tables + column_row
-    num_table_rows = len(table.index)
-    # table
-    # plotting_name_column
-    # table_id
-    # sheet
-    # year_cols_start
-    # num_cols
-    # max_and_min_values_dict
-    # chart_titles
-    # first_year_col
-    # sheet_name
-    
-    # #identify and format charts we need to create
-    chart_positions = identify_chart_positions(current_row,num_table_rows,space_under_tables,column_row, space_above_charts, space_under_charts, plotting_specifications,chart_types)
-    
-    charts_to_plot = create_charts(table, chart_types, plotting_specifications, workbook, num_table_rows, plotting_name_column, table_id, sheet, current_row, space_under_tables, column_row, year_cols_start, num_cols, colours_dict,total_plotting_names, max_and_min_values_dict, chart_titles, first_year_col, sheet_name)
-
-    return charts_to_plot, chart_positions, worksheet
-
-
-def create_refining_and_low_carbon_fuels(charts_mapping, sheet,plotting_names_order,plotting_name_to_label_dict, worksheet,workbook,  colours_dict,cell_format1, cell_format2,  scenario_num,scenarios_list, header_format,plotting_specifications, writer, chart_types,ECONOMY_ID):
-    """    
-    # Add the new chart creation function to the new_charts_dict
-    new_charts_dict = {
-        'Refining output - incl. low-carbon fuels': {
-        'source': 'energy',
-        'sheet_name': 'Refining_and_low_carbon_fuels',
-        'function': workbook_creation_functions.create_refining_and_low_carbon_fuels,
-        'chart_type': 'percentage_bar'    
-    }
-
-    }
-    
-    energy	Refining and other transformation	Refining	5	line	sectors_plotting	Refining_output	Other petroleum products	Jet fuel	Ethane	Refinery gas not liquefied	LPG	Fuel oil	Diesel	Kerosene	Naphtha	Aviation gasoline	Gasoline
-    """
-    final_table = pd.DataFrame()
-    for chart_type in chart_types:
-        #extract the data we want to use for the refined products graph, then do wahtever manipulations and calculations are needed to get it into the right format, then plotit
-        refined_products = charts_mapping[(charts_mapping.table_id == 'energy_Refining_5')]
-        if len(refined_products) == 0:
-            breakpoint()
-            raise Exception('No data found for sheet Refining in create_refining_and_low_carbon_fuels()')
-        refined_products.loc[:, 'chart_title'] = 'Refining output - incl. low-carbon fuels'
-        refined_products.loc[:, 'table_id'] = sheet
-        refined_products.loc[:, 'aggregate_name'] = 'Refining and other transformation'
-        refined_products.loc[:, 'sheet_name'] = sheet
-        
-        refined_products.loc[:, 'chart_type'] = chart_type
-        refined_products.loc[:, 'scenario'] = scenarios_list[scenario_num]
-        ######
-        #hydrogen fuels are in transformation so charted separately to biofuels
-        low_carbon_fuels_hydrogen = charts_mapping[(charts_mapping.table_id == 'energy_Low carbon fuels_1') & (charts_mapping.plotting_name.isin(['Hydrogen_transformation_output']))]
-        if len(low_carbon_fuels_hydrogen) == 0:
-            breakpoint()
-            raise Exception('No data found for sheet Low carbon fuels in create_refining_and_low_carbon_fuels()')
-        #biofuels are in production so charted separately to hydrogen
-        low_carbon_fuels_biofuels = charts_mapping[(charts_mapping.table_id == 'energy_Low carbon fuels_6') & (charts_mapping.plotting_name.isin(['Production']))]
-        if len(low_carbon_fuels_biofuels) == 0:
-            breakpoint()
-            raise Exception('No data found for sheet Low carbon fuels in create_refining_and_low_carbon_fuels()')
-        low_carbon_fuels_hydrogen.loc[:, 'plotting_name'] = 'Hydrogen-based fuels'
-        low_carbon_fuels_biofuels.loc[:, 'plotting_name'] = 'Liquid biofuels'
-        
-        #then combine the two dataframes
-        low_carbon_fuels = pd.concat([low_carbon_fuels_hydrogen, low_carbon_fuels_biofuels])
-        
-        low_carbon_fuels.loc[:, 'chart_title'] = 'Refining output - incl. low-carbon fuels'
-        low_carbon_fuels.loc[:, 'table_id'] = sheet
-        low_carbon_fuels.loc[:, 'aggregate_name'] = 'Refining and other transformation'
-        low_carbon_fuels.loc[:, 'sheet_name'] = sheet
-        low_carbon_fuels.loc[:, 'chart_type'] = chart_type
-        low_carbon_fuels.loc[:, 'scenario'] = scenarios_list[scenario_num]
-        #now concatenate the two dataframes
-        refined_products_and_low_carbon_fuels = pd.concat([refined_products, low_carbon_fuels])
-        
-        #drop table_number since this is not needed
-        refined_products_and_low_carbon_fuels = refined_products_and_low_carbon_fuels.drop(columns=['table_number'])
-        
-        ##################
-        max_and_min_values_dict = {}
-        #we woud be better of doing these max and min values manually here sincewe want them to match for the two chart types (and they wont if we use the funciton below)
-        
-        #extract the year cols forw hich we will calculate the net imports by finding 4 digits in the column name
-        year_cols = [col for col in refined_products_and_low_carbon_fuels.columns if re.search(r'\d{4}', str(col))]
-        
-        max_value = refined_products_and_low_carbon_fuels[year_cols].sum(axis=0).max()
-        max_value = calculate_y_axis_value(max_value)
-            
-        key_max = (sheet, chart_type, sheet, "max")
-        
-        min_value = 0#refined_products_and_low_carbon_fuels[year_cols].min().min()
-        min_value = calculate_y_axis_value(min_value)
-            
-        key_min = (sheet, chart_type, sheet, "min")
-        
-        max_and_min_values_dict[key_max] = max_value
-        max_and_min_values_dict[key_min] = min_value
-        
-        ##################
-        final_table = pd.concat([final_table, refined_products_and_low_carbon_fuels])
-        ##################
-    
-    colours_dict = check_plotting_names_in_colours_dict(refined_products_and_low_carbon_fuels, colours_dict)
-    
-    plotting_name_to_label_dict = check_plotting_name_label_in_plotting_name_to_label_dict(colours_dict, plotting_name_to_label_dict)
-    
-    unit_dict = {sheet: 'PJ'}
-    
-    charts_to_plot, chart_positions, worksheet = format_sheet_for_other_graphs(refined_products_and_low_carbon_fuels,plotting_names_order,plotting_name_to_label_dict, scenario_num, scenarios_list, header_format, worksheet, workbook, plotting_specifications, writer, sheet, colours_dict,cell_format1, cell_format2,  max_and_min_values_dict, total_plotting_names, chart_types, ECONOMY_ID, unit_dict)
-    
-    return charts_to_plot, chart_positions, worksheet
-
-
 
 
 
