@@ -22,14 +22,15 @@ EXPECTED_COLS = ['source', 'table_number', 'chart_type','plotting_name', 'plotti
 
 SCENARIOS_list = ['reference', 'target']
 
-ALL_ECONOMY_IDS = ["01_AUS", "02_BD", "03_CDA", "04_CHL", "05_PRC", "06_HKC", "07_INA", "08_JPN", "09_ROK", "10_MAS", "11_MEX", "12_NZ", "13_PNG", "14_PE", "15_PHL", "16_RUS", "17_SGP", "18_CT", "19_THA", "20_USA", "21_VN"]#,'00_APEC', '23b_ONEA', '22_SEA', '23_NEA', '24_OAM', '25_OCE']
+ALL_ECONOMY_IDS = ["01_AUS", "02_BD", "03_CDA", "04_CHL", "05_PRC", "06_HKC", "07_INA", "08_JPN", "09_ROK", "10_MAS", "11_MEX", "12_NZ", "13_PNG", "14_PE", "15_PHL", "16_RUS", "17_SGP", "18_CT", "19_THA", "20_USA", "21_VN"]
 AGGREGATE_ECONOMY_MAPPING = {
     '00_APEC': ['01_AUS', '02_BD', '03_CDA', '04_CHL', '05_PRC', '06_HKC', '07_INA', '08_JPN', '09_ROK', '10_MAS', '11_MEX', '12_NZ', '13_PNG', '14_PE', '15_PHL', '16_RUS', '17_SGP', '18_CT', '19_THA', '20_USA', '21_VN'],
     '22_SEA': ['02_BD', '07_INA', '10_MAS', '15_PHL', '17_SGP', '19_THA', '21_VN'],
-    '23_NEA': ['05_PRC', '06_HKC', '08_JPN', '09_ROK', '18_CT'],
-    '23b_ONEA': ['01_AUS', '05_PRC', '06_HKC', '08_JPN', '09_ROK', '12_NZ', '13_PNG', '18_CT'],
-    '24_OAM': ['01_AUS', '03_CDA', '04_CHL', '11_MEX', '12_NZ', '13_PNG', '14_PE', '20_USA'],
-    '25_OCE': ['01_AUS', '02_BD', '05_PRC', '06_HKC', '07_INA', '08_JPN', '09_ROK', '10_MAS', '12_NZ', '13_PNG', '15_PHL', '17_SGP', '18_CT', '19_THA', '21_VN'],
+    '23_NEA': ['06_HKC', '08_JPN', '09_ROK', '18_CT'],
+    '23b_ONEA': ['06_HKC', '09_ROK', '18_CT'],
+    '24_OAM': ['03_CDA', '04_CHL', '11_MEX', '14_PE'],
+    '24b_OOAM': ['04_CHL', '11_MEX', '14_PE'],
+    '25_OCE': ['01_AUS', '12_NZ', '13_PNG'],
     '26_NA': ['03_CDA', '20_USA'],
 }
 
