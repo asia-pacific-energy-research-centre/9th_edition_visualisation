@@ -94,10 +94,10 @@ def map_all_1d_plotting_dfs_to_charts_mapping(all_1d_plotting_dfs, EXPECTED_COLS
     return charts_mapping
 
 
-def calculate_aggregate_data(macro_data, aggrgate_economy_codes):
+def calculate_aggregate_data(macro_data, aggregate_economy_codes):
     #first filter for the economies we want to aggregate
     
-    macro_data_AGG = macro_data[macro_data.economy_code.isin(aggrgate_economy_codes[ECONOMY_ID])].copy()
+    macro_data_AGG = macro_data[macro_data.economy_code.isin(aggregate_economy_codes[ECONOMY_ID])].copy()
     
     #add new economy code
     macro_data_AGG['economy_code'] = ECONOMY_ID
@@ -136,8 +136,8 @@ def extract_macro_data(ECONOMY_ID):
 
     macro_data = pd.read_csv(macro_data_files[0])
     #if economy is one o f the aggregate ones the we want to create a aggregate of all the necessary economies:
-    if ECONOMY_ID in aggrgate_economy_codes.keys():
-        macro_data = calculate_aggregate_data(macro_data, aggrgate_economy_codes)
+    if ECONOMY_ID in aggregate_economy_codes.keys():
+        macro_data = calculate_aggregate_data(macro_data, aggregate_economy_codes)
             
     macro_data = macro_data[macro_data.economy_code == ECONOMY_ID].copy()
     if len(macro_data) == 0:
