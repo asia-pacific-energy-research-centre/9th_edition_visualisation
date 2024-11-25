@@ -43,6 +43,18 @@ def map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COL
     all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'emissions_ch4', mapping_functions.modify_losses_and_own_use_values).copy()
     all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'emissions_co2e', mapping_functions.modify_losses_and_own_use_values).copy()
     all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'emissions_no2', mapping_functions.modify_losses_and_own_use_values).copy()
+    
+    all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'emissions_co2', mapping_functions.rename_sectors_and_negate_values_based_on_ccs_cap).copy()
+    
+    all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'emissions_ch4', mapping_functions.rename_sectors_and_negate_values_based_on_ccs_cap).copy()
+    all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'emissions_co2e', mapping_functions.rename_sectors_and_negate_values_based_on_ccs_cap).copy()
+    all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'emissions_no2', mapping_functions.rename_sectors_and_negate_values_based_on_ccs_cap).copy()
+    
+    all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'emissions_co2', mapping_functions.create_net_emission_rows).copy()
+    all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'emissions_ch4', mapping_functions.create_net_emission_rows).copy()
+    all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'emissions_co2e', mapping_functions.create_net_emission_rows).copy()
+    all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'emissions_no2', mapping_functions.create_net_emission_rows).copy()
+    
     all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'energy', mapping_functions.convert_electricity_output_to_twh).copy()
     all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'energy', mapping_functions.copy_and_modify_rows_with_conversion).copy()
     all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'energy', mapping_functions.modify_gas_to_gas_ccs).copy()
@@ -277,8 +289,7 @@ def map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COL
                 new_capacity_plotting_mappings = all_plotting_mapping_dicts['capacity']['df']
                 model_df_tall_capacity = mapping_functions.merge_capacity_mappings(model_df_tall, new_capacity_plotting_mappings, capacity_plotting_mappings, RAISE_ERROR=True)
                 # model_df_tall = model_df_tall_capacity.copy()
-                
-                
+
             # new_emissions_co2_plotting_mappings = all_plotting_mapping_dicts['emissions_co2']['df']
             # model_df_tall_emissions_co2 = mapping_functions.merge_emissions_co2_mappings(model_df_tall, new_emissions_co2_plotting_mappings,emissions_co2_plotting_mappings, RAISE_ERROR=RAISE_ERROR)
             # breakpoint()

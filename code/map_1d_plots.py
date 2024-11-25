@@ -94,10 +94,10 @@ def map_all_1d_plotting_dfs_to_charts_mapping(all_1d_plotting_dfs, EXPECTED_COLS
     return charts_mapping
 
 
-def calculate_aggregate_data(macro_data, aggrgate_economy_codes):
+def calculate_aggregate_data(macro_data, AGGREGATE_ECONOMY_MAPPING, ECONOMY_ID):
     #first filter for the economies we want to aggregate
     
-    macro_data_AGG = macro_data[macro_data.economy_code.isin(aggrgate_economy_codes[ECONOMY_ID])].copy()
+    macro_data_AGG = macro_data[macro_data.economy_code.isin(AGGREGATE_ECONOMY_MAPPING[ECONOMY_ID])].copy()
     
     #add new economy code
     macro_data_AGG['economy_code'] = ECONOMY_ID
@@ -129,15 +129,14 @@ def calculate_aggregate_data(macro_data, aggrgate_economy_codes):
 def extract_macro_data(ECONOMY_ID):
     #load in macro data
     #if there are multiple macro data files throw an error
-    macro_data_files = glob.glob(f'../input_data/macro/APEC_GDP_data_*.csv')
-    if len(macro_data_files) > 1:
-        breakpoint()
-        raise Exception(f'There are multiple macro data files in ../macro. There should only be one. Please remove the extra files and try again.')
+    #find latest data in macro:
+    macro_data_file = find_most_recent_file_date_id(directory_path=f'../input_data/macro/', filename_part = 'APEC_GDP_data_',RETURN_DATE_ID = False)
 
-    macro_data = pd.read_csv(macro_data_files[0])
-    #if economy is one o f the aggregate ones the we want to create a aggregate of all the necessary economies:
-    if ECONOMY_ID in aggrgate_economy_codes.keys():
-        macro_data = calculate_aggregate_data(macro_data, aggrgate_economy_codes)
+    macro_data = pd.read_csv(f'../input_data/macro/{macro_data_file}')
+    #if economy is one o f the aggregate ones the we want to create a aggregate of all the necessary economies, if its not already in the data!
+    
+    if ECONOMY_ID in AGGREGATE_ECONOMY_MAPPING.keys() and ECONOMY_ID not in macro_data.economy_code.unique():
+        macro_data = calculate_aggregate_data(macro_data, AGGREGATE_ECONOMY_MAPPING, ECONOMY_ID)
             
     macro_data = macro_data[macro_data.economy_code == ECONOMY_ID].copy()
     if len(macro_data) == 0:

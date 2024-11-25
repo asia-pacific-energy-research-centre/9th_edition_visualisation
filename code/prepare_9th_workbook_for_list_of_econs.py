@@ -15,8 +15,8 @@ import csv
 #%%
 #######################################################
 
-for ECONOMY_ID in ALL_ECONOMY_IDS:
-        
+for ECONOMY_ID in ['23b_ONEA', '22_SEA', '23_NEA', '24_OAM', '25_OCE']:#"01_AUS", "02_BD", "03_CDA", "04_CHL", "05_PRC", "06_HKC", "07_INA", "08_JPN", "09_ROK", "10_MAS", "11_MEX", "12_NZ", "13_PNG", "14_PE", "15_PHL", "16_RUS", "17_SGP", "18_CT", "19_THA", "20_USA", "21_VN",'00_APEC', '23b_ONEA', '22_SEA', '23_NEA', '24_OAM', '25_OCE']:#ALL_ECONOMY_IDS:
+    print(f"Starting workbook creation for {ECONOMY_ID}\n")
     MAP_DATA = True#False
     if MAP_DATA:
         map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COLS, RAISE_ERROR=False)

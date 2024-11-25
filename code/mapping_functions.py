@@ -76,7 +76,8 @@ def gather_charts_mapping_dict(ECONOMY_ID, FILE_DATE_ID,sources = ['energy', 'em
         all_charts_mapping_files_dict['emissions_co2e'] = [co2e_charts_mapping_df]
 
     if len(charts_mapping_files) == 0:
-        raise Exception('No charts mapping files found for FILE_DATE_ID: {}'.format(FILE_DATE_ID))
+        breakpoint()
+        raise Exception('No charts mapping files found for FILE_DATE_ID: {}, ECONOMY_ID: {}'.format(FILE_DATE_ID, ECONOMY_ID))
 
     # Add the unique sources from charts_mapping_1d to all_charts_mapping_files_dict
     for source in charts_mapping_1d.source.unique():
@@ -802,58 +803,74 @@ def modify_hydrogen_green_electricity(df):
 
 #     return df
 
-# def create_net_emission_rows(df):
-#     #also want to create new lines for fuels == 23_total_combustion_emissions_net where their sectors now = 20_total_combustion_emissions
-#     #and then where sectors == 21_total_combustion_emissions_net,make thier fuels = 22_total_combustion_emissions
-#     condition = (df['sectors'] == '21_total_combustion_emissions_net') & (df['fuels'] == '23_total_combustion_emissions_net')
-#     new_rows1 = df[condition].copy()
-#     new_rows1['sectors'] = '20_total_combustion_emissions'
-#     new_rows2 = df[condition].copy()
-#     new_rows2['fuels'] = '22_total_combustion_emissions'
-#     df = pd.concat([df, new_rows1, new_rows2], ignore_index=True)
-#     return df
+def create_net_emission_rows(df):
+    #also want to create new lines for fuels == 23_total_combustion_emissions_net where their sectors now = 20_total_combustion_emissions
+    #and then where sectors == 21_total_combustion_emissions_net,make thier fuels = 22_total_combustion_emissions
+    condition = (df['sectors'] == '21_total_combustion_emissions_net') & (df['fuels'] == '23_total_combustion_emissions_net')
+    new_rows1 = df[condition].copy()
+    new_rows1['sectors'] = '20_total_combustion_emissions'
+    new_rows2 = df[condition].copy()
+    new_rows2['fuels'] = '22_total_combustion_emissions'
+    df = pd.concat([df, new_rows1, new_rows2], ignore_index=True)
+    return df
     
-# def rename_sectors_and_negate_values_based_on_ccs_cap(df):
-#     """
-#     For rows with a suffix '_ccs_captured_emissions' in 'sub2sectors' or 'sub3sectors' columns:
-#     - Creates more rows and adds '_captured_emissions' to the suffix of the category name in the 'sectors' column and checks values in year columns are negative.
-#     - Copies these rows, renames the category in 'sectors' to '_captured_emissions_pos', and makes the year values positive.
+def rename_sectors_and_negate_values_based_on_ccs_cap(df):
+    """
+    For rows with a suffix '_captured_emissions' in 'sub2sectors' or 'sub3sectors' columns:
+    - Creates more rows and adds '_captured_emissions' to the suffix of the category name in the 'sectors' column and checks values in year columns are negative.
+    #(redacted) - Copies these rows, renames the category in 'sectors' to '_captured_emissions_pos', and makes the year values positive.
     
-#     Parameters:
-#     - df (pd.DataFrame): The dataframe to modify.
+    Parameters:
+    - df (pd.DataFrame): The dataframe to modify.
     
-#     Returns:
-#     - df (pd.DataFrame): The modified dataframe with additional rows appended.
-#     """
-#     # Identify year columns
-#     year_columns = [col for col in df.columns if col.isdigit()]
+    Returns:
+    - df (pd.DataFrame): The modified dataframe with additional rows appended.
+    """
+    # Identify year columns
+    year_columns = [col for col in df.columns if col.isdigit()]
 
-#     # Define condition for rows to modify
-#     condition = df['sub2sectors'].str.endswith('_ccs_captured_emissions') | df['sub3sectors'].str.endswith('_ccs_captured_emissions')
+    # Define condition for rows to modify
+    condition = df['sub2sectors'].str.endswith('_captured_emissions') | df['sub3sectors'].str.endswith('_captured_emissions')
     
-#     # Copy the rows that meet the condition, to modify and append them
-#     rows = df.loc[condition].copy()
+    # Copy the rows that meet the condition, to modify and append them
+    rows = df.loc[condition].copy()
     
-#     # Update 'sectors' and year values for rows matching the condition
-#     rows.loc[condition, 'sectors'] = rows.loc[condition, 'sectors'] + '_emissions_captured_emissions'
-#     for col in year_columns:
-#         #check if the values are negative, if not throw an error
-#         if (rows[col] > 0).any():
-#             raise Exception('There are positive values in the year columns for rows with "_ccs_captured_emissions" in "sub2sectors" or "sub3sectors".')
-#     # Copy the rows that meet the condition, to modify and append them
-#     new_rows = rows.loc[condition].copy()
-#     new_rows['sectors'] = new_rows['sectors'].str.replace('_captured_emissions', '_captured_emissions_pos')
-#     for col in year_columns:
-#         new_rows[col] = new_rows[col].abs()  # Make values positive
-    
-#     # Copy new rows and rename the category in 'sectors' to '_emissions_area'
-#     new_rows_area = new_rows.copy()
-#     new_rows_area['sectors'] = new_rows_area['sectors'].str.replace('_emissions_captured_emissions_pos', '_emissions_area')
+    # Update 'sectors' and year values for rows matching the condition
+    rows.loc[condition, 'sectors'] = rows.loc[condition, 'sectors'] + '_captured_emissions'
+    for col in year_columns:
+        #check if the values are negative, if not throw an error
+        if (rows[col] > 0).any():
+            raise Exception('There are positive values in the year columns for rows with "_captured_emissions" in "sub2sectors" or "sub3sectors".')
+        
+    #we also want these rwos to be accessible within Total combustion emissions plotting name for fuels plotting aggregation. so copy the new rows and set the fuel to 22_total_combustion_emissions    
+    new_rows = rows.copy()
+    new_rows['fuels'] = '22_total_combustion_emissions'
+    new_rows['subfuels'] = 'x'
 
-#     # Concatenate the new rows to the original dataframe
-#     df = pd.concat([df, rows, new_rows, new_rows_area], ignore_index=True)
+    #we also want to be able to access these captrud emissions by fuel type. So we'll grab these rows, set their sectors to 20_total_combustion_emissions and their fuels to the fuels+captured_emissions
+    new_fuels_rows = rows.copy()
+    new_fuels_rows['sectors'] = '20_total_combustion_emissions'
+    new_fuels_rows['sub1sectors'] = 'x'
+    new_fuels_rows['sub2sectors'] = 'x'
+    new_fuels_rows['sub3sectors'] = 'x'
+    new_fuels_rows['sub4sectors'] = 'x'
+    
+    new_fuels_rows['fuels'] = new_fuels_rows['fuels'] + '_captured_emissions'   
+    
+    # Copy the rows that meet the condition, to modify and append them
+    # new_rows = rows.loc[condition].copy()
+    # new_rows['sectors'] = new_rows['sectors'].str.replace('_captured_emissions', '_captured_emissions_pos')
+    # for col in year_columns:
+    #     new_rows[col] = new_rows[col].abs()  # Make values positive
+    
+    # # Copy new rows and rename the category in 'sectors' to '_emissions_area'
+    # new_rows_area = new_rows.copy()
+    # new_rows_area['sectors'] = new_rows_area['sectors'].str.replace('_emissions_captured_emissions_pos', '_emissions_area')
 
-#     return df	
+    # Concatenate the new rows to the original dataframe
+    df = pd.concat([df, rows, new_rows, new_fuels_rows], ignore_index=True)
+    #, new_rows, new_rows_area
+    return df	
 	
 
 # def copy_and_modify_power_sector_rows(df):
