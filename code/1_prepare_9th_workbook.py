@@ -15,7 +15,7 @@ import csv
 
 #######################################################
 #%%
-ECONOMY_ID = '26_NA'
+ECONOMY_ID = '18_CT'
 MAP_DATA = True#False
 if MAP_DATA:
     map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COLS, RAISE_ERROR=False)
@@ -72,7 +72,6 @@ new_charts_dict = {
         'function': extra_graphs_plotting_functions.create_liquid_biofuels_and_bioenergy_supply_charts,
         'chart_types': ['bar']
     },
-    
 }
 #%%
 workbook, writer = extra_graphs_plotting_functions.create_extra_graphs(workbook, all_charts_mapping_files_dict, total_plotting_names, MIN_YEAR,  plotting_specifications, plotting_names_order,plotting_name_to_label_dict, colours_dict, cell_format1, cell_format2, new_charts_dict, header_format, writer, EXPECTED_COLS, ECONOMY_ID)

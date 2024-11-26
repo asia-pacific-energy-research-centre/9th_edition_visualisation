@@ -98,7 +98,6 @@ def create_refined_products_bar_and_net_imports_line(charts_mapping, sheet,plott
             raise Exception(f'Expected exactly 1 value for imports and exports for year {year} in create_refined_products_bar_and_crude_oil_supply_line()')
         crude_oil_supply_line_net_imports[year] = crude_oil_supply_line_IMPORTS[year].values[0] - crude_oil_supply_line_EXPORTS[year].values[0]
     ######
-    
     # crude_oil_supply_line.loc[:, 'plotting_name'] = 'Net crude imports'
     crude_oil_supply_line_IMPORTS.loc[:, 'plotting_name'] = 'Crude imports'
     crude_oil_supply_line_EXPORTS.loc[:, 'plotting_name'] = 'Crude exports'
@@ -121,10 +120,10 @@ def create_refined_products_bar_and_net_imports_line(charts_mapping, sheet,plott
     ##################
     max_and_min_values_dict = {}
     #we woud be better of doing these max and min values manually here sincewe want them to match for the two chart types (and they wont if we use the funciton below)
-    #the max vlaue will ave to be the max betwene the sum of the refined products and the max of the net imports:
-    max_value_refined = refined_products[year_cols].sum(axis=0).max()#will this work?
-    max_value_crude_oil_supply = crude_oil_supply_line_net_imports[year_cols].max().max()
-    max_value_crude_oil_supply = crude_oil_supply_line.loc[crude_oil_supply_line.plotting_name.isin(['Production', 'Exports', 'Imports']), year_cols].max().max()
+    #the max vlaue will ave to be the max betwene the sum of the postivie refined products and the max of the net imports:
+    postive_refined_products = refined_products[refined_products[year_cols] > 0]
+    max_value_refined = postive_refined_products[year_cols].sum(axis=0).max()
+    max_value_crude_oil_supply = crude_oil_supply_line.loc[crude_oil_supply_line.plotting_name.isin(['Crude production', 'Crude exports', 'Crude imports']), year_cols].max().max()
     max_value = max(max_value_refined, max_value_crude_oil_supply) 
     max_value = workbook_creation_functions.calculate_y_axis_value(max_value)
         
@@ -132,19 +131,10 @@ def create_refined_products_bar_and_net_imports_line(charts_mapping, sheet,plott
     key_max_bar = (sheet, 'bar', sheet, "max")
     key_max_bar_line = (sheet, 'combined_line_bar', sheet, "max")
     #the min value will be the min of the sum of the NEGATIVE refined products and the min of the net imports:#first melt, then filter and then group by and sum
-    non_year_cols = [col for col in refined_products.columns if col not in year_cols]
-    negatives = refined_products.melt(id_vars=non_year_cols, value_vars=year_cols, var_name='year', value_name='value').copy()
-    #filter
-    negatives = negatives[negatives['value'] < 0]
-    #group by and sum
-    negatives = negatives.groupby(['year'])['value'].sum().reset_index()
-    
-    min_value_refined = negatives.value.min()
-    
-    min_value_crude_oil_supply = crude_oil_supply_line_net_imports[year_cols].min().min()
-    min_value_crude_oil_supply = crude_oil_supply_line.loc[crude_oil_supply_line.plotting_name.isin(['Production', 'Exports', 'Imports']), year_cols].min().min()
-    
-    min_value = min(min_value_refined, min_value_crude_oil_supply)
+    negative_refined_products = refined_products[refined_products[year_cols] < 0]
+    min_value_refined = negative_refined_products[year_cols].sum(axis=0).min()
+    min_value_crude_oil_supply = crude_oil_supply_line.loc[crude_oil_supply_line.plotting_name.isin(['Crude production', 'Crude exports', 'Crude imports']), year_cols].min().min()
+    min_value = min(min_value_refined, min_value_crude_oil_supply) 
     min_value = workbook_creation_functions.calculate_y_axis_value(min_value)
         
     key_min_line = (sheet, 'line', sheet, "min")
