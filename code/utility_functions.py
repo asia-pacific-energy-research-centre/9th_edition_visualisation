@@ -5,6 +5,7 @@ import re
 import os
 from datetime import datetime
 import pickle
+import shutil
 STRICT_DATA_CHECKING = False
 
 # ECONOMY_ID = '22_SEA'#'00_APEC'#08_JPN#tremoved this because its just confusing. might as well set it in the script
@@ -122,3 +123,38 @@ def data_checking_warning_or_error(message):
         raise Exception(message)
     else:
         print(message)
+
+def move_workbooks_to_onedrive(origin_date_id=FILE_DATE_ID, econ_list=ALL_ECONOMY_IDS):
+    # clean_onedrive_workbooks_folder(date_ids_to_keep='20241211', specific_files_to_keep=[], econ_list=ALL_ECONOMY_IDS, archive_folder_name="first_iteration")
+    # clean_onedrive_workbooks_folder(date_ids_to_keep='20241211', specific_files_to_keep=[], econ_list=AGGREGATE_ECONOMY_MAPPING.keys(), archive_folder_name="first_iteration")
+    CURRENT_DATE_ID = datetime.now().strftime("%Y%m%d")
+    for economy_id in econ_list:
+        source_path = f'C:/Users/finbar.maunsell/github/9th_edition_visualisation/output/output_workbooks/{economy_id}/{economy_id}_charts_{origin_date_id}.xlsx'
+        destination_path = f'C:/Users/finbar.maunsell/OneDrive - APERC/outlook 9th/Modelling/Visualisation/{economy_id}/{economy_id}_charts_{CURRENT_DATE_ID}.xlsx'
+        
+        # Create destination directory if it doesn't exist
+        os.makedirs(os.path.dirname(destination_path), exist_ok=True)
+        
+        # Move the file
+        shutil.copy(source_path, destination_path)
+        print(f"Moved {source_path} to {destination_path}")
+
+def clean_onedrive_workbooks_folder(date_ids_to_keep, specific_files_to_keep, econ_list, archive_folder_name="archive"):
+    # clean_onedrive_workbooks_folder(date_ids_to_keep=['20241211'], specific_files_to_keep=[], econ_list=["01_AUS", "02_BD", "03_CDA", "04_CHL", "05_PRC", "06_HKC", "07_INA", "08_JPN", "09_ROK", "10_MAS", "11_MEX", "12_NZ", "13_PNG", "14_PE", "15_PHL", "16_RUS", "17_SGP", "18_CT", "19_THA", "20_USA", "21_VN"], archive_folder_name="first_iteration")
+    # clean_onedrive_workbooks_folder(date_ids_to_keep=['20241211'], specific_files_to_keep=[], econ_list=AGGREGATE_ECONOMY_MAPPING.keys(), archive_folder_name="first_iteration")
+    for economy_id in econ_list:
+        base_path = f'C:/Users/finbar.maunsell/OneDrive - APERC/outlook 9th/Modelling/Visualisation/{economy_id}/'
+        archive_path = os.path.join(base_path, archive_folder_name)
+        
+        # Create archive directory if it doesn't exist
+        os.makedirs(archive_path, exist_ok=True)
+        
+        for file_name in os.listdir(base_path):
+            file_path = os.path.join(base_path, file_name)
+            
+            # Check if it's a file and not a directory
+            if os.path.isfile(file_path):
+                # Check if the file does not contain any of the date_ids_to_keep and is not in specific_files_to_keep
+                if all(date_id not in file_name for date_id in date_ids_to_keep) and file_name not in specific_files_to_keep:
+                    shutil.move(file_path, os.path.join(archive_path, file_name))
+                    print(f"Moved {file_path} to {archive_path}")

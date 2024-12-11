@@ -83,26 +83,4 @@ for ECONOMY_ID in ["01_AUS", "02_BD", "03_CDA", "04_CHL", "05_PRC", "06_HKC", "0
     print("Workbook saved successfully.")
 
     
-#%%
-
-
-#create method to move files to C:\Users\finbar.maunsell\OneDrive - APERC\outlook 9th\Modelling\Visualisation\{ECONOMY_ID}\{ECONOMY_ID}_charts_{CURRENT_DATE_ID}.xlsx from C:\Users\finbar.maunsell\github\9th_edition_visualisation\output\output_workbooks\{ECONOMY_ID}\{ECONOMY_ID}_charts_20241112.xlsx
-
-def move_workbooks_to_onedrive(origin_date_id=FILE_DATE_ID, econ_list=ALL_ECONOMY_IDS):
-    CURRENT_DATE_ID = datetime.now().strftime("%Y%m%d")
-    for economy_id in econ_list:
-        source_path = f'C:/Users/finbar.maunsell/github/9th_edition_visualisation/output/output_workbooks/{economy_id}/{economy_id}_charts_{origin_date_id}.xlsx'
-        destination_path = f'C:/Users/finbar.maunsell/OneDrive - APERC/outlook 9th/Modelling/Visualisation/{economy_id}/{economy_id}_charts_{CURRENT_DATE_ID}.xlsx'
-        
-        # Create destination directory if it doesn't exist
-        os.makedirs(os.path.dirname(destination_path), exist_ok=True)
-        
-        # Move the file
-        shutil.copy(source_path, destination_path)
-        print(f"Moved {source_path} to {destination_path}")
-DO_THIS=False
-if DO_THIS:
-    move_workbooks_to_onedrive(origin_date_id=FILE_DATE_ID, econ_list=["01_AUS", "02_BD", "03_CDA", "04_CHL", "05_PRC", "06_HKC", "07_INA", "08_JPN", "09_ROK", "10_MAS", "11_MEX", "12_NZ", "13_PNG", "14_PE", "15_PHL", "16_RUS", "17_SGP", "18_CT", "19_THA", "20_USA", "21_VN"])#AGGREGATE_ECONOMY_MAPPING.keys())
-
-        
 # %%
