@@ -132,7 +132,8 @@ def extract_macro_data(ECONOMY_ID):
     #find latest data in macro:
     macro_data_file = find_most_recent_file_date_id(directory_path=f'../input_data/macro/', filename_part = 'APEC_GDP_data_',RETURN_DATE_ID = False)
 
-    macro_data = pd.read_csv(f'../input_data/macro/{macro_data_file}')
+    # macro_data = pd.read_csv(f'../input_data/macro/{macro_data_file}')
+    macro_data = pd.read_csv(f'../input_data/macro/APEC_GDP_data_2024_09_02.csv')
     #if economy is one o f the aggregate ones the we want to create a aggregate of all the necessary economies, if its not already in the data!
     
     if ECONOMY_ID in AGGREGATE_ECONOMY_MAPPING.keys() and ECONOMY_ID not in macro_data.economy_code.unique():
