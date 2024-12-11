@@ -14,8 +14,9 @@ from utility_functions import *
 import csv
 #%%
 #######################################################
-
-for ECONOMY_ID in AGGREGATE_ECONOMY_MAPPING.keys():#"01_AUS", "02_BD", "03_CDA", "04_CHL", "05_PRC", "06_HKC", "07_INA", "08_JPN", "09_ROK", "10_MAS", "11_MEX", "12_NZ", "13_PNG", "14_PE", "15_PHL", "16_RUS", "17_SGP", "18_CT", "19_THA", "20_USA", "21_VN",'00_APEC', '23b_ONEA', '22_SEA', '23_NEA', '24_OAM', '25_OCE']:#ALL_ECONOMY_IDS:
+#"01_AUS", "02_BD", "03_CDA", "04_CHL", "05_PRC", "06_HKC", "07_INA", "08_JPN", "09_ROK", "10_MAS", "11_MEX", "12_NZ", "13_PNG", "14_PE",
+for ECONOMY_ID in ["01_AUS", "02_BD", "03_CDA", "04_CHL", "05_PRC", "06_HKC", "07_INA", "08_JPN", "09_ROK", "10_MAS", "11_MEX", "12_NZ", "13_PNG", "14_PE", "15_PHL", "16_RUS", "17_SGP", "18_CT", "19_THA", "20_USA", "21_VN",'00_APEC', '23b_ONEA', '22_SEA', '23_NEA', '24_OAM', '25_OCE']:#ALL_ECONOMY_IDS:
+    
     print(f"Starting workbook creation for {ECONOMY_ID}\n")
     MAP_DATA = True#False
     if MAP_DATA:
@@ -23,9 +24,8 @@ for ECONOMY_ID in AGGREGATE_ECONOMY_MAPPING.keys():#"01_AUS", "02_BD", "03_CDA",
         
         charts_mapping_1d = map_9th_data_to_one_dimensional_plots(ECONOMY_ID, EXPECTED_COLS)#, total_emissions_co2, total_emissions_ch4, total_emissions_co2e, total_emissions_no2)
         # Save checkpoint after mapping 1D data
-        save_checkpoint(charts_mapping_1d, 'charts_mapping_1d')    
+        save_checkpoint(charts_mapping_1d, f'charts_mapping_1d_{ECONOMY_ID}')    
         
-    
     #######################################################
     all_charts_mapping_files_dict = gather_charts_mapping_dict(ECONOMY_ID, FILE_DATE_ID, sources = ['energy', 'emissions_co2', 'emissions_ch4', 'emissions_co2e', 'emissions_no2', 'capacity'])
     
@@ -88,9 +88,9 @@ for ECONOMY_ID in AGGREGATE_ECONOMY_MAPPING.keys():#"01_AUS", "02_BD", "03_CDA",
 
 #create method to move files to C:\Users\finbar.maunsell\OneDrive - APERC\outlook 9th\Modelling\Visualisation\{ECONOMY_ID}\{ECONOMY_ID}_charts_{CURRENT_DATE_ID}.xlsx from C:\Users\finbar.maunsell\github\9th_edition_visualisation\output\output_workbooks\{ECONOMY_ID}\{ECONOMY_ID}_charts_20241112.xlsx
 
-def move_workbooks_to_onedrive(origin_date_id=FILE_DATE_ID):
+def move_workbooks_to_onedrive(origin_date_id=FILE_DATE_ID, econ_list=ALL_ECONOMY_IDS):
     CURRENT_DATE_ID = datetime.now().strftime("%Y%m%d")
-    for economy_id in ALL_ECONOMY_IDS:
+    for economy_id in econ_list:
         source_path = f'C:/Users/finbar.maunsell/github/9th_edition_visualisation/output/output_workbooks/{economy_id}/{economy_id}_charts_{origin_date_id}.xlsx'
         destination_path = f'C:/Users/finbar.maunsell/OneDrive - APERC/outlook 9th/Modelling/Visualisation/{economy_id}/{economy_id}_charts_{CURRENT_DATE_ID}.xlsx'
         
@@ -102,7 +102,7 @@ def move_workbooks_to_onedrive(origin_date_id=FILE_DATE_ID):
         print(f"Moved {source_path} to {destination_path}")
 DO_THIS=False
 if DO_THIS:
-    move_workbooks_to_onedrive(origin_date_id=FILE_DATE_ID)   
+    move_workbooks_to_onedrive(origin_date_id=FILE_DATE_ID, econ_list=["01_AUS", "02_BD", "03_CDA", "04_CHL", "05_PRC", "06_HKC", "07_INA", "08_JPN", "09_ROK", "10_MAS", "11_MEX", "12_NZ", "13_PNG", "14_PE", "15_PHL", "16_RUS", "17_SGP", "18_CT", "19_THA", "20_USA", "21_VN"])#AGGREGATE_ECONOMY_MAPPING.keys())
 
         
 # %%

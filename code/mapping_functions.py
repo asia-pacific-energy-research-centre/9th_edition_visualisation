@@ -38,7 +38,7 @@ def load_and_format_configs():
     return plotting_specifications, plotting_name_to_label_dict, colours_dict, plotting_names_order
 
 def gather_charts_mapping_dict(ECONOMY_ID, FILE_DATE_ID,sources = ['energy', 'emissions_co2', 'emissions_ch4', 'emissions_co2e', 'emissions_no2', 'capacity']):
-    charts_mapping_1d = load_checkpoint('charts_mapping_1d')
+    charts_mapping_1d = load_checkpoint(f'charts_mapping_1d_{ECONOMY_ID}')
     
     # Read in titles, only, from charts mapping for each available economy for the FILE_DATE_ID
     all_charts_mapping_files_dict = {}
