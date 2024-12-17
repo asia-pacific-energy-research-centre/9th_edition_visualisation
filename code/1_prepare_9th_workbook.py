@@ -12,17 +12,16 @@ from map_2d_plots import map_9th_data_to_two_dimensional_plots
 from map_1d_plots import map_9th_data_to_one_dimensional_plots
 from utility_functions import *
 import csv
-
 #######################################################
 #%%
-ECONOMY_ID = '19_THA'
+ECONOMY_ID = '07_INA'
 MAP_DATA = True#False
 if MAP_DATA:
     map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COLS, RAISE_ERROR=False)
-    
+        
     charts_mapping_1d = map_9th_data_to_one_dimensional_plots(ECONOMY_ID, EXPECTED_COLS)#, total_emissions_co2, total_emissions_ch4, total_emissions_co2e, total_emissions_no2)
     # Save checkpoint after mapping 1D data
-    save_checkpoint(charts_mapping_1d, 'charts_mapping_1d')    
+    save_checkpoint(charts_mapping_1d, f'charts_mapping_1d_{ECONOMY_ID}')    
     
 #%%
 #######################################################
