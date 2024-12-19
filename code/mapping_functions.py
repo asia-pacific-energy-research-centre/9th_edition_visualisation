@@ -35,10 +35,18 @@ def load_and_format_configs():
     plotting_name_to_label_dict = plotting_name_to_label.set_index(plotting_name_to_label.columns[0]).to_dict()[plotting_name_to_label.columns[1]]
     colours_dict = colours_dict.set_index(colours_dict.columns[0]).to_dict()[colours_dict.columns[1]]
     
+    #find anything that contains 'inches' in the key, then set the key so it replaces 'inches' with 'pixels', then divide the inches by the 'dpi' key in plotting_specifications to get the pixels
+    keys_ = [key for key in plotting_specifications.keys()]
+    for key in keys_:
+        if 'inches' in key:
+            new_key = key.replace('inches', 'pixels')
+            plotting_specifications[new_key] = plotting_specifications[key] * plotting_specifications['dpi']
+            plotting_specifications.pop(key)
+    
     return plotting_specifications, plotting_name_to_label_dict, colours_dict, plotting_names_order
 
 def gather_charts_mapping_dict(ECONOMY_ID, FILE_DATE_ID,sources = ['energy', 'emissions_co2', 'emissions_ch4', 'emissions_co2e', 'emissions_no2', 'capacity']):
-    charts_mapping_1d = load_checkpoint('charts_mapping_1d')
+    charts_mapping_1d = load_checkpoint(f'charts_mapping_1d_{ECONOMY_ID}')
     
     # Read in titles, only, from charts mapping for each available economy for the FILE_DATE_ID
     all_charts_mapping_files_dict = {}

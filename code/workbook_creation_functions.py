@@ -28,7 +28,7 @@ def create_sheets_from_mapping_df(workbook, charts_mapping_df, total_plotting_na
         if len(years_less['year'].unique()) > 2:
             breakpoint()
             raise Exception('There are more than 2 years before the base year. This is not expected. Please check the data')
-            
+        
         mask2 = (charts_mapping['sheet_name'].isin(['Transport stocks', 'Transport activity'])) & (charts_mapping['year'].astype(int) < OUTLOOK_BASE_YEAR)
         mask3 = (charts_mapping['sheet_name'].isin(['Transport stocks', 'Transport activity'])) & (charts_mapping['year'].astype(int) == OUTLOOK_BASE_YEAR)
         # Replace 0s with the data from the OUTLOOK_BASE_YEAR for 'Transport stocks', 'Transport activity' only for years before OUTLOOK_BASE_YEAR.
@@ -164,7 +164,6 @@ def create_sheets_from_mapping_df(workbook, charts_mapping_df, total_plotting_na
             ########################
             current_row, current_scenario, worksheet = add_section_titles(current_row, current_scenario, sheet, worksheet, cell_format1, cell_format2, space_under_titles, table, space_under_tables,unit_dict, ECONOMY_ID)
             ########################
-            
             table, chart_types, table_id, plotting_name_column, year_cols_start,num_cols, chart_titles, first_year_col, sheet_name = format_table(table,plotting_names_order,plotting_name_to_label_dict)
             
             try:
@@ -198,12 +197,15 @@ def create_sheets_from_mapping_df(workbook, charts_mapping_df, total_plotting_na
                 3000: f'Emissions {OUTLOOK_BASE_YEAR}',
                 3001: 'Population',
                 3002: 'GDP per capita',
-                3003: 'Energy intensity',
-                3004: 'Emissions intensity',
-                3005: f'Emissions {OUTLOOK_LAST_YEAR}'
+                3003: 'Intensity REF',
+                3004: f'Emissions {OUTLOOK_LAST_YEAR} REF',
+                3005: 'Intensity TGT',
+                3006: f'Emissions {OUTLOOK_LAST_YEAR} TGT',
+                
             }
             # If sheet is CO2 emissions components, rename the years
             if sheet == 'CO2 emissions components':
+                
                 # Rename the columns using the mapping dictionary
                 table.rename(columns=column_mapping, inplace=True)
                 #need to reset the year_cols_start (it wasnt correct before either)
@@ -982,8 +984,8 @@ def bar_plotting_specifications(workbook, plotting_specifications, y_axis_max, y
     # Create a another chart
     bar_chart = workbook.add_chart({'type': 'column', 'subtype': 'stacked'})#can make this percent_stacked to make it a percentage stacked bar chart!
     bar_chart.set_size({
-        'width': plotting_specifications['width_pixels'],
-        'height': plotting_specifications['height_pixels']
+        'width': plotting_specifications['bar_width_pixels'],
+        'height': plotting_specifications['bar_height_pixels']
     })
     
     bar_chart.set_chartarea({
