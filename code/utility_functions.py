@@ -14,7 +14,7 @@ STRICT_DATA_CHECKING = False
 #create FILE_DATE_ID for use in file names
 FILE_DATE_ID = datetime.now().strftime('%Y%m%d')
 
-FILE_DATE_ID = '20241112'
+# FILE_DATE_ID = '20241112'
 total_plotting_names=['Total', 'TPES', 'Total primary energy supply','TFEC', 'TFC', 'Total_industry', 'Total_transport', 'Total_fuels', 'Total combustion emissions']
 MIN_YEAR = 2000
 
