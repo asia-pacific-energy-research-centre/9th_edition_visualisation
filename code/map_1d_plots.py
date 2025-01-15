@@ -27,9 +27,9 @@ def map_9th_data_to_one_dimensional_plots(ECONOMY_ID, EXPECTED_COLS):#, total_em
     
     renewable_share_df, electricity_renewable_share = calculate_and_extract_renewable_share_data(ECONOMY_ID)
     all_1d_plotting_dfs = pd.concat([all_1d_plotting_dfs, renewable_share_df, electricity_renewable_share], axis=0)
-    kaya_identity_df = calculate_and_extract_kaya_identity_data(ECONOMY_ID, raw_energy_intensity_df, emissions_co2_melt, raw_emissions_co2_intensity_df)
+    # kaya_identity_df = calculate_and_extract_kaya_identity_data(ECONOMY_ID, raw_energy_intensity_df, emissions_co2_melt, raw_emissions_co2_intensity_df)
     
-    all_1d_plotting_dfs = pd.concat([all_1d_plotting_dfs, kaya_identity_df], axis=0)
+    # all_1d_plotting_dfs = pd.concat([all_1d_plotting_dfs, kaya_identity_df], axis=0)
     
     #when it comes to very specific charts, we can use a specific chart name which when referenced will call a specific function to create the chart. e.g. 'decomposition_chart' will call the function create_decomposition_chart() which will create the chart.
     #TODO: add decomposition chart
@@ -132,7 +132,6 @@ def extract_macro_data(ECONOMY_ID):
     #if there are multiple macro data files throw an error
     #find latest data in macro:
     macro_data_file = find_most_recent_file_date_id(directory_path=f'../input_data/macro/', filename_part = 'APEC_GDP_data_',RETURN_DATE_ID = False)
-
     macro_data = pd.read_csv(f'../input_data/macro/{macro_data_file}')
     # macro_data = pd.read_csv(f'../input_data/macro/APEC_GDP_data_2024_09_02.csv')
     #if economy is one o f the aggregate ones the we want to create a aggregate of all the necessary economies, if its not already in the data!
