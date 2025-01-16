@@ -27,14 +27,10 @@ def map_9th_data_to_one_dimensional_plots(ECONOMY_ID, EXPECTED_COLS):#, total_em
     
     renewable_share_df, electricity_renewable_share = calculate_and_extract_renewable_share_data(ECONOMY_ID)
     all_1d_plotting_dfs = pd.concat([all_1d_plotting_dfs, renewable_share_df, electricity_renewable_share], axis=0)
-    # kaya_identity_df = calculate_and_extract_kaya_identity_data(ECONOMY_ID, raw_energy_intensity_df, emissions_co2_melt, raw_emissions_co2_intensity_df)
+    kaya_identity_df = calculate_and_extract_kaya_identity_data(ECONOMY_ID, raw_energy_intensity_df, emissions_co2_melt, raw_emissions_co2_intensity_df)
     
-    # all_1d_plotting_dfs = pd.concat([all_1d_plotting_dfs, kaya_identity_df], axis=0)
+    all_1d_plotting_dfs = pd.concat([all_1d_plotting_dfs, kaya_identity_df], axis=0)
     
-    #when it comes to very specific charts, we can use a specific chart name which when referenced will call a specific function to create the chart. e.g. 'decomposition_chart' will call the function create_decomposition_chart() which will create the chart.
-    #TODO: add decomposition chart
-    # decomposition_df = calculate_and_extract_decomposition_data()
-    #plotting_dict['Decomposition'] = ((decomposition_df, 'decomposition_waterfall', 'Decomposition', 'Decomposition', None),)
     charts_mapping_1d = map_all_1d_plotting_dfs_to_charts_mapping(all_1d_plotting_dfs, EXPECTED_COLS)
     
     charts_mapping_1d = mapping_functions.format_chart_titles(charts_mapping_1d, ECONOMY_ID)
@@ -60,6 +56,7 @@ def map_all_1d_plotting_dfs_to_charts_mapping(all_1d_plotting_dfs, EXPECTED_COLS
     #insert nans for aggregate_name_column, aggregate_name, scenario.
     #need to create table_id,table_number, dimensions. these should be come up with using master_config>one_dimensional_plots
     charts_mapping_template = pd.read_excel('../config/master_config.xlsx', sheet_name='one_dimensional_plots')
+    
     #cols: source	sheet_name	table_number	chart_type	plotting_name	chart_title
     all_1d_plotting_dfs['aggregate_name_column'] = np.nan
     all_1d_plotting_dfs['aggregate_name'] = np.nan
@@ -484,7 +481,7 @@ def calculate_and_extract_kaya_identity_data(ECONOMY_ID, raw_energy_intensity_df
     #It is a fall if the initial for 3004 is equal to basefor 3003. If not then its a rise.
     initial_3004 = kaya_identity_df[(kaya_identity_df['plotting_name'] == 'initial') & (kaya_identity_df['year'] == 3004)]['value'].values[0]
     base_3003 = kaya_identity_df[(kaya_identity_df['plotting_name'] == 'base') & (kaya_identity_df['year'] == 3003)]['value'].values[0]
-    breakpoint()
+    
     if initial_3004 == base_3003:
         fall_or_rise_ref = 'fall'
     else:
@@ -528,6 +525,7 @@ def calculate_and_extract_kaya_identity_data(ECONOMY_ID, raw_energy_intensity_df
     kaya_identity_df_tgt['scenario'] = 'target'
     kaya_identity_df = pd.concat([kaya_identity_df_ref, kaya_identity_df_tgt], axis=0)
     # Finalize the DataFrame
+    
     kaya_identity_df.rename(columns={'plotting_name': 'temp_plotting_name'}, inplace=True)
     kaya_identity_df['plotting_name'] = 'emissions_components'
     kaya_identity_df['unit'] = 'million tonnes'
