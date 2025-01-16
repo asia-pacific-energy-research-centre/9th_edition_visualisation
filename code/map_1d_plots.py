@@ -461,26 +461,43 @@ def calculate_and_extract_kaya_identity_data(ECONOMY_ID, raw_energy_intensity_df
     energy_intensity_factor_REF = get_factor(raw_energy_intensity_df[raw_energy_intensity_df['scenario'] == 'reference'], OUTLOOK_BASE_YEAR, OUTLOOK_LAST_YEAR)
     emissions_co2_intensity_factor_REF = get_factor(raw_emissions_co2_intensity_df[raw_emissions_co2_intensity_df['scenario'] == 'reference'], OUTLOOK_BASE_YEAR, OUTLOOK_LAST_YEAR)
     
-    kaya_identity_df_temp, energy_adjusted_value = add_new_rows(kaya_identity_df, 3003, energy_intensity_factor_REF, 'reference', gdppc_adjusted_value)
-    kaya_identity_df_temp, energy_adjusted_value = add_new_rows(kaya_identity_df_temp, 3004, emissions_co2_intensity_factor_REF, 'reference', gdppc_adjusted_value)
+    kaya_identity_df_temp, temp_base_energy_intensity = add_new_rows(kaya_identity_df, 3003, energy_intensity_factor_REF, 'reference', gdppc_adjusted_value)
     
-    #add together where plotting name is fall and year is 3004 and 3003 to get the intensity for ref
-    fall_ref_energy = kaya_identity_df_temp[(kaya_identity_df_temp['plotting_name'] == 'fall') & (kaya_identity_df_temp['year'] == 3003) & (kaya_identity_df_temp['scenario'] == 'reference')]['value'].values[0]
-    fall_ref_emissions = kaya_identity_df_temp[(kaya_identity_df_temp['plotting_name'] == 'fall') & (kaya_identity_df_temp['year'] == 3004) & (kaya_identity_df_temp['scenario'] == 'reference')]['value'].values[0]
-    fall_ref = fall_ref_energy + fall_ref_emissions
-    kaya_identity_df = pd.concat([kaya_identity_df, pd.DataFrame({
-        'scenario': ['reference'],
-        'year': [3003],
-        'plotting_name': ['fall'],
-        'value': [fall_ref]
-    })], ignore_index=True)
+    kaya_identity_df_temp, temp_base_emissions_intensity = add_new_rows(kaya_identity_df_temp, 3004, emissions_co2_intensity_factor_REF, 'reference', temp_base_energy_intensity)#gdppc_adjusted_value)
     
-    #and for base for final year for ref, use the 3004 initial value row (which is the final emissions for ref scenario)
+    #for base for final year for ref, use the 3004 initial value row (which is the final emissions for ref scenario)
     base_3003 = kaya_identity_df_temp[(kaya_identity_df_temp['plotting_name'] == 'initial') & (kaya_identity_df_temp['year'] == 3004) & (kaya_identity_df_temp['scenario'] == 'reference')]
     base_3003.loc[:, 'year'] = 3003
     base_3003.loc[:, 'plotting_name'] = 'base'
     kaya_identity_df = pd.concat([kaya_identity_df, base_3003], ignore_index=True)
     
+    #Then for the fall or rise for the intensity bar for ref, we add together where plotting name is either fall or rise and year is 3004 and 3003 to get the intensity for ref. we will identify if its colored for a fall or rise based on whether it has to drop or increase to reach the base value for 3003
+    fall_rise_ref_energy = kaya_identity_df_temp[(kaya_identity_df_temp['plotting_name'].isin(['fall', 'rise'])) & (kaya_identity_df_temp['year'] == 3003) & (kaya_identity_df_temp['scenario'] == 'reference')]['value'].values[0]
+    fall_rise_ref_emissions = kaya_identity_df_temp[(kaya_identity_df_temp['plotting_name'].isin(['fall', 'rise'])) & (kaya_identity_df_temp['year'] == 3004) & (kaya_identity_df_temp['scenario'] == 'reference')]['value'].values[0]
+
+    # Adjust the sign based on whether it's a rise or fall
+    if kaya_identity_df_temp[(kaya_identity_df_temp['plotting_name'] == 'rise') & (kaya_identity_df_temp['year'] == 3003) & (kaya_identity_df_temp['scenario'] == 'reference')].any().any():
+        fall_rise_ref_energy = -fall_rise_ref_energy
+    if kaya_identity_df_temp[(kaya_identity_df_temp['plotting_name'] == 'rise') & (kaya_identity_df_temp['year'] == 3004) & (kaya_identity_df_temp['scenario'] == 'reference')].any().any():
+        fall_rise_ref_emissions = -fall_rise_ref_emissions
+
+    fall_rise_ref = fall_rise_ref_energy + fall_rise_ref_emissions
+    #It is a fall if the initial for 3004 is equal to basefor 3003. If not then its a rise.
+    initial_3004 = kaya_identity_df[(kaya_identity_df['plotting_name'] == 'initial') & (kaya_identity_df['year'] == 3004)]['value'].values[0]
+    base_3003 = kaya_identity_df[(kaya_identity_df['plotting_name'] == 'base') & (kaya_identity_df['year'] == 3003)]['value'].values[0]
+    breakpoint()
+    if initial_3004 == base_3003:
+        fall_or_rise_ref = 'fall'
+    else:
+        fall_or_rise_ref = 'rise'
+    #idenitfy if its a fall or rise
+    kaya_identity_df = pd.concat([kaya_identity_df, pd.DataFrame({
+        'scenario': ['reference'],
+        'year': [3003],
+        'plotting_name': [fall_or_rise_ref],
+        'value': [fall_rise_ref]
+    })], ignore_index=True)
+        
     #TARGET############################################################################################################
     # Add energy intensity factor rows togerhter and add them to emissions_co2 intensity factor rows
     energy_intensity_factor_TGT = get_factor(raw_energy_intensity_df[raw_energy_intensity_df['scenario'] == 'target'], OUTLOOK_BASE_YEAR, OUTLOOK_LAST_YEAR)
@@ -491,7 +508,7 @@ def calculate_and_extract_kaya_identity_data(ECONOMY_ID, raw_energy_intensity_df
     
     initial_tgt = kaya_identity_df_temp[(kaya_identity_df_temp['plotting_name'] == 'initial') & (kaya_identity_df_temp['year'] == 3006) & (kaya_identity_df_temp['scenario'] == 'target')]['value'].values[0]
     initial_ref = kaya_identity_df_temp[(kaya_identity_df_temp['plotting_name'] == 'initial') & (kaya_identity_df_temp['year'] == 3004) & (kaya_identity_df_temp['scenario'] == 'reference')]['value'].values[0]
-    fall_tgt = initial_ref - initial_tgt 
+    fall_tgt = initial_ref - initial_tgt #we can pretty safely assume this is a fall since the ref is the base and ref is always higher than tgt in terms of emissions 
     kaya_identity_df = pd.concat([kaya_identity_df, pd.DataFrame({
         'scenario': ['target'],
         'year': [3005],

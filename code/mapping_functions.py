@@ -614,6 +614,7 @@ def format_chart_titles(charts_mapping, ECONOMY_ID):
     charts_mapping['chart_title'] = charts_mapping.apply(lambda row: map_variable_to_value(row, ECONOMY_ID), axis=1)
     return charts_mapping
 
+
 def modify_dataframe_content(all_model_df_wides_dict, source, modification_func):
     """
     Modifies the content of the EBT for a specified source using a given modification function.
@@ -638,6 +639,172 @@ def modify_dataframe_content(all_model_df_wides_dict, source, modification_func)
         print(f"Source '{source}' not found in the dictionary.")
 
     return all_model_df_wides_dict
+
+
+def split_gas_imports_exports_by_economy(df, ECONOMIES_TO_SPLIT_DICT={'01_AUS': 'Australia', '03_CDA': 'Canada', '04_CHL': 'Chile', '08_JPN': 'Japan', '09_ROK':'Republic of Korea', '11_MEX': 'Mexico', '20_USA': 'United States of America'}):
+    """
+    Splits the gas supply into LNG and pipeline gas for OECD countries and filters data before the OUTLOOK_BASE_YEAR.
+    
+    Data is from https://www.egeda.ewg.apec.org/egeda/database_info/gas_monthly_select_form2.html and the data at the bottom of the page is used since it allows you to select all applicable data rather than data in small subsets.
+
+    Parameters:
+    - df (pd.DataFrame): The dataframe containing gas supply data.
+    - ECONOMIES_TO_SPLIT_DICT (dict): A dictionary mapping economy codes to economy names. Currently, only OECD countries are considered as they are the ones for whom the esto data is not split into LNG and pipeline gas because it comes from the IEA.
+    Returns:
+    - df (pd.DataFrame): The modified dataframe with LNG and pipeline splits for relevant economies and years.
+    """
+    # Identify year columns
+    year_columns = [col for col in df.columns if col.isdigit()]
+    year_columns_to_modify = [col for col in year_columns if int(col) < OUTLOOK_BASE_YEAR]
+
+    # Filter data for OECD countries
+    is_oecd_economy = df['economy'].isin(ECONOMIES_TO_SPLIT_DICT.keys())
+    if not is_oecd_economy.any():
+        print('No OECD countries found in the dataset. Not modifying gas splits.')
+        breakpoint()
+        return df
+    df_oecd = df[is_oecd_economy].copy()
+    #filter for only import and export rows where fuels is 08_gas
+    df_oecd = df_oecd[(df_oecd['sectors'] == '02_imports') | (df_oecd['sectors'] == '03_exports')]
+    df_oecd = df_oecd[df_oecd['fuels'] == '08_gas']
+    #and where subfuels is 08_01_natural_gas 08_02_lng
+    df_oecd = df_oecd[(df_oecd['subfuels'] == '08_01_natural_gas') | (df_oecd['subfuels'] == '08_02_lng')]
+
+    # Process LNG and pipeline splits
+    #check we can find the files:
+    if not os.path.exists('../input_data/raw_data/gas_splits/esto_pipeline_imports.txt'):
+        print('The gas splits files are missing. Not modifying gas splits.')
+        breakpoint()
+        return df
+    pipeline_imports = pd.read_csv('../input_data/raw_data/gas_splits/esto_pipeline_imports.txt', delimiter="\t", skiprows=6)
+    pipeline_exports = pd.read_csv('../input_data/raw_data/gas_splits/esto_pipeline_exports.txt', delimiter="\t", skiprows=6)
+    lng_imports = pd.read_csv('../input_data/raw_data/gas_splits/esto_lng_imports.txt', delimiter="\t", skiprows=6)
+    lng_exports = pd.read_csv('../input_data/raw_data/gas_splits/esto_lng_exports.txt', delimiter="\t", skiprows=6)
+
+    # Filter for ECONOMIES_TO_SPLIT countries
+    pipeline_imports = pipeline_imports[pipeline_imports['Member/Month'].isin(ECONOMIES_TO_SPLIT_DICT.values())]
+    pipeline_exports = pipeline_exports[pipeline_exports['Member/Month'].isin(ECONOMIES_TO_SPLIT_DICT.values())]
+    lng_imports = lng_imports[lng_imports['Member/Month'].isin(ECONOMIES_TO_SPLIT_DICT.values())]
+    lng_exports = lng_exports[lng_exports['Member/Month'].isin(ECONOMIES_TO_SPLIT_DICT.values())]
+
+    #map economy names to economy codes
+    pipeline_imports.loc[:, 'Member/Month'] = pipeline_imports['Member/Month'].map({v: k for k, v in ECONOMIES_TO_SPLIT_DICT.items()})
+    pipeline_exports.loc[:, 'Member/Month'] = pipeline_exports['Member/Month'].map({v: k for k, v in ECONOMIES_TO_SPLIT_DICT.items()})
+    lng_imports.loc[:, 'Member/Month'] = lng_imports['Member/Month'].map({v: k for k, v in ECONOMIES_TO_SPLIT_DICT.items()})
+    lng_exports.loc[:, 'Member/Month'] = lng_exports['Member/Month'].map({v: k for k, v in ECONOMIES_TO_SPLIT_DICT.items()})
+    
+    # Melt datasets to long format for easier processing
+    pipeline_imports = pipeline_imports.melt(id_vars=['Member/Month'], var_name='Month', value_name='Pipeline Imports')
+    pipeline_exports = pipeline_exports.melt(id_vars=['Member/Month'], var_name='Month', value_name='Pipeline Exports')
+    lng_imports = lng_imports.melt(id_vars=['Member/Month'], var_name='Month', value_name='LNG Imports')
+    lng_exports = lng_exports.melt(id_vars=['Member/Month'], var_name='Month', value_name='LNG Exports')
+
+    # Merge datasets
+    data = pipeline_imports.merge(pipeline_exports, on=['Member/Month', 'Month'], how='left')
+    data = data.merge(lng_imports, on=['Member/Month', 'Month'], how='left')
+    data = data.merge(lng_exports, on=['Member/Month', 'Month'], how='left')
+
+    #in the Month col, extract only 4 digit years and make it an int
+    data['Month'] = data['Month'].str.extract(r'(\d{4})')
+    #now rename the cols
+    data = data.rename(columns={'Member/Month': 'economy', 'Month': 'Year'})
+    #melt the value cols
+    
+    #calcualte ratios of pipeline imports to lng imports and pipeline exports to lng exports
+    data['Pipeline Imports'] = data['Pipeline Imports'].replace('-', 0).replace(np.nan, 0).astype(int)
+    data['Pipeline Exports'] = data['Pipeline Exports'].replace('-', 0).replace(np.nan, 0).astype(int)
+    data['LNG Imports'] = data['LNG Imports'].replace('-', 0).replace(np.nan, 0).astype(int)
+    data['LNG Exports'] = data['LNG Exports'].replace('-', 0).replace(np.nan, 0).astype(int)
+    
+    #sum the values for the same economy and year and sector and subfuel
+    data = data.groupby(['economy', 'Year']).sum().reset_index()
+    data['Imports LNG Ratio'] = data.apply(lambda row: row['LNG Imports'] /(row['Pipeline Imports']+row['LNG Imports']) if (row['Pipeline Imports']+row['LNG Imports']) != 0 else 0, axis=1)
+    data['Exports LNG Ratio'] = data.apply(lambda row: row['LNG Exports'] / (row['Pipeline Exports']+row['LNG Exports']) if (row['Pipeline Exports']+row['LNG Exports']) != 0 else 0, axis=1)
+    #drop non ratios
+    data = data.drop(columns=['Pipeline Imports', 'Pipeline Exports', 'LNG Imports', 'LNG Exports'])
+    
+    #if the economy is sealocked then we must assume everything is lngand also add on rpws for years all the way back to EBT_EARLIEST_YEAR (since we KNOW they would have been using lng) (for the other economies it is better to jsut leave the data as is to avoid estiamting anythign we dont know)
+    SEALOCKED_ECONOMIES = ['08_JPN', '01_AUS', '12_NZ', '09_ROK', '15_PHL', '18_CT']
+    data['Imports LNG Ratio'] = data.apply(lambda row: 1 if row['economy'] in SEALOCKED_ECONOMIES else row['Imports LNG Ratio'], axis=1)
+    data['Exports LNG Ratio'] = data.apply(lambda row: 1 if row['economy'] in SEALOCKED_ECONOMIES else row['Exports LNG Ratio'], axis=1)
+    
+    economy_data = df['economy'].unique()
+    if data['economy'].isin(SEALOCKED_ECONOMIES).any():
+        SEALOCKED_ECONOMIES = [e for e in SEALOCKED_ECONOMIES if e in economy_data]
+        for year in range(OUTLOOK_BASE_YEAR+1, EBT_EARLIEST_YEAR-1, -1):
+            year= str(year)
+            for economy in SEALOCKED_ECONOMIES:
+                if not data[(data['economy'] == economy) & (data['Year'] == year)].empty:
+                    continue
+                data = pd.concat([data, pd.DataFrame({'economy': economy, 'Year': year, 'Imports LNG Ratio': 1, 'Exports LNG Ratio': 1}, index=[0])])
+    
+    # Melt the data to long format
+    data = data.melt(id_vars=['economy', 'Year'], var_name='sectors', value_name='Value')
+    #where the sectors contains Imports set the sectors to 02_imports and where the sectors contains Exports set the sectors to 03_exports
+    #then we will join on those cols to fill in all missing cols
+    data['sectors'] = data['sectors'].apply(lambda x: '02_imports' if 'Imports' in x else '03_exports')
+    #now we have the data in the correct format, we can merge it with the df_oecd
+    #first melt the df_oecd
+    df_oecd_melt = df_oecd.melt(id_vars=['scenarios', 'economy', 'sectors', 'sub1sectors', 'sub2sectors', 'sub3sectors', 'sub4sectors', 'fuels', 'subfuels', 'subtotal_layout', 'subtotal_results'], var_name='Year', value_name='Value')
+    #filter for years before the outlook base year
+    df_oecd_melt = df_oecd_melt[df_oecd_melt['Year'].astype(int) <= OUTLOOK_BASE_YEAR]
+    #check there is no energy in the 08_02_lng subfuels
+    if df_oecd_melt[(df_oecd_melt['fuels'] == '08_gas') & (df_oecd_melt['subfuels'] == '08_02_lng')]['Value'].sum() != 0:
+        breakpoint()
+        raise Exception(f'There is energy in the 08_02_lng subfuels for economy {df_oecd_melt["economy"].unique()}. Please check the data.')
+    #drop the lng subfuels
+    df_oecd_melt = df_oecd_melt[df_oecd_melt['subfuels'] != '08_02_lng']
+    
+    #adjust the names of the columns to match the data in df_oecd as well as work out what calcs to do
+    
+    #now merge
+    df_oecd_melt = df_oecd_melt.merge(data, on=['economy', 'Year', 'sectors'], how='left', suffixes=('', '_lng_to_natgas_ratio'))
+    
+    #now calcualte the amount of lng energy and leave remaining as pipeline energy
+    df_oecd_melt['LNG Supply'] = df_oecd_melt['Value'] * df_oecd_melt['Value_lng_to_natgas_ratio']
+    df_oecd_melt['Value'] = df_oecd_melt['Value'] * (1 - df_oecd_melt['Value_lng_to_natgas_ratio'])
+    
+    #separrate the pipeline and lng supply
+    df_oecd_melt = df_oecd_melt.drop(columns=['Value_lng_to_natgas_ratio'])
+    lng_supply = df_oecd_melt.drop(columns=['Value']).rename(columns={'LNG Supply': 'Value'}).copy()
+    pipeline_supply = df_oecd_melt.drop(columns=['LNG Supply']).copy()
+    
+    lng_supply['subfuels'] = '08_02_lng'
+    
+    #concat the two dataframes
+    df_oecd_melt = pd.concat([pipeline_supply, lng_supply])
+    #replace nas with 0
+    df_oecd_melt['Value'] = df_oecd_melt['Value'].replace(np.nan, 0)
+    #now we have the data in the correct format, we can merge it with the df_oecd
+    #first melt the original df so we can merge it with the new data
+    df = df.melt(id_vars=['scenarios', 'economy', 'sectors', 'sub1sectors', 'sub2sectors', 'sub3sectors', 'sub4sectors', 'fuels', 'subfuels', 'subtotal_layout', 'subtotal_results'], var_name='Year', value_name='Value')
+    #then do a outer merge on all cols
+    new_data = df_oecd_melt.merge(df, on=['scenarios', 'economy', 'sectors', 'sub1sectors', 'sub2sectors', 'sub3sectors', 'sub4sectors', 'fuels', 'subfuels', 'Year', 'subtotal_layout', 'subtotal_results'], how='outer', suffixes=('_new', ''))
+    #where there is a value in the new data, replace the old value with the new value
+    new_data['Value'] = np.where(new_data['Value_new'].notnull(), new_data['Value_new'], new_data['Value'])
+    #drop the new value col
+    new_data = new_data.drop(columns=['Value_new'])
+    #check there are no duplicated rows
+    if new_data.duplicated(subset=['scenarios', 'economy', 'sectors', 'sub1sectors', 'sub2sectors', 'sub3sectors', 'sub4sectors', 'fuels', 'subfuels', 'Year', 'subtotal_layout', 'subtotal_results']).any():
+        breakpoint()
+        raise Exception('There are duplicated rows in the dataframe. Please check the data.')
+    #now pivot out
+    new_data_wide = new_data.pivot(index=['scenarios', 'economy', 'sectors', 'sub1sectors', 'sub2sectors', 'sub3sectors', 'sub4sectors', 'fuels', 'subfuels', 'subtotal_layout', 'subtotal_results'], columns='Year', values='Value').reset_index()
+    print(f'Imports and exports of gas have been split into LNG and pipeline gas for {economy_data}.')
+    return new_data_wide
+
+# Update the modify_dataframe_content function to use split_gas_splits_by_economy
+def modify_gas_splits(df):
+    """
+    Modifies gas splits into LNG and pipeline for relevant economies and years.
+
+    Parameters:
+    - df (pd.DataFrame): The input dataframe.
+
+    Returns:
+    - df (pd.DataFrame): The modified dataframe.
+    """
+    return split_gas_imports_exports_by_economy(df)
 
 # Modification functions
 def modify_losses_and_own_use_values(df):

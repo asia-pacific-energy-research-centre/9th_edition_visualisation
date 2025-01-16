@@ -491,15 +491,20 @@ def create_natural_gas_and_lng_supply_charts(charts_mapping, sheet,plotting_name
         
         #extract the year cols forw hich we will calculate the net imports by finding 4 digits in the column name
         year_cols = [col for col in nat_gas_supply.columns if re.search(r'\d{4}', str(col))]
-        
-        max_value = nat_gas_supply[year_cols].sum(axis=0).max()
+        non_year_cols = [col for col in nat_gas_supply.columns if col not in year_cols]
+        #the max value is the max of the sum of the positive refined products:
+        positives = nat_gas_supply.melt(id_vars=non_year_cols, value_vars=year_cols, var_name='year', value_name='value').copy()
+        #filter
+        positives = positives[positives['value'] > 0]
+        #group by and sum
+        positives = positives.groupby(['year'])['value'].sum().reset_index()
+        max_value = positives.value.max()
         max_value = workbook_creation_functions.calculate_y_axis_value(max_value)
             
         key_max = (sheet, chart_type, sheet, "max")
         
             
         #the min value will be the min of the sum of the NEGATIVE refined products and the min of the net imports:#first melt, then filter and then group by and sum
-        non_year_cols = [col for col in nat_gas_supply.columns if col not in year_cols]
         negatives = nat_gas_supply.melt(id_vars=non_year_cols, value_vars=year_cols, var_name='year', value_name='value').copy()
         #filter
         negatives = negatives[negatives['value'] < 0]
