@@ -14,10 +14,10 @@ from utility_functions import *
 import csv
 #######################################################
 #%%
-ECONOMY_ID = '09_ROK'
-MAP_DATA = True#False
+ECONOMY_ID = '02_BD'
+MAP_DATA = False#False
 if MAP_DATA:
-    # map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COLS, RAISE_ERROR=False)
+    map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COLS, RAISE_ERROR=False)
         
     charts_mapping_1d = map_9th_data_to_one_dimensional_plots(ECONOMY_ID, EXPECTED_COLS)#, total_emissions_co2, total_emissions_ch4, total_emissions_co2e, total_emissions_no2)
     # Save checkpoint after mapping 1D data

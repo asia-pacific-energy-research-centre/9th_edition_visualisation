@@ -125,6 +125,8 @@ def create_refined_products_bar_and_net_imports_line(charts_mapping, sheet,plott
     max_value_refined = postive_refined_products[year_cols].sum(axis=0).max()
     max_value_crude_oil_supply = crude_oil_supply_line.loc[crude_oil_supply_line.plotting_name.isin(['Crude production', 'Crude exports', 'Crude imports']), year_cols].max().max()
     max_value = max(max_value_refined, max_value_crude_oil_supply) 
+    if pd.isna(max_value):
+        max_value = 0
     max_value = workbook_creation_functions.calculate_y_axis_value(max_value)
         
     key_max_line = (sheet, 'line', sheet, "max")
@@ -135,6 +137,8 @@ def create_refined_products_bar_and_net_imports_line(charts_mapping, sheet,plott
     min_value_refined = negative_refined_products[year_cols].sum(axis=0).min()
     min_value_crude_oil_supply = crude_oil_supply_line.loc[crude_oil_supply_line.plotting_name.isin(['Crude production', 'Crude exports', 'Crude imports']), year_cols].min().min()
     min_value = min(min_value_refined, min_value_crude_oil_supply) 
+    if pd.isna(min_value):
+        min_value = 0
     min_value = workbook_creation_functions.calculate_y_axis_value(min_value)
         
     key_min_line = (sheet, 'line', sheet, "min")
@@ -285,6 +289,8 @@ def create_refining_and_low_carbon_fuels(charts_mapping, sheet,plotting_names_or
         year_cols = [col for col in refined_products_and_low_carbon_fuels.columns if re.search(r'\d{4}', str(col))]
         
         max_value = refined_products_and_low_carbon_fuels[year_cols].sum(axis=0).max()
+        if pd.isna(max_value):
+            max_value = 0
         max_value = workbook_creation_functions.calculate_y_axis_value(max_value)
             
         key_max = (sheet, chart_type, sheet, "max")
@@ -384,6 +390,8 @@ def create_liquid_biofuels_and_bioenergy_supply_charts(charts_mapping, sheet,plo
         year_cols = [col for col in bioenergy_supply.columns if re.search(r'\d{4}', str(col))]
         
         max_value = bioenergy_supply[year_cols].sum(axis=0).max()
+        if pd.isna(max_value):
+            max_value = 0
         max_value = workbook_creation_functions.calculate_y_axis_value(max_value)
             
         key_max = (sheet, chart_type, sheet, "max")
@@ -397,6 +405,9 @@ def create_liquid_biofuels_and_bioenergy_supply_charts(charts_mapping, sheet,plo
         #group by and sum
         negatives = negatives.groupby(['year'])['value'].sum().reset_index()
         min_value = negatives.value.min()
+        #if there are no negative values, then the min value will be 0, so check for na
+        if pd.isna(min_value):
+            min_value = 0
         min_value = workbook_creation_functions.calculate_y_axis_value(min_value)
                     
         key_min = (sheet, chart_type, sheet, "min")
@@ -499,6 +510,8 @@ def create_natural_gas_and_lng_supply_charts(charts_mapping, sheet,plotting_name
         #group by and sum
         positives = positives.groupby(['year'])['value'].sum().reset_index()
         max_value = positives.value.max()
+        if pd.isna(max_value):
+            max_value = 0
         max_value = workbook_creation_functions.calculate_y_axis_value(max_value)
             
         key_max = (sheet, chart_type, sheet, "max")
@@ -511,6 +524,8 @@ def create_natural_gas_and_lng_supply_charts(charts_mapping, sheet,plotting_name
         #group by and sum
         negatives = negatives.groupby(['year'])['value'].sum().reset_index()
         min_value = negatives.value.min()
+        if pd.isna(min_value):
+            min_value = 0
         min_value = workbook_creation_functions.calculate_y_axis_value(min_value)
                     
         key_min = (sheet, chart_type, sheet, "min")
