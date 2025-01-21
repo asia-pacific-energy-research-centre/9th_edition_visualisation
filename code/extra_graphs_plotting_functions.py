@@ -44,6 +44,8 @@ def create_extra_graphs(workbook, all_charts_mapping_files_dict, total_plotting_
             charts_mapping_scenario = charts_mapping[charts_mapping.scenario == scenario]
             charts_to_plot, chart_positions, worksheet = function(charts_mapping_scenario, sheet_name,plotting_names_order,plotting_name_to_label_dict, worksheet,workbook,  colours_dict, cell_format1, cell_format2, scenario_num, scenarios_list, header_format, plotting_specifications, writer, chart_types,ECONOMY_ID)
             scenario_num+=1
+            if charts_to_plot is None:
+                continue
             worksheet = workbook_creation_functions.write_charts_to_sheet(charts_to_plot, chart_positions, worksheet)
             ###############
     workbook = workbook_creation_functions.order_sheets(workbook, plotting_specifications)
@@ -125,6 +127,8 @@ def create_refined_products_bar_and_net_imports_line(charts_mapping, sheet,plott
     max_value_refined = postive_refined_products[year_cols].sum(axis=0).max()
     max_value_crude_oil_supply = crude_oil_supply_line.loc[crude_oil_supply_line.plotting_name.isin(['Crude production', 'Crude exports', 'Crude imports']), year_cols].max().max()
     max_value = max(max_value_refined, max_value_crude_oil_supply) 
+    if pd.isna(max_value):
+        max_value = 0
     max_value = workbook_creation_functions.calculate_y_axis_value(max_value)
         
     key_max_line = (sheet, 'line', sheet, "max")
@@ -135,6 +139,8 @@ def create_refined_products_bar_and_net_imports_line(charts_mapping, sheet,plott
     min_value_refined = negative_refined_products[year_cols].sum(axis=0).min()
     min_value_crude_oil_supply = crude_oil_supply_line.loc[crude_oil_supply_line.plotting_name.isin(['Crude production', 'Crude exports', 'Crude imports']), year_cols].min().min()
     min_value = min(min_value_refined, min_value_crude_oil_supply) 
+    if pd.isna(min_value):
+        min_value = 0
     min_value = workbook_creation_functions.calculate_y_axis_value(min_value)
         
     key_min_line = (sheet, 'line', sheet, "min")
@@ -148,6 +154,8 @@ def create_refined_products_bar_and_net_imports_line(charts_mapping, sheet,plott
     max_and_min_values_dict[key_max_bar_line] = max_value
     max_and_min_values_dict[key_min_bar_line] = min_value
     ##################
+    if refined_products_and_net_imports.empty:
+        return None, None, worksheet
     
     colours_dict = workbook_creation_functions.check_plotting_names_in_colours_dict(charts_mapping, colours_dict)
     plotting_name_to_label_dict = workbook_creation_functions.check_plotting_name_label_in_plotting_name_to_label_dict(colours_dict, plotting_name_to_label_dict)
@@ -181,8 +189,8 @@ def format_sheet_for_other_graphs(refined_products_and_net_imports,plotting_name
         current_scenario = scenarios_list[scenario_num - 1]#technical detail just to make add_section_titles work as expected. - it got removed in format_table but it wasnt set right anyway
         current_row = num_table_rows * scenario_num + space_under_tables + column_row + space_above_charts + space_under_charts + plotting_specifications['height'] + 1
     table['scenario'] = scenarios_list[scenario_num]# - it got removed in format_table 
-    current_row, current_scenario, worksheet = workbook_creation_functions.add_section_titles(current_row, current_scenario, sheet, worksheet, cell_format1, cell_format2, space_under_titles, table, space_under_tables,unit_dict, ECONOMY_ID)
     
+    current_row, current_scenario, worksheet = workbook_creation_functions.add_section_titles(current_row, current_scenario, sheet, worksheet, cell_format1, cell_format2, space_under_titles, table, space_under_tables,unit_dict, ECONOMY_ID)
     #drop the scenario column since we dont need it in the table
     table = table.drop(columns=['scenario'])
     
@@ -285,6 +293,8 @@ def create_refining_and_low_carbon_fuels(charts_mapping, sheet,plotting_names_or
         year_cols = [col for col in refined_products_and_low_carbon_fuels.columns if re.search(r'\d{4}', str(col))]
         
         max_value = refined_products_and_low_carbon_fuels[year_cols].sum(axis=0).max()
+        if pd.isna(max_value):
+            max_value = 0
         max_value = workbook_creation_functions.calculate_y_axis_value(max_value)
             
         key_max = (sheet, chart_type, sheet, "max")
@@ -300,7 +310,9 @@ def create_refining_and_low_carbon_fuels(charts_mapping, sheet,plotting_names_or
         ##################
         final_table = pd.concat([final_table, refined_products_and_low_carbon_fuels])
         ##################
-    
+    if final_table.empty or final_table[year_cols].sum().sum() == 0:
+        breakpoint()
+        return None, None, worksheet
     colours_dict = workbook_creation_functions.check_plotting_names_in_colours_dict(refined_products_and_low_carbon_fuels, colours_dict)
     
     plotting_name_to_label_dict = workbook_creation_functions.check_plotting_name_label_in_plotting_name_to_label_dict(colours_dict, plotting_name_to_label_dict)
@@ -384,6 +396,8 @@ def create_liquid_biofuels_and_bioenergy_supply_charts(charts_mapping, sheet,plo
         year_cols = [col for col in bioenergy_supply.columns if re.search(r'\d{4}', str(col))]
         
         max_value = bioenergy_supply[year_cols].sum(axis=0).max()
+        if pd.isna(max_value):
+            max_value = 0
         max_value = workbook_creation_functions.calculate_y_axis_value(max_value)
             
         key_max = (sheet, chart_type, sheet, "max")
@@ -397,6 +411,9 @@ def create_liquid_biofuels_and_bioenergy_supply_charts(charts_mapping, sheet,plo
         #group by and sum
         negatives = negatives.groupby(['year'])['value'].sum().reset_index()
         min_value = negatives.value.min()
+        #if there are no negative values, then the min value will be 0, so check for na
+        if pd.isna(min_value):
+            min_value = 0
         min_value = workbook_creation_functions.calculate_y_axis_value(min_value)
                     
         key_min = (sheet, chart_type, sheet, "min")
@@ -407,15 +424,15 @@ def create_liquid_biofuels_and_bioenergy_supply_charts(charts_mapping, sheet,plo
         ##################
         final_table = pd.concat([final_table, bioenergy_supply])
         ##################
-    
+    #check if table is empty or all values are 0
+    if final_table.empty or final_table[year_cols].sum().sum() == 0:        
+        return None, None, worksheet
     colours_dict = workbook_creation_functions.check_plotting_names_in_colours_dict(bioenergy_supply, colours_dict)
     
     plotting_name_to_label_dict = workbook_creation_functions.check_plotting_name_label_in_plotting_name_to_label_dict(colours_dict, plotting_name_to_label_dict)
     
     unit_dict = {sheet: 'PJ'}
-    
     charts_to_plot, chart_positions, worksheet = format_sheet_for_other_graphs(bioenergy_supply,plotting_names_order,plotting_name_to_label_dict, scenario_num, scenarios_list, header_format, worksheet, workbook, plotting_specifications, writer, sheet, colours_dict,cell_format1, cell_format2,  max_and_min_values_dict, total_plotting_names, chart_types, ECONOMY_ID, unit_dict)
-    
     return charts_to_plot, chart_positions, worksheet
 
 
@@ -499,6 +516,8 @@ def create_natural_gas_and_lng_supply_charts(charts_mapping, sheet,plotting_name
         #group by and sum
         positives = positives.groupby(['year'])['value'].sum().reset_index()
         max_value = positives.value.max()
+        if pd.isna(max_value):
+            max_value = 0
         max_value = workbook_creation_functions.calculate_y_axis_value(max_value)
             
         key_max = (sheet, chart_type, sheet, "max")
@@ -511,6 +530,8 @@ def create_natural_gas_and_lng_supply_charts(charts_mapping, sheet,plotting_name
         #group by and sum
         negatives = negatives.groupby(['year'])['value'].sum().reset_index()
         min_value = negatives.value.min()
+        if pd.isna(min_value):
+            min_value = 0
         min_value = workbook_creation_functions.calculate_y_axis_value(min_value)
                     
         key_min = (sheet, chart_type, sheet, "min")
@@ -521,7 +542,9 @@ def create_natural_gas_and_lng_supply_charts(charts_mapping, sheet,plotting_name
         ##################
         final_table = pd.concat([final_table, nat_gas_supply])
         ##################
-    
+    if final_table.empty or final_table[year_cols].sum().sum() == 0:
+        breakpoint()
+        return None, None, worksheet
     colours_dict = workbook_creation_functions.check_plotting_names_in_colours_dict(nat_gas_supply, colours_dict)
     
     plotting_name_to_label_dict = workbook_creation_functions.check_plotting_name_label_in_plotting_name_to_label_dict(colours_dict, plotting_name_to_label_dict)
