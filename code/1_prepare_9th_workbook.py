@@ -15,6 +15,8 @@ import csv
 #######################################################
 #%%
 ECONOMY_ID = '02_BD'
+check_base_year_is_as_expected(ECONOMY_ID)
+
 MAP_DATA = False#False
 if MAP_DATA:
     map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COLS, RAISE_ERROR=False)

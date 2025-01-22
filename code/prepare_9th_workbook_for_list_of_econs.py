@@ -17,6 +17,7 @@ import csv
 #"01_AUS", "02_BD", "03_CDA", "04_CHL", "05_PRC", "06_HKC", "07_INA", "08_JPN", "09_ROK", "10_MAS", "11_MEX", "12_NZ", "13_PNG", "14_PE",
 for ECONOMY_ID in ["01_AUS", "03_CDA", "04_CHL","08_JPN", "09_ROK",'11_MEX', "20_USA"]:#ALL_ECONOMY_IDS:'01_AUS': 'Australia', '03_CDA': 'Canada', '04_CHL': 'Chile', '08_JPN': 'Japan', '09_ROK':'Republic of Korea', '11_MEX': 'Mexico', '20_USA': 'United States of America'
     
+    check_base_year_is_as_expected(ECONOMY_ID)
     print(f"Starting workbook creation for {ECONOMY_ID}\n")
     MAP_DATA = True#False
     if MAP_DATA:

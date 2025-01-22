@@ -37,9 +37,19 @@ AGGREGATE_ECONOMY_MAPPING = {
 }
 
 EBT_EARLIEST_YEAR = 1980
-OUTLOOK_BASE_YEAR = 2022
+OUTLOOK_BASE_YEAR = 2022 #if running vis for russia, set this to the same as OUTLOOK_BASE_YEAR_RUSSIA
+OUTLOOK_BASE_YEAR_RUSSIA = 2021
 OUTLOOK_LAST_YEAR = 2060
 
+def check_base_year_is_as_expected(ECONOMY_ID):
+    #check that the OUTLOOK_BASE_YEAR in utils is == to OUTLOOK_BASE_YEAR_russia in utils, else raise an error
+    #and if SINGLE_ECONOMY_ID != '16_RUS' then check that OUTLOOK_BASE_YEAR in utils != OUTLOOK_BASE_YEAR_russia in utils, else raise an error
+    if OUTLOOK_BASE_YEAR != OUTLOOK_BASE_YEAR_RUSSIA:
+        raise ValueError('OUTLOOK_BASE_YEAR in utility_functions is not equal to OUTLOOK_BASE_YEAR_RUSSIA in utility_functions')
+    elif ECONOMY_ID != '16_RUS':
+        if OUTLOOK_BASE_YEAR == OUTLOOK_BASE_YEAR_RUSSIA:
+            raise ValueError('OUTLOOK_BASE_YEAR in utility_functions is equal to OUTLOOK_BASE_YEAR_RUSSIA in utility_functions')
+        
 PROJ_YEARS = list(range(OUTLOOK_BASE_YEAR+1, OUTLOOK_LAST_YEAR+1, 1))
 HIST_YEARS = list(range(EBT_EARLIEST_YEAR, OUTLOOK_BASE_YEAR+1, 1))
 HIST_YEARS_str = [str(year) for year in HIST_YEARS]
