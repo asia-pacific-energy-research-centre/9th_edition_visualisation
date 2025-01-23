@@ -44,7 +44,7 @@ OUTLOOK_LAST_YEAR = 2060
 def check_base_year_is_as_expected(ECONOMY_ID):
     #check that the OUTLOOK_BASE_YEAR in utils is == to OUTLOOK_BASE_YEAR_russia in utils, else raise an error
     #and if SINGLE_ECONOMY_ID != '16_RUS' then check that OUTLOOK_BASE_YEAR in utils != OUTLOOK_BASE_YEAR_russia in utils, else raise an error
-    if OUTLOOK_BASE_YEAR != OUTLOOK_BASE_YEAR_RUSSIA:
+    if OUTLOOK_BASE_YEAR != OUTLOOK_BASE_YEAR_RUSSIA and ECONOMY_ID == '16_RUS':
         raise ValueError('OUTLOOK_BASE_YEAR in utility_functions is not equal to OUTLOOK_BASE_YEAR_RUSSIA in utility_functions')
     elif ECONOMY_ID != '16_RUS':
         if OUTLOOK_BASE_YEAR == OUTLOOK_BASE_YEAR_RUSSIA:
