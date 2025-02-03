@@ -1,4 +1,4 @@
-
+#%%
 
 import pandas as pd 
 import re
@@ -168,3 +168,128 @@ def clean_onedrive_workbooks_folder(date_ids_to_keep, specific_files_to_keep, ec
                 if all(date_id not in file_name for date_id in date_ids_to_keep) and file_name not in specific_files_to_keep:
                     shutil.move(file_path, os.path.join(archive_path, file_name))
                     print(f"Moved {file_path} to {archive_path}")
+          
+def highlight_differences_in_master_config_xlsx(file1, file2, output_file):
+    from openpyxl import load_workbook
+    from openpyxl.styles import PatternFill
+    from openpyxl import Workbook
+    from openpyxl.comments import Comment
+    import pandas as pd
+    import numpy as np
+
+    # Load both workbooks
+    wb1 = load_workbook(file1)
+    wb2 = load_workbook(file2)
+
+    # Create a new workbook for output
+    output_wb = Workbook()
+    output_wb.remove(output_wb.active)  # Remove the default sheet
+
+    fill_color = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")  # Yellow fill
+
+    for sheet_name in wb1.sheetnames:
+        if sheet_name in wb2.sheetnames:
+            # Read both sheets into DataFrames
+            df1 = pd.read_excel(file1, sheet_name=sheet_name)
+            df2 = pd.read_excel(file2, sheet_name=sheet_name)
+
+            # Compare the sheets
+            # if sheet_name == 'two_dimensional_plots':
+            #     breakpoint()
+            differences = compare_sheets(df1, df2)
+
+            if differences:  # Only create a sheet if there are differences
+                output_ws = output_wb.create_sheet(sheet_name)
+
+                # Copy the DataFrame to the output sheet, ensuring all columns are present
+                for r_idx, row_data in enumerate(df1.itertuples(index=False), start=1):
+                    output_ws.append(row_data)
+
+                # Highlight differences
+                for diff in differences:
+                    if len(diff) == 3:  # Handle missing or new rows
+                        row, message, values = diff
+                        output_ws.append([message] + values)  # Add message and row data to the output sheet
+                        cell = output_ws.cell(row=row, column=1)  # Ensure the row starts from the correct position
+                        cell.fill = fill_color
+
+                    elif len(diff) == 4:  # Handle individual cell differences
+                        row, col, val1, val2 = diff
+                        cell = output_ws.cell(row=row + 1, column=col + 1)  # Adjust for 1-based Excel indexing
+                        cell.fill = fill_color
+                        cell.comment = Comment(f"Old: {val1}, New: {val2}", "Comparison Script")
+
+    # Save the output file only if any sheets were created
+    if output_wb.sheetnames:
+        output_wb.save(output_file)
+        print(f"Comparison complete. Results saved to '{output_file}'.")
+    else:
+        print("No differences found. No file was created.")
+
+
+def compare_sheets(sheet1, sheet2):
+    import numpy as np
+    differences = []
+    
+    # Ensure both sheets have the same shape and fill missing rows/columns with NaN
+    max_rows = max(sheet1.shape[0], sheet2.shape[0])
+    max_cols = max(sheet1.shape[1], sheet2.shape[1])
+    
+    #get cols by index number
+    cols_to_keep_sheet1 = sheet1.columns.tolist()[0:max_cols]
+    cols_to_keep_sheet2 = sheet2.columns.tolist()[0:max_cols]
+
+    sheet1 = sheet1.reindex(index=range(max_rows), columns=cols_to_keep_sheet1, fill_value=np.nan)
+    sheet2 = sheet2.reindex(index=range(max_rows), columns=cols_to_keep_sheet2, fill_value=np.nan)
+    
+    # Detect and flag missing or new rows
+    for row in range(max_rows):
+        row1 = sheet1.iloc[row].dropna().tolist()
+        row2 = sheet2.iloc[row].dropna().tolist()
+
+        if not row1 and row2:
+            differences.append((row + 1, "MISSING IN FILE 1", row2))
+        elif row1 and not row2:
+            differences.append((row + 1, "MISSING IN FILE 2", row1))
+
+    # Compare each cell for remaining rows
+    for row in range(max_rows):
+        for col in range(max_cols):
+            val1 = sheet1.iloc[row, col]
+            val2 = sheet2.iloc[row, col]
+
+            # Check for NaN equality
+            if pd.isna(val1) and pd.isna(val2):
+                continue  # Skip if both values are NaN
+
+            # Ensure both values have the same type for accurate comparison
+            if isinstance(val1, (int, float)) and isinstance(val2, (int, float)):
+                # Allow small floating-point differences due to precision issues
+                if abs(val1 - val2) < 1e-9:
+                    continue
+
+            # Add cell differences to the list
+            if val1 != val2:
+                differences.append((row, col, val1, val2))  # Adjust for 1-based indexing
+
+    return differences
+
+
+#%%
+if __name__ == "__main__":
+    # RUN THIS FILE IF YOU WANT TO RUN THE BELOW:
+    
+    file1_path = "../config/master_config.xlsx"
+    #find other file in the folder that has master config in the name. if there is no other one or multiple, raise an error
+    files = os.listdir("../config")
+    files = [f for f in files if 'master_config' in f]
+    #ignore any files with ~$ in the name since they are temporary files
+    files = [f for f in files if '~$' not in f]
+    if len(files) != 2:
+        raise ValueError("There are not exactly 2 files with 'master_config' in the name in the config folder.")
+    file2_path = os.path.join("../config", [f for f in files if f != 'master_config.xlsx'][0])
+    output_file_path = "../comparison_master_config.xlsx"
+
+    highlight_differences_in_master_config_xlsx(file1_path, file2_path, output_file_path)
+    
+#%%

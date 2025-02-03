@@ -458,7 +458,6 @@ def create_charts(table, chart_types, plotting_specifications, workbook, num_tab
             charts_to_plot.append(line_chart)
 
         elif chart == 'area':
-            
             # Configure the chart with the updated y_axis_max, y_axis_min
             area_chart = area_plotting_specifications(workbook, plotting_specifications, y_axis_max, y_axis_min, first_year_col)
             area_chart = create_area_chart(num_table_rows, table, plotting_name_column, sheet, current_row, space_under_tables, column_row, plotting_name_column_index, year_cols_start, num_cols, colours_dict, area_chart, total_plotting_names, table_id, chart_title)
