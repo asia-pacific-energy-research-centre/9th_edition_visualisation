@@ -193,7 +193,7 @@ def create_sheets_from_mapping_df(workbook, charts_mapping_df, total_plotting_na
                 table = create_bar_chart_table(table,year_cols_start,plotting_specifications['bar_years'], sheet_name)
             ########################
             # Define the mapping dictionary
-            column_mapping = {
+            column_mapping_combined_kaya = {
                 3000: f'Emissions {OUTLOOK_BASE_YEAR}',
                 3001: 'Population',
                 3002: 'GDP per capita',
@@ -203,11 +203,27 @@ def create_sheets_from_mapping_df(workbook, charts_mapping_df, total_plotting_na
                 3006: f'Emissions {OUTLOOK_LAST_YEAR} TGT',
                 
             }
+            column_mapping_kaya = {
+                3000: f'Emissions {OUTLOOK_BASE_YEAR}',
+                3001: 'Population',
+                3002: 'GDP per capita',
+                3003: 'Energy intensity',
+                3004: 'Emissions intensity',
+                3005: f'Emissions {OUTLOOK_LAST_YEAR}'
+            }
+            
             # If sheet is CO2 emissions components, rename the years
             if sheet == 'CO2 emissions components':
-                
-                # Rename the columns using the mapping dictionary
-                table.rename(columns=column_mapping, inplace=True)
+                #check if the plotting name contains combined (e.g. rise_combined) or not then apply the combined or kaya mapping:
+                # breakpoint()
+                if 'combined' in table[plotting_name_column].iloc[0]:
+                    # Rename the columns using the mapping dictionary
+                    table.rename(columns=column_mapping_combined_kaya, inplace=True)
+                else:
+                    # Rename the columns using the mapping dictionary
+                    table.rename(columns=column_mapping_kaya, inplace=True)
+                    #drop 3006 drom the table
+                    table = table.drop(columns=[3006])
                 #need to reset the year_cols_start (it wasnt correct before either)
                 year_cols_start = table.columns.get_loc(f'Emissions {OUTLOOK_BASE_YEAR}') + 1
                 
@@ -556,8 +572,10 @@ def format_table(table,plotting_names_order,plotting_name_to_label_dict):
     #format some cols:
     num_cols = len(table.dropna(axis='columns', how='all').columns) - 1
     year_cols = [col for col in table.columns if re.search(r'\d{4}', str(col))]
-    
-    year_cols_start = table.columns.get_loc(year_cols[0])
+    try:
+        year_cols_start = table.columns.get_loc(year_cols[0])
+    except:
+        breakpoint()
     year_cols = table.columns[year_cols_start:]
     
     # Adjust num_cols for 'Transport stocks' and 'Transport activity' sheet

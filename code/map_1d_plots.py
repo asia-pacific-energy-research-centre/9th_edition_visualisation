@@ -27,9 +27,10 @@ def map_9th_data_to_one_dimensional_plots(ECONOMY_ID, EXPECTED_COLS):#, total_em
     
     renewable_share_df, electricity_renewable_share = calculate_and_extract_renewable_share_data(ECONOMY_ID)
     all_1d_plotting_dfs = pd.concat([all_1d_plotting_dfs, renewable_share_df, electricity_renewable_share], axis=0)
+    kaya_identity_df_COMBINED = calculate_and_extract_kaya_identity_data_COMBINED(ECONOMY_ID, raw_energy_intensity_df, emissions_co2_melt, raw_emissions_co2_intensity_df)
     kaya_identity_df = calculate_and_extract_kaya_identity_data(ECONOMY_ID, raw_energy_intensity_df, emissions_co2_melt, raw_emissions_co2_intensity_df)
-    
-    all_1d_plotting_dfs = pd.concat([all_1d_plotting_dfs, kaya_identity_df], axis=0)
+    breakpoint()
+    all_1d_plotting_dfs = pd.concat([all_1d_plotting_dfs, kaya_identity_df, kaya_identity_df_COMBINED], axis=0)
     
     charts_mapping_1d = map_all_1d_plotting_dfs_to_charts_mapping(all_1d_plotting_dfs, EXPECTED_COLS)
     
@@ -70,6 +71,7 @@ def map_all_1d_plotting_dfs_to_charts_mapping(all_1d_plotting_dfs, EXPECTED_COLS
     
     # If plotting_name is emissions_components, set them to the same value as temp_plotting_name
     charts_mapping.loc[charts_mapping['plotting_name'] == 'emissions_components', 'plotting_name'] = charts_mapping.loc[charts_mapping['plotting_name'] == 'emissions_components', 'temp_plotting_name']
+    charts_mapping.loc[charts_mapping['plotting_name'] == 'emissions_components_combined', 'plotting_name'] = charts_mapping.loc[charts_mapping['plotting_name'] == 'emissions_components_combined', 'temp_plotting_name']
     charts_mapping.drop(columns=['temp_plotting_name'], inplace=True)
     
     # charts_mapping.to_csv('../intermediate_data/charts_mapping_1d.csv')
@@ -392,7 +394,7 @@ def calculate_and_extract_renewable_share_data(ECONOMY_ID):
     
     return renewable_share, electricity_renewable_share
 
-def calculate_and_extract_kaya_identity_data(ECONOMY_ID, raw_energy_intensity_df, emissions_co2_melt, raw_emissions_co2_intensity_df):   
+def calculate_and_extract_kaya_identity_data_COMBINED(ECONOMY_ID, raw_energy_intensity_df, emissions_co2_melt, raw_emissions_co2_intensity_df):   
     def get_factor(df, base_year, last_year):
         base_value = df.loc[df['year'] == base_year, 'value'].values[0]
         last_value = df.loc[df['year'] == last_year, 'value'].values[0]
@@ -527,9 +529,84 @@ def calculate_and_extract_kaya_identity_data(ECONOMY_ID, raw_energy_intensity_df
     # Finalize the DataFrame
     
     kaya_identity_df.rename(columns={'plotting_name': 'temp_plotting_name'}, inplace=True)
-    kaya_identity_df['plotting_name'] = 'emissions_components'
+    #add '_combined' to the temp_plotting_name
+    kaya_identity_df['temp_plotting_name'] = kaya_identity_df['temp_plotting_name'] + '_combined'
+    kaya_identity_df['plotting_name'] = 'emissions_components_combined'
     kaya_identity_df['unit'] = 'million tonnes'
     kaya_identity_df['source'] = 'kaya'
     kaya_identity_df['plotting_name_column'] = 'variable'
     return kaya_identity_df
 
+
+def calculate_and_extract_kaya_identity_data(ECONOMY_ID, raw_energy_intensity_df, emissions_co2_melt, raw_emissions_co2_intensity_df):
+    
+    def get_factor(df, base_year, last_year):
+        base_value = df.loc[df['year'] == base_year, 'value'].values[0]
+        last_value = df.loc[df['year'] == last_year, 'value'].values[0]
+        return last_value / base_value
+    
+    def add_new_rows(kaya_df, year, factor, scenario, previous_value):
+        new_value = factor * previous_value
+        new_value_diff = new_value - previous_value
+        plotting_name = 'rise' if new_value_diff > 0 else 'fall'
+        new_value_diff = abs(new_value_diff)
+        kaya_df = pd.concat([kaya_df, pd.DataFrame({
+            'scenario': [scenario],
+            'year': [year],
+            'plotting_name': [plotting_name],
+            'value': [new_value_diff]
+        })], ignore_index=True)
+        
+        base_value = previous_value if plotting_name == 'rise' else previous_value - new_value_diff
+        new_row = pd.DataFrame({
+            'scenario': [scenario],
+            'year': [year],
+            'plotting_name': ['base'],
+            'value': [base_value]
+        })
+        kaya_df = pd.concat([kaya_df, new_row], ignore_index=True)
+        
+        return kaya_df, new_value
+
+    # Load the required data
+    population, real_gdp, gdppc = extract_macro_data(ECONOMY_ID)
+    
+    # Filter total emissions_co2 data for the required years
+    total_emissions_co2 = emissions_co2_melt[emissions_co2_melt['year'].isin([OUTLOOK_BASE_YEAR, OUTLOOK_LAST_YEAR])].copy()
+    # Select specific columns to copy
+    kaya_identity_df = total_emissions_co2[['scenario', 'year', 'value']].copy()
+    kaya_identity_df['plotting_name'] = 'initial'
+    
+    # Change OUTLOOK_BASE_YEAR to 3000 and OUTLOOK_LAST_YEAR to 3005
+    kaya_identity_df.loc[kaya_identity_df['year'] == OUTLOOK_BASE_YEAR, 'year'] = 3000
+    kaya_identity_df.loc[kaya_identity_df['year'] == OUTLOOK_LAST_YEAR, 'year'] = 3005
+    
+    # Calculate factors
+    population_factor = get_factor(population, OUTLOOK_BASE_YEAR, OUTLOOK_LAST_YEAR)
+    gdppc_factor = get_factor(gdppc, OUTLOOK_BASE_YEAR, OUTLOOK_LAST_YEAR)
+    
+    for scenario in ['reference', 'target']:
+        # Initial value for year 3000
+        year_3000_value = kaya_identity_df[(kaya_identity_df['year'] == 3000) & (kaya_identity_df['scenario'] == scenario)]['value'].values[0]
+        
+        # Add population factor rows
+        kaya_identity_df, population_adjusted_value = add_new_rows(kaya_identity_df, 3001, population_factor, scenario, year_3000_value)
+        
+        # Add GDP per capita factor rows
+        kaya_identity_df, gdppc_adjusted_value = add_new_rows(kaya_identity_df, 3002, gdppc_factor, scenario, population_adjusted_value)
+        
+        # Add energy intensity factor rows
+        energy_intensity_factor = get_factor(raw_energy_intensity_df[raw_energy_intensity_df['scenario'] == scenario], OUTLOOK_BASE_YEAR, OUTLOOK_LAST_YEAR)
+        kaya_identity_df, energy_adjusted_value = add_new_rows(kaya_identity_df, 3003, energy_intensity_factor, scenario, gdppc_adjusted_value)
+        
+        # Add emissions_co2 intensity factor rows
+        emissions_co2_intensity_factor = get_factor(raw_emissions_co2_intensity_df[raw_emissions_co2_intensity_df['scenario'] == scenario], OUTLOOK_BASE_YEAR, OUTLOOK_LAST_YEAR)
+        kaya_identity_df, _ = add_new_rows(kaya_identity_df, 3004, emissions_co2_intensity_factor, scenario, energy_adjusted_value)
+    
+    # Finalize the DataFrame
+    kaya_identity_df.rename(columns={'plotting_name': 'temp_plotting_name'}, inplace=True)
+    kaya_identity_df['plotting_name'] = 'emissions_components'
+    kaya_identity_df['unit'] = 'million tonnes'
+    kaya_identity_df['source'] = 'kaya'
+    kaya_identity_df['plotting_name_column'] = 'variable'
+    return kaya_identity_df
