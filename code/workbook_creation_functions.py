@@ -223,7 +223,7 @@ def create_sheets_from_mapping_df(workbook, charts_mapping_df, total_plotting_na
                     # Rename the columns using the mapping dictionary
                     table.rename(columns=column_mapping_kaya, inplace=True)
                     #drop 3006 drom the table
-                    table = table.drop(columns=[3006])
+                    table = table.drop(columns=[3006], errors='ignore')
                 #need to reset the year_cols_start (it wasnt correct before either)
                 year_cols_start = table.columns.get_loc(f'Emissions {OUTLOOK_BASE_YEAR}') + 1
                 
