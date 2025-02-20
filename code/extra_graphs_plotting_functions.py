@@ -161,15 +161,16 @@ def create_refined_products_bar_and_net_imports_line(charts_mapping, sheet,plott
     plotting_name_to_label_dict = workbook_creation_functions.check_plotting_name_label_in_plotting_name_to_label_dict(colours_dict, plotting_name_to_label_dict)
     
     unit_dict = {sheet: 'PJ'}
-    
+    #we should have the columns source	chart_type	plotting_name	plotting_name_column	aggregate_name	aggregate_name_column	scenario	unit	table_id	dimensions	chart_title	sheet_name + year_cols before we call this function
     charts_to_plot, chart_positions, worksheet = format_sheet_for_other_graphs(refined_products_and_net_imports,plotting_names_order,plotting_name_to_label_dict, scenario_num, scenarios_list, header_format, worksheet, workbook, plotting_specifications, writer, sheet, colours_dict,cell_format1, cell_format2,  max_and_min_values_dict, total_plotting_names, chart_types, ECONOMY_ID, unit_dict)
     
     return charts_to_plot, chart_positions, worksheet
 
 
-def format_sheet_for_other_graphs(refined_products_and_net_imports,plotting_names_order,plotting_name_to_label_dict, scenario_num, scenarios_list, header_format, worksheet,workbook, plotting_specifications, writer, sheet, colours_dict, cell_format1, cell_format2, max_and_min_values_dict, total_plotting_names, chart_types, ECONOMY_ID,unit_dict):
+def format_sheet_for_other_graphs(data,plotting_names_order,plotting_name_to_label_dict, scenario_num, scenarios_list, header_format, worksheet,workbook, plotting_specifications, writer, sheet, colours_dict, cell_format1, cell_format2, max_and_min_values_dict, total_plotting_names, chart_types, ECONOMY_ID,unit_dict):
     #########################
-    table, chart_types_unused, table_id, plotting_name_column, year_cols_start,num_cols, chart_titles, first_year_col, sheet_name = workbook_creation_functions.format_table(refined_products_and_net_imports,plotting_names_order,plotting_name_to_label_dict)
+    
+    table, chart_types_unused, table_id, plotting_name_column, year_cols_start,num_cols, chart_titles, first_year_col, sheet_name = workbook_creation_functions.format_table(data,plotting_names_order,plotting_name_to_label_dict)
     
     if len(chart_types) == 1 and 'bar' in chart_types and not sheet == 'CO2 emissions components':   
         table = workbook_creation_functions.create_bar_chart_table(table,year_cols_start,plotting_specifications['bar_years'], sheet_name)
@@ -318,7 +319,7 @@ def create_refining_and_low_carbon_fuels(charts_mapping, sheet,plotting_names_or
     plotting_name_to_label_dict = workbook_creation_functions.check_plotting_name_label_in_plotting_name_to_label_dict(colours_dict, plotting_name_to_label_dict)
     
     unit_dict = {sheet: 'PJ'}
-    
+    #we should have the columns source	chart_type	plotting_name	plotting_name_column	aggregate_name	aggregate_name_column	scenario	unit	table_id	dimensions	chart_title	sheet_name + year_cols before we call this function
     charts_to_plot, chart_positions, worksheet = format_sheet_for_other_graphs(refined_products_and_low_carbon_fuels,plotting_names_order,plotting_name_to_label_dict, scenario_num, scenarios_list, header_format, worksheet, workbook, plotting_specifications, writer, sheet, colours_dict,cell_format1, cell_format2,  max_and_min_values_dict, total_plotting_names, chart_types, ECONOMY_ID, unit_dict)
     
     return charts_to_plot, chart_positions, worksheet
@@ -432,6 +433,7 @@ def create_liquid_biofuels_and_bioenergy_supply_charts(charts_mapping, sheet,plo
     plotting_name_to_label_dict = workbook_creation_functions.check_plotting_name_label_in_plotting_name_to_label_dict(colours_dict, plotting_name_to_label_dict)
     
     unit_dict = {sheet: 'PJ'}
+    #we should have the columns source	chart_type	plotting_name	plotting_name_column	aggregate_name	aggregate_name_column	scenario	unit	table_id	dimensions	chart_title	sheet_name + year_cols before we call this function
     charts_to_plot, chart_positions, worksheet = format_sheet_for_other_graphs(bioenergy_supply,plotting_names_order,plotting_name_to_label_dict, scenario_num, scenarios_list, header_format, worksheet, workbook, plotting_specifications, writer, sheet, colours_dict,cell_format1, cell_format2,  max_and_min_values_dict, total_plotting_names, chart_types, ECONOMY_ID, unit_dict)
     return charts_to_plot, chart_positions, worksheet
 
@@ -550,8 +552,129 @@ def create_natural_gas_and_lng_supply_charts(charts_mapping, sheet,plotting_name
     plotting_name_to_label_dict = workbook_creation_functions.check_plotting_name_label_in_plotting_name_to_label_dict(colours_dict, plotting_name_to_label_dict)
     
     unit_dict = {sheet: 'PJ'}
-    
+    #we should have the columns source	chart_type	plotting_name	plotting_name_column	aggregate_name	aggregate_name_column	scenario	unit	table_id	dimensions	chart_title	sheet_name + year_cols before we call this function
     charts_to_plot, chart_positions, worksheet = format_sheet_for_other_graphs(nat_gas_supply,plotting_names_order,plotting_name_to_label_dict, scenario_num, scenarios_list, header_format, worksheet, workbook, plotting_specifications, writer, sheet, colours_dict,cell_format1, cell_format2,  max_and_min_values_dict, total_plotting_names, chart_types, ECONOMY_ID, unit_dict)
+    
+    return charts_to_plot, chart_positions, worksheet
+
+def create_buildings_with_electricity_from_datacentre_demand_charts(charts_mapping, sheet,plotting_names_order,plotting_name_to_label_dict, worksheet,workbook,  colours_dict,cell_format1, cell_format2,  scenario_num,scenarios_list, header_format,plotting_specifications, writer, chart_types,ECONOMY_ID):
+    """    
+    # Add the new chart creation function to the new_charts_dict
+    new_charts_dict = {
+        'Buildings': {
+        'source': 'energy',
+        'sheet_name': 'buildings_and_datacentre_demand',
+        'function': workbook_creation_functions.create_buildings_with_electricity_from_datacentre_demand_charts,
+        'chart_type': 'bar'    
+    }    
+    """
+    final_table = pd.DataFrame()
+    for chart_type in chart_types:
+        #extract the data we want to use for the refined products graph, then do wahtever manipulations and calculations are needed to get it into the right format, then plotit
+        table_id = 'energy_Buildings_1'
+        buildings_demand_by_fuel = charts_mapping[(charts_mapping.table_id == table_id) & (charts_mapping.chart_type == 'area') ]
+        if len(buildings_demand_by_fuel) == 0:
+            breakpoint()
+            raise Exception(f'No data found for table {table_id}')
+        buildings_demand_by_fuel.loc[:, 'chart_title'] = 'Buildings'
+        buildings_demand_by_fuel.loc[:, 'table_id'] = sheet
+        buildings_demand_by_fuel.loc[:, 'aggregate_name'] = 'Buildings'
+        buildings_demand_by_fuel.loc[:, 'sheet_name'] = sheet
+        
+        buildings_demand_by_fuel.loc[:, 'chart_type'] = chart_type
+        buildings_demand_by_fuel.loc[:, 'scenario'] = scenarios_list[scenario_num]
+        
+        ######
+        table_id = 'energy_Buildings_2'
+        
+        #extract where plotting name is Data centres & AI. we will minus this from leectriicty in buildings_demand by fuel and show it as 'Electricity - data centres'
+        data_centres = charts_mapping[(charts_mapping.table_id == table_id) & (charts_mapping.chart_type == 'area') & (charts_mapping['plotting_name'] == 'Data centres & AI')]
+        if len(data_centres) == 0:
+            breakpoint()
+            raise Exception(f'No data found for table {table_id}')
+        data_centres.loc[:, 'chart_title'] = 'Buildings'
+        data_centres.loc[:, 'table_id'] = sheet
+        data_centres.loc[:, 'aggregate_name'] = 'Buildings'
+        data_centres.loc[:, 'sheet_name'] = sheet
+        
+        data_centres.loc[:, 'chart_type'] = chart_type
+        data_centres.loc[:, 'scenario'] = scenarios_list[scenario_num]
+        #rename the plotting name to 'Electricity - data centres'
+        data_centres.loc[:, 'plotting_name'] = 'Electricity - data centres'
+        
+        ##################
+        #join and then take Data centres away from the buildings data to get the non-Data centres data:
+        year_cols = [col for col in data_centres.columns if re.search(r'\d{4}', str(col))]
+        non_year_cols = [col for col in data_centres.columns if col not in year_cols + ['value']]
+        buildings_demand_by_fuel_melt = buildings_demand_by_fuel.melt(id_vars=non_year_cols, value_vars=year_cols, var_name='year', value_name='value').copy()
+        data_centres_melt = data_centres.melt(id_vars=non_year_cols, value_vars=year_cols, var_name='year', value_name='value').copy()
+        buildings_demand_by_fuel_melt = pd.merge(buildings_demand_by_fuel_melt, data_centres_melt, on=['year'], how='right', suffixes=('', '_datacentres'))
+        #where plotting_name is electricity, take away the data centres value
+        buildings_demand_by_fuel_melt.loc[buildings_demand_by_fuel_melt['plotting_name'] == 'Electricity', 'value'] = buildings_demand_by_fuel_melt['value'] - buildings_demand_by_fuel_melt['value_datacentres'].replace(np.nan, 0)
+        buildings_demand_by_fuel_melt = buildings_demand_by_fuel_melt.drop(columns=[col for col in buildings_demand_by_fuel_melt.columns if col.endswith('_datacentres')])
+        #then concatenate the two dataframes
+        buildings_demand_by_fuel_melt = pd.concat([buildings_demand_by_fuel_melt, data_centres_melt])
+        # breakpoint()
+        buildings_demand_by_fuel_wide = buildings_demand_by_fuel_melt.pivot(index=non_year_cols, columns='year', values='value').reset_index()
+        #make table number 1, chart_type to area, aggregate name to buildings, chart title to Buildings, aggregate_name_column to sectors_plotting
+        
+        #drop table_number since this is not needed
+        buildings_demand_by_fuel_wide = buildings_demand_by_fuel_wide.drop(columns=['table_number'])
+        buildings_demand_by_fuel_wide.loc[:, 'chart_type'] = 'area'
+        buildings_demand_by_fuel_wide.loc[:, 'aggregate_name'] = 'Buildings'
+        buildings_demand_by_fuel_wide.loc[:, 'chart_title'] = 'Buildings'
+        buildings_demand_by_fuel_wide.loc[:, 'aggregate_name_column'] = 'sectors_plotting'
+        
+        ##################
+        max_and_min_values_dict = {}
+        #we woud be better of doing these max and min values manually here since we want them to match for the two chart types (and they wont if we use the funciton below)
+        
+        #extract the year cols forw hich we will calculate the net imports by finding 4 digits in the column name
+        year_cols = [col for col in buildings_demand_by_fuel_wide.columns if re.search(r'\d{4}', str(col))]
+        non_year_cols = [col for col in buildings_demand_by_fuel_wide.columns if col not in year_cols]
+        #the max value is the max of the sum of the positive refined products:
+        positives = buildings_demand_by_fuel_melt.copy()
+        #filter
+        positives = positives[positives['value'] > 0]
+        #group by and sum
+        positives = positives.groupby(['year'])['value'].sum().reset_index()
+        max_value = positives.value.max()
+        if pd.isna(max_value):
+            max_value = 0
+        max_value = workbook_creation_functions.calculate_y_axis_value(max_value)
+            
+        key_max = (sheet, chart_type, sheet, "max")
+        
+            
+        #the min value will be the min of the sum of the NEGATIVE refined products and the min of the net imports:#first melt, then filter and then group by and sum
+        negatives = buildings_demand_by_fuel_melt.copy()
+        #filter
+        negatives = negatives[negatives['value'] < 0]
+        #group by and sum
+        negatives = negatives.groupby(['year'])['value'].sum().reset_index()
+        min_value = negatives.value.min()
+        if pd.isna(min_value):
+            min_value = 0
+        min_value = workbook_creation_functions.calculate_y_axis_value(min_value)
+                    
+        key_min = (sheet, chart_type, sheet, "min")
+        
+        max_and_min_values_dict[key_max] = max_value
+        max_and_min_values_dict[key_min] = min_value
+        
+        ##################
+        final_table = pd.concat([final_table, buildings_demand_by_fuel_wide])
+        ##################
+    if final_table.empty or final_table[year_cols].sum().sum() == 0:
+        breakpoint()
+        return None, None, worksheet
+    colours_dict = workbook_creation_functions.check_plotting_names_in_colours_dict(data_centres, colours_dict)
+    
+    plotting_name_to_label_dict = workbook_creation_functions.check_plotting_name_label_in_plotting_name_to_label_dict(colours_dict, plotting_name_to_label_dict)
+    
+    unit_dict = {sheet: 'PJ'}
+    #we should have the columns source	chart_type	plotting_name	plotting_name_column	aggregate_name	aggregate_name_column	scenario	unit	table_id	dimensions	chart_title	sheet_name + year_cols before we call this function
+    charts_to_plot, chart_positions, worksheet = format_sheet_for_other_graphs(final_table,plotting_names_order,plotting_name_to_label_dict, scenario_num, scenarios_list, header_format, worksheet, workbook, plotting_specifications, writer, sheet, colours_dict,cell_format1, cell_format2,  max_and_min_values_dict, total_plotting_names, chart_types, ECONOMY_ID, unit_dict)
     
     return charts_to_plot, chart_positions, worksheet
 

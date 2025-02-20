@@ -16,7 +16,8 @@ STRICT_DATA_CHECKING = False
 FILE_DATE_ID = datetime.now().strftime('%Y%m%d')
 
 # FILE_DATE_ID = '20241112'
-total_plotting_names=['Total', 'TPES', 'Total primary energy supply','TFEC', 'TFC', 'Total_industry', 'Total_transport', 'Total_fuels', 'Total combustion emissions']
+total_plotting_names=['Total', 'TPES', 'Total primary energy supply','TFEC', 'TFC', 'Total_industry', 'Total_transport', 'Total_fuels', 'Total combustion emissions', 'Total Industry & Non-energy', 'Production', 'Total power fuel consumption', 'Total generation', 'Total generation capacity','Total use of fuels', 'TFC_hydrogen','TFC_low_carbon_fuels', 'TPES_bioenergy', 'TFC_refined_fuels', 'Refined products', 'TFEC_incl_own_use_losses']
+
 MIN_YEAR = 2000
 
 EXPECTED_COLS = ['source', 'table_number', 'chart_type','plotting_name', 'plotting_name_column','aggregate_name', 'aggregate_name_column', 'scenario', 'unit', 'table_id', 'dimensions', 'chart_title', 'year', 'value','sheet_name']
@@ -55,7 +56,7 @@ HIST_YEARS = list(range(EBT_EARLIEST_YEAR, OUTLOOK_BASE_YEAR+1, 1))
 HIST_YEARS_str = [str(year) for year in HIST_YEARS]
 PROJ_YEARS_str = [str(year) for year in PROJ_YEARS]
 
-def find_most_recent_file_date_id(directory_path, filename_part = None,RETURN_DATE_ID = False):
+def find_most_recent_file_date_id(directory_path, filename_part = None,RETURN_DATE_ID = False, PRINT=True):
     """Find the most recent file in a directory based on the date ID in the filename."""
     # List all files in the directory
     files = os.listdir(directory_path)
@@ -91,15 +92,53 @@ def find_most_recent_file_date_id(directory_path, filename_part = None,RETURN_DA
 
     # Output the most recent file
     if most_recent_file:
-        print(f"The most recent file is: {most_recent_file} with the date ID {most_recent_date.strftime('%Y%m%d')}")
+        if PRINT:
+            print(f"The most recent file is: {most_recent_file} with the date ID {most_recent_date.strftime('%Y%m%d')}")
     else:
-        print("No files found with a valid date ID.")
+        if PRINT:
+            print("No files found with a valid date ID.")
     if RETURN_DATE_ID:
         return most_recent_file, date_id
     else:
         return most_recent_file
-    
 
+def import_files_from_ebt_system(ECONOMY_ID, ebt_system_file_path='../../Outlook9th_EBT/results/'):
+    print('Automatically importing files from EBT system')
+    emissions_no2 = ebt_system_file_path + f'{ECONOMY_ID}/emissions/emissions_no2_{ECONOMY_ID}_DDDDDDDD.csv'
+    emissions_co2 = ebt_system_file_path + f'{ECONOMY_ID}/emissions/emissions_co2_{ECONOMY_ID}_DDDDDDDD.csv'
+    emissions_ch4 = ebt_system_file_path + f'{ECONOMY_ID}/emissions/emissions_ch4_{ECONOMY_ID}_DDDDDDDD.csv'
+    emissions_co2e = ebt_system_file_path + f'{ECONOMY_ID}/emissions/emissions_co2e_{ECONOMY_ID}_DDDDDDDD.csv'
+    energy_folder = ebt_system_file_path + f'{ECONOMY_ID}/merged/merged_file_energy_{ECONOMY_ID}_DDDDDDDD.csv'
+    capacity_folder = ebt_system_file_path + f'{ECONOMY_ID}/capacity/capacity_{ECONOMY_ID}_DDDDDDDD.csv'
+    
+    old_files = [file for file in os.listdir(f'../input_data/{ECONOMY_ID}') if file.endswith('.csv')]
+    files = [emissions_no2, emissions_co2, emissions_ch4, emissions_co2e, energy_folder, capacity_folder]
+    files_with_dates = []
+    filenames_with_dates = []
+    #search for file with the latest date to replace DDDDDDDD
+    for file in files:
+        directory_path = file.split('/')[:-1]
+        directory_path = '/'.join(directory_path)
+        filename_part = file.split('/')[-1].strip('_DDDDDDDD.csv')
+        try:
+            filename, date_id = find_most_recent_file_date_id(directory_path, filename_part, RETURN_DATE_ID = True, PRINT=False)
+        except:
+            breakpoint()
+            raise Exception(f'No files found in {directory_path} with the pattern {filename_part}')
+        file = file.replace('DDDDDDDD', date_id)
+        files_with_dates.append(file)
+        filenames_with_dates.append(filename)
+        
+    #now move the file to the correct location and move the old one to archive
+    for old_file in old_files:
+        if not os.path.exists(f'../input_data/{ECONOMY_ID}/archive/'):
+            os.mkdir(f'../input_data/{ECONOMY_ID}/archive/')
+        shutil.move(f'../input_data/{ECONOMY_ID}/{old_file}', f'../input_data/{ECONOMY_ID}/archive/{old_file}') 
+        
+    for file, filename in zip(files_with_dates, filenames_with_dates):  
+        shutil.copy(file, f'../input_data/{ECONOMY_ID}/{filename}')
+        
+        
 def save_checkpoint(df, name, folder='../intermediate_data/checkpoints/'):
     """
     Save a DataFrame or data object as a checkpoint using pickle.

@@ -610,10 +610,12 @@ def format_table(table,plotting_names_order,plotting_name_to_label_dict):
     
     # Get the year of the first year column for crossing
     first_year_col = year_cols[0]
-    
+    # try:
     #set order of columns and table, dependent on what the aggregate column is:
     table = sort_table_rows_and_columns(table,table_id,plotting_names_order,year_cols)
-    
+    # except:
+    #     breakpoint()
+    #     table = sort_table_rows_and_columns(table,table_id,plotting_names_order,year_cols)
     #rename fuels_plotting, emissions_fuels_plotting and emissions_sectors_plotting, sectors_plotting, capacity_plotting to Fuel and Sector respectively
     if plotting_name_column == 'fuels_plotting' or plotting_name_column == 'emissions_fuels_plotting':
         table.rename(columns = {'plotting_name':'Fuel', 'aggregate_name':'Sector'}, inplace = True)

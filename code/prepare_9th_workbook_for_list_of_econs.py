@@ -15,9 +15,13 @@ import csv
 #%%
 #######################################################
 #"01_AUS", "02_BD", "03_CDA", "04_CHL", "05_PRC", "06_HKC", "07_INA", "08_JPN", "09_ROK", "10_MAS", "11_MEX", "12_NZ", "13_PNG", "14_PE",
-for ECONOMY_ID in [ "09_ROK"]:#ALL_ECONOMY_IDS:'01_AUS': 'Australia', '03_CDA': 'Canada', '04_CHL': 'Chile', '08_JPN': 'Japan', '09_ROK':'Republic of Korea', '11_MEX': 'Mexico', '20_USA': 'United States of America'
+#  '01_AUS', "02_BD", "03_CDA", "04_CHL", "05_PRC", "06_HKC", "07_INA", "08_JPN", "09_ROK", "10_MAS", "11_MEX", "12_NZ", "13_PNG", "14_PE", "15_PHL", "17_SGP", 
+for ECONOMY_ID in ["19_THA", "20_USA", "21_VN"]:#ALL_ECONOMY_IDS:'01_AUS': 'Australia', '03_CDA': 'Canada', '04_CHL': 'Chile', '08_JPN': 'Japan', '09_ROK':'Republic of Korea', '11_MEX': 'Mexico', '20_USA': 'United States of America'"18_CT", 
     
     check_base_year_is_as_expected(ECONOMY_ID)
+    
+    import_files_from_ebt_system(ECONOMY_ID, ebt_system_file_path='../../Outlook9th_EBT/results/')
+    
     print(f"Starting workbook creation for {ECONOMY_ID}\n")
     MAP_DATA = True#False
     if MAP_DATA:

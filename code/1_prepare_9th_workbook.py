@@ -16,18 +16,17 @@ import csv
 #%%
 ECONOMY_ID = '09_ROK'
 check_base_year_is_as_expected(ECONOMY_ID)
-
-charts_mapping_1d = map_9th_data_to_one_dimensional_plots(ECONOMY_ID, EXPECTED_COLS)#
-
-save_checkpoint(charts_mapping_1d, f'charts_mapping_1d_{ECONOMY_ID}')   
+import_files_from_ebt_system(ECONOMY_ID, ebt_system_file_path='../../Outlook9th_EBT/results/')
+#files to load
+#
 #%%
-MAP_DATA = False#False
-if MAP_DATA:
+MAP_DATA_2D = True#False
+if MAP_DATA_2D:
     map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COLS, RAISE_ERROR=False)
-        
-    charts_mapping_1d = map_9th_data_to_one_dimensional_plots(ECONOMY_ID, EXPECTED_COLS)#, total_emissions_co2, total_emissions_ch4, total_emissions_co2e, total_emissions_no2)
-    # Save checkpoint after mapping 1D data
-    save_checkpoint(charts_mapping_1d, f'charts_mapping_1d_{ECONOMY_ID}')    
+    
+charts_mapping_1d = map_9th_data_to_one_dimensional_plots(ECONOMY_ID, EXPECTED_COLS)#, total_emissions_co2, total_emissions_ch4, total_emissions_co2e, total_emissions_no2)
+# Save checkpoint after mapping 1D data
+save_checkpoint(charts_mapping_1d, f'charts_mapping_1d_{ECONOMY_ID}')    
     
 #%%
 #######################################################
@@ -74,9 +73,15 @@ new_charts_dict = {
     'Liquid biofuels and bioenergy supply': {
         'source': 'energy',
         'sheet_name': 'Liq_and_bioenergy_supply',
-        'function': extra_graphs_plotting_functions.create_liquid_biofuels_and_bioenergy_supply_charts,
+        'function': extra_graphs_plotting_functions.create_liquid_biofuels_and_bioenergy_supply_charts,#todo need to fix this. the bioenergy is not being plotted
         'chart_types': ['bar']
     },
+    'Buildings with elec from datacentres': {
+        'source': 'energy',
+        'sheet_name': 'buildings_and_datacentre_demand',
+        'function': extra_graphs_plotting_functions.create_buildings_with_electricity_from_datacentre_demand_charts,
+        'chart_types': ['area']
+    },    
 }
 #%%
 workbook, writer = extra_graphs_plotting_functions.create_extra_graphs(workbook, all_charts_mapping_files_dict, total_plotting_names, MIN_YEAR,  plotting_specifications, plotting_names_order,plotting_name_to_label_dict, colours_dict, cell_format1, cell_format2, new_charts_dict, header_format, writer, EXPECTED_COLS, ECONOMY_ID)

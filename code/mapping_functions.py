@@ -806,11 +806,10 @@ def modify_gas_splits(df):
     """
     return split_gas_imports_exports_by_economy(df)
 
-# Modification functions
-def modify_losses_and_own_use_values(df):
+def make_losses_and_own_use_bunkers_exports_positive(df):
     """
-    Changes the numeric values in the year columns for rows where the 'sectors' column
-    is '10_losses_and_own_use' from negative to positive.
+    Changes the numeric values in the year columns for rows where the 'losses_and_own_use_bunkers_exports' column
+    is 'losses_and_own_use_bunkers_exports' from negative to positive.
     
     Parameters:
     - df (pd.DataFrame): The dataframe to modify.
@@ -821,12 +820,16 @@ def modify_losses_and_own_use_values(df):
     # Identifying year columns
     year_columns = [col for col in df.columns if col.isdigit()]
 
-    # Filtering rows where the 'sectors' column is '10_losses_and_own_use'
-    condition = df['sectors'] == '10_losses_and_own_use'
-
-    # Changing values from negative to positive for the identified rows and year columns
-    df.loc[condition, year_columns] = df.loc[condition, year_columns].abs()
-
+    # Filtering rows where the 'sectors' column is losses_and_own_use_bunkers_exports
+    condition = df['sectors'].isin(['04_international_marine_bunkers','05_international_aviation_bunkers', '10_losses_and_own_use', '03_exports'])
+    # 04_international_marine_bunkers_positive, 05_international_aviation_bunkers_positive, 10_losses_and_own_use_positive, 03_exports_positive
+    df_copy = df[condition].copy()
+    # Change values from negative to positive for the identified rows and year columns
+    df_copy.loc[condition, year_columns] = df_copy.loc[condition, year_columns].abs()
+    df_copy['sectors'] = df_copy['sectors'] + '_positive'
+    
+    df = pd.concat([df, df_copy], ignore_index=True)
+    
     return df
 
 def convert_electricity_output_to_twh(df):
@@ -1082,6 +1085,67 @@ def rename_sectors_and_negate_values_based_on_ccs_cap(df):
 #     df = pd.concat([df, filtered_rows], ignore_index=True)
 
 #     return df
+
+def rename_production_16_others_x_to_16_others_unallocated(df):
+    #because we have the possibility of having sectors='01_production' fuel=16_others, subfuels=x and subtotal=False,we need to rename the subfuels to 16_others_unallocated instead of x, so that the visualisation works as expected. We should also double check tnhere are no other instances like this for other sectors since we arent expecting htose (we'd jsut change this function to include them if we were - but its important to kniw it happens)
+    # breakpoint()
+    # Define the condition for the rows to modify
+    condition = (df['fuels'] == '16_others') & \
+                (df['subfuels'] == 'x') & \
+                (df['subtotal_layout'] == False) & \
+                (df['subtotal_results'] == False)
+
+    #check that there are no other sectors that have 16_others and x as subfuels than 01_production
+    
+    years = [str(year) for year in range(OUTLOOK_BASE_YEAR+1, OUTLOOK_LAST_YEAR+1)]
+    if df[(df['fuels'] == '16_others') & (df['subfuels'] == 'x') & (df['subtotal_layout'] == False) & (df['subtotal_results'] == False) & (df['sectors'] != '01_production')][years].sum().sum() != 0:
+        breakpoint()
+        # df.loc[condition, 'sub1sectors'] = '16_others_unallocated'
+        raise Exception('There are sectors other than 01_production with 16_others and x as subfuels and subtotal=False. This function needs to be updated to include these sectors for subfuel 16_others_unallocated.')
+    elif df[(df['fuels'] == '16_others') & (df['subfuels'] == 'x') & (df['subtotal_layout'] == False) & (df['subtotal_results'] == False) & (df['sectors'] == '01_production')][years].sum().sum() == 0:
+        return df
+    else:        
+        # Apply the modification
+        breakpoint()
+        # df.loc[condition, 'sub1sectors'] = '16_others_unallocated'
+        raise Exception('This function is not yet implemented. Please check for Temp fix for 01_production 15_solid_biomass and 16_others subtotal label within the EBT system, D_merging_results.py before running this function.')
+    return df
+
+
+def set_2013_thai_petroleum_refining_to_half_of_2012_2014(df):
+    # find these rows and set 2013 to half of 2012 and 2014 because there is a really big jump in 2013 that seems unlikely (feel a bit uneasy about adjustung historcial data but for now we will try it and think on whether its a good idea or not. good to at least do it once!):
+    #sectors: 12_total_final_consumption 17_nonenergy_use, 09_total_transformation_sector > 09_07_oil_refineries
+    #fuels: 07_petroleum_products	07_x_other_petroleum_products
+    #is_subtotal: FALSE
+    #years :2012	2013	2014
+    #
+    #         economy	sectors	sub1sectors	sub2sectors	sub3sectors	sub4sectors	fuels	subfuels
+    #         19_THA	09_total_transformation_sector	09_07_oil_refineries	x	x	x	07_petroleum_products	07_x_other_petroleum_products
+    # 19_THA	12_total_final_consumption	x	x	x	x	07_petroleum_products	07_x_other_petroleum_products
+    # 19_THA	17_nonenergy_use	x	x	x	x	07_petroleum_products	07_x_other_petroleum_products
+    maps = [('19_THA', '09_total_transformation_sector', '09_07_oil_refineries', 'x', 'x', 'x', '07_petroleum_products', '07_x_other_petroleum_products'),
+            ('19_THA', '12_total_final_consumption', 'x', 'x', 'x', 'x', '07_petroleum_products', '07_x_other_petroleum_products'),
+            ('19_THA', '17_nonenergy_use', 'x', 'x', 'x', 'x', '07_petroleum_products', '07_x_other_petroleum_products')]
+    for scenario in df['scenarios'].unique():
+        for map in maps:
+            # breakpoint()#still havent 2x checked this works
+            economy, sectors, sub1sectors, sub2sectors, sub3sectors, sub4sectors, fuels, subfuels = map
+            year1 = 2012
+            year2 = 2013
+            year3 = 2014
+            #find and check they are only 1 row for each scenario
+            row = df.loc[(df['economy'] == economy) & (df['sectors'] == sectors) & (df['sub1sectors'] == sub1sectors) & (df['sub2sectors'] == sub2sectors) & (df['sub3sectors'] == sub3sectors) & (df['sub4sectors'] == sub4sectors) & (df['fuels'] == fuels) & (df['subfuels'] == subfuels) & (df['scenarios'] == scenario)]
+            if row.shape[0] != 1:
+                raise Exception(f'There are {row.shape[0]} rows for the economy {economy}, sectors {sectors}, sub1sectors {sub1sectors}, sub2sectors {sub2sectors}, sub3sectors {sub3sectors}, sub4sectors {sub4sectors}, fuels {fuels}, subfuels {subfuels}, scenario {scenario}. We think there should only be 1 row.')
+            # breakpoint()
+            value1 = row[str(year1)].values[0]
+            value2 = row[str(year2)].values[0]
+            value3 = row[str(year3)].values[0]
+            #set the value of 2013 to half of 2012 and 2014
+            # breakpoint()
+            df.loc[(df['economy'] == economy) & (df['sectors'] == sectors) & (df['sub1sectors'] == sub1sectors) & (df['sub2sectors'] == sub2sectors) & (df['sub3sectors'] == sub3sectors) & (df['sub4sectors'] == sub4sectors) & (df['fuels'] == fuels) & (df['subfuels'] == subfuels) & (df['scenarios'] == scenario), str(year2)] = (value1 + value3) / 2
+            
+    return df
 
 def modify_subtotal_columns(df):
     """
