@@ -297,7 +297,11 @@ def save_plotting_names_order(charts_mapping,FILE_DATE_ID):
         raise ValueError('There are duplicated in the table_id column. You probably have two tables of the same table number for the same sheet: ', [item for item, count in collections.Counter(charts_mapping_pivot.index.tolist()).items() if count > 1])
     for table_id in charts_mapping_pivot.index.tolist():
         plotting_names_order[table_id] = [x for x in charts_mapping_pivot.loc[table_id].tolist() if str(x) != 'nan']
-            
+        ##check for duplicates in plotting_names_order[table_id]. if there are throw an error since this indicates we should combine them, i think. 
+        if len(plotting_names_order[table_id]) != len(set(plotting_names_order[table_id])):
+            breakpoint()  
+            raise ValueError('There are duplicates in the plotting_names_order for table_id: ', table_id, 'These are: ', [item for item, count in collections.Counter(plotting_names_order[table_id]).items() if count > 1])
+        
     # Save dictionary into file
     with open(f'../intermediate_data/config/plotting_names_order_{FILE_DATE_ID}.pkl', 'wb') as handle:
         pickle.dump(plotting_names_order, handle, protocol=pickle.HIGHEST_PROTOCOL)
@@ -661,7 +665,7 @@ def split_gas_imports_exports_by_economy(df, ECONOMIES_TO_SPLIT_DICT={'01_AUS': 
     is_oecd_economy = df['economy'].isin(ECONOMIES_TO_SPLIT_DICT.keys())
     if not is_oecd_economy.any():
         print('No OECD countries found in the dataset. Not modifying gas splits.')
-        breakpoint()
+        # breakpoint()
         return df
     df_oecd = df[is_oecd_economy].copy()
     #filter for only import and export rows where fuels is 08_gas
@@ -1144,7 +1148,7 @@ def set_2013_thai_petroleum_refining_to_half_of_2012_2014(df):
             #set the value of 2013 to half of 2012 and 2014
             # breakpoint()
             df.loc[(df['economy'] == economy) & (df['sectors'] == sectors) & (df['sub1sectors'] == sub1sectors) & (df['sub2sectors'] == sub2sectors) & (df['sub3sectors'] == sub3sectors) & (df['sub4sectors'] == sub4sectors) & (df['fuels'] == fuels) & (df['subfuels'] == subfuels) & (df['scenarios'] == scenario), str(year2)] = (value1 + value3) / 2
-            
+            breakpoint()#save these cahnges elsewhere
     return df
 
 def modify_subtotal_columns(df):

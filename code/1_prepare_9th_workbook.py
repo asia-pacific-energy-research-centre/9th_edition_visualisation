@@ -14,7 +14,7 @@ from utility_functions import *
 import csv
 #######################################################
 #%%
-ECONOMY_ID = '09_ROK'
+ECONOMY_ID = '18_CT'
 check_base_year_is_as_expected(ECONOMY_ID)
 import_files_from_ebt_system(ECONOMY_ID, ebt_system_file_path='../../Outlook9th_EBT/results/')
 #files to load
@@ -22,8 +22,9 @@ import_files_from_ebt_system(ECONOMY_ID, ebt_system_file_path='../../Outlook9th_
 #%%
 MAP_DATA_2D = True#False
 if MAP_DATA_2D:
-    map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COLS, RAISE_ERROR=False)
+    map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COLS, RAISE_ERROR=False, TESTING=False)
     
+#%%
 charts_mapping_1d = map_9th_data_to_one_dimensional_plots(ECONOMY_ID, EXPECTED_COLS)#, total_emissions_co2, total_emissions_ch4, total_emissions_co2e, total_emissions_no2)
 # Save checkpoint after mapping 1D data
 save_checkpoint(charts_mapping_1d, f'charts_mapping_1d_{ECONOMY_ID}')    

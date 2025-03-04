@@ -16,7 +16,7 @@ import csv
 #######################################################
 #"01_AUS", "02_BD", "03_CDA", "04_CHL", "05_PRC", "06_HKC", "07_INA", "08_JPN", "09_ROK", "10_MAS", "11_MEX", "12_NZ", "13_PNG", "14_PE",
 #  '01_AUS', "02_BD", "03_CDA", "04_CHL", "05_PRC", "06_HKC", "07_INA", "08_JPN", "09_ROK", "10_MAS", "11_MEX", "12_NZ", "13_PNG", "14_PE", "15_PHL", "17_SGP", 
-for ECONOMY_ID in ["19_THA", "20_USA", "21_VN"]:#ALL_ECONOMY_IDS:'01_AUS': 'Australia', '03_CDA': 'Canada', '04_CHL': 'Chile', '08_JPN': 'Japan', '09_ROK':'Republic of Korea', '11_MEX': 'Mexico', '20_USA': 'United States of America'"18_CT", 
+for ECONOMY_ID in [ "05_PRC"]:#, '18_CT', '05_PRC']:#ALL_ECONOMY_IDS:'01_AUS': 'Australia', '03_CDA': 'Canada', '04_CHL': 'Chile', '08_JPN': 'Japan', '09_ROK':'Republic of Korea', '11_MEX': 'Mexico', '20_USA': 'United States of America'"18_CT", 
     
     check_base_year_is_as_expected(ECONOMY_ID)
     
@@ -27,9 +27,9 @@ for ECONOMY_ID in ["19_THA", "20_USA", "21_VN"]:#ALL_ECONOMY_IDS:'01_AUS': 'Aust
     if MAP_DATA:
         map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COLS, RAISE_ERROR=False)
         
-        charts_mapping_1d = map_9th_data_to_one_dimensional_plots(ECONOMY_ID, EXPECTED_COLS)#, total_emissions_co2, total_emissions_ch4, total_emissions_co2e, total_emissions_no2)
-        # Save checkpoint after mapping 1D data
-        save_checkpoint(charts_mapping_1d, f'charts_mapping_1d_{ECONOMY_ID}')    
+    charts_mapping_1d = map_9th_data_to_one_dimensional_plots(ECONOMY_ID, EXPECTED_COLS)
+    # Save checkpoint after mapping 1D data
+    save_checkpoint(charts_mapping_1d, f'charts_mapping_1d_{ECONOMY_ID}')    
         
     #######################################################
     all_charts_mapping_files_dict = gather_charts_mapping_dict(ECONOMY_ID, FILE_DATE_ID, sources = ['energy', 'emissions_co2', 'emissions_ch4', 'emissions_co2e', 'emissions_no2', 'capacity'])

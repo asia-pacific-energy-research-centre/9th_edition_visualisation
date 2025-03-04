@@ -14,7 +14,7 @@ from utility_functions import *
 import mapping_functions
       
 
-def map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COLS, RAISE_ERROR=False, sources = ['energy', 'capacity', 'emissions_co2', 'emissions_ch4', 'emissions_co2e', 'emissions_no2']):
+def map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COLS, RAISE_ERROR=False, sources = ['energy', 'capacity', 'emissions_co2', 'emissions_ch4', 'emissions_co2e', 'emissions_no2'], TESTING=False):
     """Maps the 9th edition data to the plotting template for 2d plots. Many of the functions in this file are from mapping_functions.py
 
     Args:
@@ -245,6 +245,10 @@ def map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COL
     #############################
     
     for source in all_model_df_wides_dict.keys():
+        if source!='capacity':
+            continue
+        else:
+            breakpoint()
         filename = all_model_df_wides_dict[source][0]
         model_df_wide = all_model_df_wides_dict[source][1]
         
@@ -257,7 +261,12 @@ def map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COL
         model_df_tall_all_years = pd.melt(model_df_wide, id_vars=index_cols, var_name='year', value_name='value')
         # Convert year to int
         model_df_tall_all_years['year'] = model_df_tall_all_years['year'].astype(int)
-
+        
+        if TESTING:
+            #filter for only the first 5 years after base year
+            model_df_tall_all_years = model_df_tall_all_years.loc[model_df_tall_all_years['year'].isin(range(OUTLOOK_BASE_YEAR, OUTLOOK_BASE_YEAR+5))]
+            breakpoint()
+            
         #now, if the data contains a subtotal_layout and subtotal_results column we need to map each time period separately. this is because subtotals are different for each time period.To make it easy and siple we will just add in subtotal columns anyway and set them to False, if they dont exist.
         if 'subtotal_layout' not in model_df_tall_all_years.columns:
             model_df_tall_all_years['subtotal_layout'] = False
@@ -321,6 +330,8 @@ def map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COL
             elif source == 'capacity':
                 #capacity is just based off sectors so its relatively simple
                 new_capacity_plotting_mappings = all_plotting_mapping_dicts['capacity']['df']
+                breakpoint()#why is the total for stocks not equal to what i would expect?#esecailly search for 15_02_01_02_02_gasoline_engine 15_02_01_01_02_gasoline_engine as they make up more than the total forprc
+
                 model_df_tall_capacity = mapping_functions.merge_capacity_mappings(model_df_tall, new_capacity_plotting_mappings, capacity_plotting_mappings, RAISE_ERROR=True)
                 # model_df_tall = model_df_tall_capacity.copy()
 
@@ -415,6 +426,7 @@ def map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COL
             
             #concat to charts_mapping_all_years 
             charts_mapping_all_years = pd.concat([charts_mapping_all_years, economy_new_charts_mapping])
+            breakpoint()
         
         # Modify dataframe to include percentage_bar chart_type
         charts_mapping_all_years = mapping_functions.add_percentage_bar_chart_type(charts_mapping_all_years)

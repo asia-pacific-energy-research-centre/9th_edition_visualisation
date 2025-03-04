@@ -540,7 +540,6 @@ def sort_table_rows_and_columns(table,table_id,plotting_names_order,year_cols):
     #get the rows order for the plot id, if it exists
     if table_id in plotting_names_order.keys():
         labels = plotting_names_order[table_id].copy()
-    
         #make sure the plotting_name_column order is the same as labels order
         table['plotting_name'] = pd.Categorical(table['plotting_name'], labels)
         #sort the table by the plotting_name_column
