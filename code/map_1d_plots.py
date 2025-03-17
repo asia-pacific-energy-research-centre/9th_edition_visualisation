@@ -25,11 +25,12 @@ def map_9th_data_to_one_dimensional_plots(ECONOMY_ID, EXPECTED_COLS):#, total_em
     
     all_1d_plotting_dfs = pd.concat([all_1d_plotting_dfs, energy_intensity, emissions_co2_intensity], axis=0)
     
-    renewable_share_df, electricity_renewable_share = calculate_and_extract_renewable_share_data(ECONOMY_ID)
-    all_1d_plotting_dfs = pd.concat([all_1d_plotting_dfs, renewable_share_df, electricity_renewable_share], axis=0)
+    renewable_share_df, renewable_share_in_TPEC_df, electricity_renewable_share = calculate_and_extract_renewable_share_data(ECONOMY_ID)
+    
+    all_1d_plotting_dfs = pd.concat([all_1d_plotting_dfs, renewable_share_df,  renewable_share_in_TPEC_df, electricity_renewable_share], axis=0)
     kaya_identity_df_COMBINED = calculate_and_extract_kaya_identity_data_COMBINED(ECONOMY_ID, raw_energy_intensity_df, emissions_co2_melt, raw_emissions_co2_intensity_df)
     kaya_identity_df = calculate_and_extract_kaya_identity_data(ECONOMY_ID, raw_energy_intensity_df, emissions_co2_melt, raw_emissions_co2_intensity_df)
-    breakpoint()
+    
     all_1d_plotting_dfs = pd.concat([all_1d_plotting_dfs, kaya_identity_df, kaya_identity_df_COMBINED], axis=0)
     
     charts_mapping_1d = map_all_1d_plotting_dfs_to_charts_mapping(all_1d_plotting_dfs, EXPECTED_COLS)
@@ -334,7 +335,128 @@ def calculate_and_extract_renewable_share_data(ECONOMY_ID):
     #sum all to get rid of stray 0s
     other_cols = [x for x in energy.columns if x not in PROJ_YEARS_str + HIST_YEARS_str]
     energy = energy.groupby(other_cols).sum().reset_index()
+
+    renewable_share, electricity_renewable_share = calc_share_of_modern_renewables_in_TFEC(energy)
+    # breakpoint()
+    renewable_share_in_TPEC = calc_share_of_renewables_in_TPEC(energy,ECONOMY_ID)
+    # breakpoint()
+    return renewable_share,renewable_share_in_TPEC, electricity_renewable_share
     
+  
+def calc_share_of_renewables_in_TPEC(energy,ECONOMY_ID):
+    #now calc share of renewables in total primary energy consumption. This can be done by grabbing the total energy use from the sectors:09_total_transformation_sector 10_losses_and_own_use 14_industy_sector 16_other_sector 15_transport_sector
+    #dropping where the value is positive in total_transformation_sector and then setting everything to abs.
+    # dropping fuels such as 19_total, 20_total_renewables, 21_modern_renewables, 17_eletricity, 18_heat
+    # calcing sum of renewables using the following fuels 
+        
+    ZERO_EMISSION_FUELS = [
+        '09_nuclear',
+        '10_hydro',
+        '11_geothermal',
+        '12_solar',
+        '13_tide_wave_ocean',
+        '14_wind',
+        '16_09_other_sources',
+        '16_x_ammonia',
+        '16_x_efuel',
+        '16_x_hydrogen',
+        '17_electricity',
+        '18_heat',
+        '19_total',
+        '20_total_renewables',
+        '21_modern_renewables',
+        '17_x_green_electricity',
+    ]
+    ZERO_NET_EMISSION_FUELS = [
+        '15_solid_biomass',
+        '15_01_fuelwood_and_woodwaste',
+        '15_02_bagasse',
+        '16_09_other_sources',
+        '15_03_charcoal',
+        '15_04_black_liquor',
+        '15_05_other_biomass',
+        '16_others',
+        '16_01_biogas',
+        '16_02_industrial_waste',
+        '16_03_municipal_solid_waste_renewable',
+        '16_04_municipal_solid_waste_nonrenewable',
+        '16_05_biogasoline',
+        '16_06_biodiesel',
+        '16_07_bio_jet_kerosene',
+        '16_08_other_liquid_biofuels'
+    ]
+    #melt the data
+    energy_melt = energy.melt(id_vars=['scenarios', 'sectors', 'fuels', 'subfuels'], value_vars=PROJ_YEARS_str + HIST_YEARS_str, var_name='year', value_name='value')
+    
+    # then calcing the share of rewnables within that. 
+    TPEC = energy_melt[(energy_melt.sectors.isin(['09_total_transformation_sector', '10_losses_and_own_use', '14_industry_sector', '16_other_sector', '15_transport_sector']))].copy()
+    TPEC.loc[(TPEC.sectors == '09_total_transformation_sector') & (TPEC.value > 0), 'value'] = 0
+    #drop the fuels we dont want
+    TPEC = TPEC[~TPEC.fuels.isin(['19_total', '20_total_renewables', '21_modern_renewables', '17_electricity', '18_heat'])].copy()
+    TPEC['value'] = TPEC['value'].abs()
+    TPEC_copy = TPEC.copy()
+    TPEC_renewables = TPEC[(TPEC.fuels.isin(ZERO_EMISSION_FUELS + ZERO_NET_EMISSION_FUELS)) | (TPEC.subfuels.isin(ZERO_EMISSION_FUELS + ZERO_NET_EMISSION_FUELS))].copy()
+    if ECONOMY_ID=='05_PRC':
+        
+        #we want to analyse it so lets create a dataframe for analysis by sum by 'scenarios', 'year', 'sectors', fuels and then create a line graph of the fuels:
+        TPEC_analysis = TPEC.groupby(['scenarios', 'year', 'fuels']).sum().reset_index().copy()
+        #create a flag to indicate renewable fuels
+        TPEC_analysis['renewable'] = TPEC_analysis.fuels.isin(ZERO_EMISSION_FUELS + ZERO_NET_EMISSION_FUELS)
+        #keep only the target scenario
+        TPEC_analysis = TPEC_analysis[TPEC_analysis.scenarios == 'target'].copy()
+        #calcaulte the renewables share ina separate df and then concat it after
+        TPEC_renewables = TPEC_renewables.groupby(['scenarios', 'year']).sum().reset_index().copy()
+        TPEC_all = TPEC.groupby(['scenarios', 'year']).sum().reset_index().copy()
+        TPEC_all['Renewables in TPEC'] = TPEC_renewables['value']  
+        TPEC_all['Share of renewables in TPEC'] = (TPEC_all['Renewables in TPEC']/TPEC_all['value']) * 100
+        #keep only the share, scenario and year. then rename fuels to renewables share and renewable to share of renewables in TPEC
+        TPEC_all = TPEC_all[['scenarios', 'year', 'Share of renewables in TPEC']].copy()
+        TPEC_all.rename(columns={'Share of renewables in TPEC':'value'}, inplace=True)
+        TPEC_all['fuels'] = TPEC_all.scenarios
+        TPEC_all['renewable'] = 'Renewables share in TPEC'
+        TPEC_all['facet'] = 'Share of renewables in TPEC'
+        TPEC_analysis['facet'] = 'Fuel use in TPEC'
+        TPEC_analysis = pd.concat([TPEC_analysis, TPEC_all], axis=0)
+        
+        #keep only from 2015 onwards. and set year to int
+        TPEC_analysis['year'] = TPEC_analysis['year'].astype(int)
+        TPEC_analysis = TPEC_analysis[TPEC_analysis.year >= 2015].copy()
+        # then plot using plotly axpress
+        import plotly.express as px
+        fig = px.line(TPEC_analysis, x='year', y='value', color='fuels', facet_col='facet', line_dash='renewable', hover_data=
+        ['year', 'value', 'fuels', 'renewable', 'facet', 'scenarios']) #make the axis indepentent
+        #make the axis indepentent
+        fig.update_yaxes(matches=None)
+        #insert a vertical line where x axis == OUTLOOK_BASE_YEAR
+        fig.add_vline(x=OUTLOOK_BASE_YEAR, line_dash="dash", line_color="gray")
+        fig.write_html(f'../output/plotting_output/TPEC_analysis_{ECONOMY_ID}.html')
+        
+    TPEC_renewables = TPEC_renewables.groupby(['scenarios', 'year']).sum().reset_index()
+    TPEC = TPEC.groupby(['scenarios', 'year']).sum().reset_index()
+    TPEC['Renewables in TPEC'] = TPEC_renewables['value']
+    TPEC['Share of renewables in TPEC'] = (TPEC['Renewables in TPEC']/TPEC['value']) * 100
+    #rename value to TPEC
+    TPEC.rename(columns={'value':'TPEC'}, inplace=True)
+    #drop columns that arent needed sectors	fuels	subfuels
+    TPEC.drop(columns=['sectors', 'fuels', 'subfuels'], inplace=True)
+    #create columns for plotting
+    TPEC['source'] = 'renewables_share'
+    TPEC['plotting_name'] = 'renewables_share_in_TPEC'
+    TPEC['unit'] = 'Renewables % of total primary energy consumption'
+    TPEC.rename(columns={'scenarios':'scenario'}, inplace=True)
+    
+    #drop columns for Renwables in TPEX and Value and rename %TPEC to value
+    TPEC.drop(columns=['Renewables in TPEC', 'TPEC'], inplace=True)
+    TPEC.rename(columns={'Share of renewables in TPEC':'value'}, inplace=True)
+    # breakpoint()
+    
+    #makwe the year columns int32
+    TPEC['year'] = TPEC['year'].astype(int)
+    
+    return TPEC
+
+def calc_share_of_modern_renewables_in_TFEC(energy):
+    ####calcaulte the share of modern renewables in total energy consumption
     #extract toal final consumption and total renewables
     energy_total = energy[(energy.sectors == '13_total_final_energy_consumption') & (energy.fuels == '19_total')].copy()
     
@@ -392,6 +514,7 @@ def calculate_and_extract_renewable_share_data(ECONOMY_ID):
     electricity_renewable_share.drop(columns=['electricity_total', 'electricity_renewables'], inplace=True)
     electricity_renewable_share.rename(columns={'scenarios':'scenario'}, inplace=True)
     
+    ###########################################################################
     return renewable_share, electricity_renewable_share
 
 def calculate_and_extract_kaya_identity_data_COMBINED(ECONOMY_ID, raw_energy_intensity_df, emissions_co2_melt, raw_emissions_co2_intensity_df):   
