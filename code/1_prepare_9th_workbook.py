@@ -14,9 +14,9 @@ from utility_functions import *
 import csv
 #######################################################
 #%%
-ECONOMY_ID = '09_ROK'
+ECONOMY_ID = '07_INA'
 check_base_year_is_as_expected(ECONOMY_ID)
-import_files_from_ebt_system(ECONOMY_ID, ebt_system_file_path='../../Outlook9th_EBT/results/')
+import_files_from_ebt_system(ECONOMY_ID, ebt_system_file_path='../../../Outlook9th_EBT/results/')
 #files to load
 #
 #%%
