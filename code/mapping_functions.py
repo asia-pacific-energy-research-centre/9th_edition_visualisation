@@ -960,6 +960,19 @@ def modify_gas_to_gas_ccs(df):
 
     return df
 
+def modify_coal_to_coal_ccs(df):
+    """
+    Searches for rows with '18_01_01_coal_power_ccs' under 'sub2sectors'
+    and changes '01_coal' under 'fuels' to '01_coal_ccs'.
+    """
+    # Define the condition for the rows to modify
+    condition = (df['sub2sectors'] == '18_01_01_coal_power_ccs') & (df['fuels'] == '01_coal')
+    
+    # Apply the modification
+    df.loc[condition, 'fuels'] = '01_coal_ccs'
+
+    return df
+
 def modify_hydrogen_green_electricity(df):
     """
     Searches for a row where it is '09_total_transformation_sector' in 'sectors',

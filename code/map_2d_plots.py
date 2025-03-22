@@ -57,6 +57,7 @@ def map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COL
     all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'energy', mapping_functions.convert_electricity_output_to_twh).copy()
     all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'energy', mapping_functions.copy_and_convert_imported_electricity_to_output_in_gwh).copy()
     all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'energy', mapping_functions.modify_gas_to_gas_ccs).copy()
+    all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'energy', mapping_functions.modify_coal_to_coal_ccs).copy()
     all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'energy', mapping_functions.modify_subtotal_columns).copy()
     all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'energy', mapping_functions.modify_hydrogen_green_electricity).copy()
     

@@ -16,7 +16,7 @@ import csv
 #%%
 ECONOMY_ID = '02_BD'
 check_base_year_is_as_expected(ECONOMY_ID)
-import_files_from_ebt_system(ECONOMY_ID, ebt_system_file_path='../../Outlook9th_EBT/results/')
+import_files_from_ebt_system(ECONOMY_ID, ebt_system_file_path='../../../Outlook9th_EBT/results/')
 #files to load
 #
 #%%
