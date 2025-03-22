@@ -25,7 +25,7 @@ def map_9th_data_to_one_dimensional_plots(ECONOMY_ID, EXPECTED_COLS):#, total_em
     
     all_1d_plotting_dfs = pd.concat([all_1d_plotting_dfs, energy_intensity, emissions_co2_intensity], axis=0)
     
-    renewable_share_df, renewable_share_in_TPEC_df, electricity_renewable_share = calculate_and_extract_renewable_share_data(ECONOMY_ID)
+    renewable_share_df, renewable_share_in_TPEC_df, electricity_renewable_share = calculate_and_extract_energy_share_data(ECONOMY_ID)
     
     all_1d_plotting_dfs = pd.concat([all_1d_plotting_dfs, renewable_share_df,  renewable_share_in_TPEC_df, electricity_renewable_share], axis=0)
     kaya_identity_df_COMBINED = calculate_and_extract_kaya_identity_data_COMBINED(ECONOMY_ID, raw_energy_intensity_df, emissions_co2_melt, raw_emissions_co2_intensity_df)
@@ -171,7 +171,7 @@ def calculate_and_extract_intensity_data(ECONOMY_ID):
     
     #######
     #get data ready
-    all_model_df_wides_dict = mapping_functions.find_and_load_latest_data_for_all_sources(ECONOMY_ID, ['energy', 'emissions_co2'])
+    all_model_df_wides_dict = mapping_functions.find_and_load_latest_data_for_all_sources(ECONOMY_ID, ['energy', 'emissions_co2'],WALK=False)
     energy_w_subtotals = all_model_df_wides_dict['energy'][1]
     emissions_co2_w_subtotals = all_model_df_wides_dict['emissions_co2'][1]
 
@@ -317,10 +317,10 @@ def calculate_and_extract_intensity_data(ECONOMY_ID):
     return energy_intensity, emissions_co2_intensity, raw_energy_intensity_df, raw_emissions_co2_intensity_df, emissions_co2_melt
 
 
-def calculate_and_extract_renewable_share_data(ECONOMY_ID):
+def calculate_and_extract_energy_share_data(ECONOMY_ID):
     #TODO CALCAULTE THIS ONCE WE GET AN UNDERSTANDUNG OF HOW TO CALCULATE IT. FOR NOW JSUT USE TOTAL RENEWABLES / TOTAL ENERGY
     #load in energy data
-    all_model_df_wides_dict = mapping_functions.find_and_load_latest_data_for_all_sources(ECONOMY_ID, ['energy'])
+    all_model_df_wides_dict = mapping_functions.find_and_load_latest_data_for_all_sources(ECONOMY_ID, ['energy'],WALK=False)
     energy_w_subtotals = all_model_df_wides_dict['energy'][1]
     
     energy_hist = energy_w_subtotals.copy()
@@ -339,6 +339,9 @@ def calculate_and_extract_renewable_share_data(ECONOMY_ID):
     renewable_share, electricity_renewable_share = calc_share_of_modern_renewables_in_TFEC(energy)
     # breakpoint()
     renewable_share_in_TPEC = calc_share_of_renewables_in_TPEC(energy,ECONOMY_ID)
+    
+    calc_share_imports_within_TPES_adjusted(energy,ECONOMY_ID)
+    
     # breakpoint()
     return renewable_share,renewable_share_in_TPEC, electricity_renewable_share
     
@@ -733,3 +736,138 @@ def calculate_and_extract_kaya_identity_data(ECONOMY_ID, raw_energy_intensity_df
     kaya_identity_df['source'] = 'kaya'
     kaya_identity_df['plotting_name_column'] = 'variable'
     return kaya_identity_df
+
+
+def calc_share_imports_within_TPES_adjusted(energy, ECONOMY_ID):
+    # To understand how energy security is affected by changes in energy mix, we will plot the share of imports within TPES.
+    # We will also adjust renewables that are used for electricity production by multiplying them by 2.5 to account for expected inefficiencies of most other fuels.
+    # Fossil fuels used in generation range from 33 to 50% efficiency, so they need 2 to 3 times more energy than renewables, which are recorded in TPES on a 1-1 basis.
+    # Geothermal often converts only 10% of TPES to useful energy, and oil in engines converts to about 33% useful energy compared to 'electricity produced from renewables'.
+    
+    ONE_HUNDRED_PERCENT_EFF_RENEWABLES = [
+        '09_nuclear',
+        '10_hydro',
+        '12_01_of_which_photovoltaics',
+        '12_solar_unallocated',
+        '13_tide_wave_ocean',
+        '14_wind'
+    ]
+    
+    # We will extract TPES and IMPORTS. Remove fuel = 19_total, '20_total_renewables', '21_modern_renewables'
+    # Then look in subfuels and fuels for the ONE_HUNDRED_PERCENT_EFF_RENEWABLES fuels and multiply them by X.
+    # Then calculate the share of TPES that is imports.
+    X = 2.5
+    energy_copy = energy.copy()
+    energy=energy_copy.copy()
+    energy = energy[~energy.fuels.isin(['19_total', '20_total_renewables', '21_modern_renewables'])]
+    energy = energy[(energy.sectors.isin(['07_total_primary_energy_supply', '02_imports', '03_exports']))]
+    #'12_total_final_consumption', '03_exports','02_imports','04_international_marine_bunkers','05_international_aviation_bunkers']))]#'07_total_primary_energy_supply',#energy dependency is calculated as the share of net improts / energy consumption including bunkers. is this a better measure? It would require more adjustments to allow for useful energy adjustments since wed have to adjust each fuel type for its average efficiency in producign useful energy independently. whereas tpes keeps it more simple.
+    
+    all_year_cols = [int(x) for x in energy.columns if re.match(r'\d\d\d\d', x)]
+    MAX_YEAR = max(all_year_cols)
+    MIN_YEAR = min(all_year_cols)
+    #drop subtotals
+    PROJ_YEARS_str = [str(x) for x in range(OUTLOOK_BASE_YEAR+1, MAX_YEAR+1)]
+    HIST_YEARS_str = [str(x) for x in range(MIN_YEAR, OUTLOOK_BASE_YEAR+1)]
+    #make all values after the base year 0 in historical data
+    historical_data = energy.copy()
+    historical_data.drop(columns=PROJ_YEARS_str, inplace=True, errors='ignore')
+    proj_data = energy.copy()
+    proj_data.drop(columns=HIST_YEARS_str, inplace=True, errors='ignore')
+    
+    #filter for only not subtotal_layout in historical data and not subtotal_results in proj data
+    historical_data = historical_data[(historical_data.subtotal_layout==False)]
+    proj_data = proj_data[(proj_data.subtotal_results==False)].copy()
+    energy = pd.concat([historical_data, proj_data], axis=0)
+    # Melt the data
+    energy_melt = energy.melt(id_vars=['scenarios', 'sectors', 'fuels', 'subfuels'], value_vars=PROJ_YEARS_str + HIST_YEARS_str, var_name='year', value_name='value')
+    energy_melt['value_adj'] = energy_melt['value']
+    # Adjust the required fuels
+    energy_melt.loc[energy_melt.fuels.isin(ONE_HUNDRED_PERCENT_EFF_RENEWABLES), 'value_adj'] *= X
+    #check the subfuels for the same
+    energy_melt.loc[energy_melt.subfuels.isin(ONE_HUNDRED_PERCENT_EFF_RENEWABLES), 'value_adj'] *= X
+    
+    # Split into TPES and imports since we will calculate imports as a share of TPES by imported fuel type
+    NET_IMPORTS = True
+    if not NET_IMPORTS:
+        imports = energy_melt[energy_melt.sectors == '02_imports']
+    else:
+        imports = energy_melt[energy_melt.sectors.isin(['02_imports', '03_exports'])]
+    tpes = energy_melt[energy_melt.sectors == '07_total_primary_energy_supply']
+    
+    # Sum up by scenario and sector and fuel for imports and by scenario and sector for TPES
+    imports = imports.groupby(['scenarios', 'year', 'fuels']).sum().reset_index()
+    tpes = tpes.groupby(['scenarios', 'year']).sum().reset_index()
+    # breakpoint()
+    # Rename the value columns to Imports and TPES
+    imports.rename(columns={'value': 'Imports (PJ)'}, inplace=True)
+    tpes.rename(columns={'value': 'TPES (PJ)'}, inplace=True)
+    imports.rename(columns={'value_adj': 'Imports_adj (PJ)'}, inplace=True)
+    tpes.rename(columns={'value_adj': 'TPES_adj (PJ)'}, inplace=True)
+    
+    #keep only useful cols:
+    imports = imports[['scenarios', 'year', 'fuels', 'Imports (PJ)', 'Imports_adj (PJ)']].copy()
+    tpes = tpes[['scenarios', 'year', 'TPES (PJ)', 'TPES_adj (PJ)']].copy()
+    
+    # Join back and calculate the share
+    share_of_tpes = pd.merge(imports, tpes, how='left', on=['year', 'scenarios'])
+    share_of_tpes['Import share of TPES adj. (%)'] = (share_of_tpes['Imports_adj (PJ)'] / share_of_tpes['TPES_adj (PJ)']) * 100
+    share_of_tpes['Import share of TPES (%)'] = (share_of_tpes['Imports (PJ)'] / share_of_tpes['TPES (PJ)']) * 100
+    
+    #drop TPES col
+    # share_of_tpes.drop(columns=['TPES (PJ)'], inplace=True)
+    # if ECONOMY_ID in ['05_PRC', '20_USA', '09_ROK']:
+    # We want to analyze it so let's plot on plotly.
+    # Keep only the dates in [2022, 2030, 2040, 2050, 2060]
+    share_of_tpes = share_of_tpes[share_of_tpes['year'].isin(['1980', '1990', '2000', '2010', '2022', '2030', '2040', '2050', '2060'])]
+    
+    # Plot using plotly express
+    import plotly.express as px
+    
+    fig = px.bar(share_of_tpes, x='year', y='Import share of TPES adj. (%)', color='fuels', facet_col='scenarios')
+    
+    if NET_IMPORTS:
+        #rename y axis to reflect that its net imports
+        fig.update_yaxes(title_text='Net import share of TPES (%)')
+        #and title
+        fig.update_layout(title=f'Net import share of TPES (%) - {ECONOMY_ID}')
+    else:
+        fig.update_yaxes(title_text='Import share of TPES (%)')
+        fig.update_layout(title=f'Import share of TPES (%) - {ECONOMY_ID}')
+    fig.write_html(f'../output/plotting_output/IMPORT_SHARE_TPES_analysis_{ECONOMY_ID}.html')
+    
+    # We also want a plot of absolute IMPORTS by fuel so do that too:
+    fig = px.bar(share_of_tpes, x='year', y='Imports (PJ)', color='fuels', facet_col='scenarios')
+    
+    if NET_IMPORTS:
+        #rename y axis to reflect that its net imports
+        fig.update_yaxes(title_text='Net imports (PJ)')
+        fig.update_layout(title=f'Net imports (PJ) - {ECONOMY_ID}')
+    else:
+        fig.update_yaxes(title_text='Imports (PJ)')
+        fig.update_layout(title=f'Imports (PJ) - {ECONOMY_ID}')
+    fig.write_html(f'../output/plotting_output/IMPORTS_analysis_{ECONOMY_ID}.html')
+    
+    # We'll put it in a dashboard so we have facets by scenario and by measure with measure being 'Import share of TPES adj. (%)' and Imports
+    a = share_of_tpes[['year','fuels', 'Import share of TPES (%)', 'scenarios']].rename(columns={'Import share of TPES (%)': 'value'})
+    a['measure'] = 'imports_share_of_tpes'
+    # b = share_of_tpes[['year','fuels', 'Imports (PJ)', 'scenarios']].rename(columns={'Imports (PJ)': 'value'})
+    c = share_of_tpes[['year','fuels', 'Import share of TPES adj. (%)', 'scenarios']].rename(columns={'Import share of TPES adj. (%)': 'value'})
+    c['measure'] = 'imports_share_of_adj_tpes'
+    # b['measure'] = 'imports'
+    plot_data = pd.concat([a,  c])#b,
+    fig = px.bar(plot_data, x='year', y='value', color='fuels', facet_col='scenarios', facet_row='measure', pattern_shape='measure')
+    # # Make the axis independent
+    # fig.update_yaxes(matches=None)
+    
+    if NET_IMPORTS:
+        #rename y axis to reflect that its net imports
+        fig.update_yaxes(title_text='(%)')
+        #and title
+        fig.update_layout(title=f'Net import share of adjusted TPES vs regular TPES (%) - {ECONOMY_ID}')
+    else:
+        fig.update_yaxes(title_text='(%)')
+        fig.update_layout(title=f'Import share of adjusted TPES vs regular TPES (%) - {ECONOMY_ID}')
+    fig.write_html(f'../output/plotting_output/IMPORTS_analysis_dashboard_{ECONOMY_ID}.html')
+    breakpoint()
+    return share_of_tpes

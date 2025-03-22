@@ -6,6 +6,7 @@
 **/archive
 **/exploration
 # original_preparation_code/*
+*.png
 *.7z
 *.xlsx
 *.csv

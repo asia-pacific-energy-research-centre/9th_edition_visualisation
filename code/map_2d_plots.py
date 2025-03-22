@@ -34,8 +34,7 @@ def map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COL
         - DataFrames are manipulated in wide and tall formats for ease of computation.
         - Validation checks are done to ensure data integrity and schema conformity.
     """
-    
-    all_model_df_wides_dict = mapping_functions.find_and_load_latest_data_for_all_sources(ECONOMY_ID, sources)
+    all_model_df_wides_dict = mapping_functions.find_and_load_latest_data_for_all_sources(ECONOMY_ID, sources,WALK=False)
     
     # Modify the data to match the plotting template #these basically set ngatives to positives. note that we cant do this so simply for transformation sector because that contains positives and negatives.
     all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'energy', mapping_functions.make_losses_and_own_use_bunkers_exports_positive).copy()
@@ -54,9 +53,9 @@ def map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COL
     all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'emissions_ch4', mapping_functions.create_net_emission_rows).copy()
     all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'emissions_co2e', mapping_functions.create_net_emission_rows).copy()
     all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'emissions_no2', mapping_functions.create_net_emission_rows).copy()
-    
+    # breakpoint()
     all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'energy', mapping_functions.convert_electricity_output_to_twh).copy()
-    all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'energy', mapping_functions.copy_and_modify_rows_with_conversion).copy()
+    all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'energy', mapping_functions.copy_and_convert_imported_electricity_to_output_in_gwh).copy()
     all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'energy', mapping_functions.modify_gas_to_gas_ccs).copy()
     all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'energy', mapping_functions.modify_subtotal_columns).copy()
     all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'energy', mapping_functions.modify_hydrogen_green_electricity).copy()
@@ -245,10 +244,6 @@ def map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COL
     #############################
     
     for source in all_model_df_wides_dict.keys():
-        if source!='capacity':
-            continue
-        else:
-            breakpoint()
         filename = all_model_df_wides_dict[source][0]
         model_df_wide = all_model_df_wides_dict[source][1]
         
@@ -260,8 +255,7 @@ def map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COL
         #now melt the data
         model_df_tall_all_years = pd.melt(model_df_wide, id_vars=index_cols, var_name='year', value_name='value')
         # Convert year to int
-        model_df_tall_all_years['year'] = model_df_tall_all_years['year'].astype(int)
-        
+        model_df_tall_all_years['year'] = model_df_tall_all_years['year'].astype(int)                
         if TESTING:
             #filter for only the first 5 years after base year
             model_df_tall_all_years = model_df_tall_all_years.loc[model_df_tall_all_years['year'].isin(range(OUTLOOK_BASE_YEAR, OUTLOOK_BASE_YEAR+5))]
@@ -330,7 +324,7 @@ def map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COL
             elif source == 'capacity':
                 #capacity is just based off sectors so its relatively simple
                 new_capacity_plotting_mappings = all_plotting_mapping_dicts['capacity']['df']
-                breakpoint()#why is the total for stocks not equal to what i would expect?#esecailly search for 15_02_01_02_02_gasoline_engine 15_02_01_01_02_gasoline_engine as they make up more than the total forprc
+                # breakpoint()#why is the total for stocks not equal to what i would expect?#esecailly search for 15_02_01_02_02_gasoline_engine 15_02_01_01_02_gasoline_engine as they make up more than the total forprc.
 
                 model_df_tall_capacity = mapping_functions.merge_capacity_mappings(model_df_tall, new_capacity_plotting_mappings, capacity_plotting_mappings, RAISE_ERROR=True)
                 # model_df_tall = model_df_tall_capacity.copy()
@@ -372,7 +366,7 @@ def map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COL
             #drop all cols excet ['scenarios','economy', 'year','value','fuels_plotting', 'sectors_plotting']
             # plotting_df= plotting_df[['scenarios','economy', 'year','value','fuels_plotting', 'sectors_plotting']]
             # plotting_df = plotting_df[['scenarios','economy', 'year','value','aggregate_name_column', 'aggregate_name', 'plotting_name_column', 'plotting_name']]#is this right? should plotting name not be something different, it seems to be the same as aggregate name. should it not be reference name or reference column
-            #now join with charts mapping on fuel and sector plotting names to get the plotting names for the transformation sectors
+            #now join with charts mapping on fuel and sector plotting names to get the plotting names for the transformation sectors 
             economy_new_charts_mapping = mapping_functions.format_plotting_df_from_mapped_plotting_names(plotting_df, new_charts_mapping)
             #############################
             #now we can extract the data for each graph we need to produce (as stated in the charts_mapping)
@@ -426,7 +420,7 @@ def map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COL
             
             #concat to charts_mapping_all_years 
             charts_mapping_all_years = pd.concat([charts_mapping_all_years, economy_new_charts_mapping])
-            breakpoint()
+            # breakpoint()
         
         # Modify dataframe to include percentage_bar chart_type
         charts_mapping_all_years = mapping_functions.add_percentage_bar_chart_type(charts_mapping_all_years)
