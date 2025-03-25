@@ -13,7 +13,7 @@ STRICT_DATA_CHECKING = False
 #######################################################
 #CONFIG PREPARATION
 #create FILE_DATE_ID for use in file names
-FILE_DATE_ID = datetime.now().strftime('%Y%m%d')
+FILE_DATE_ID ='20250317'# datetime.now().strftime('%Y%m%d')
 
 # FILE_DATE_ID = '20241112'
 total_plotting_names=['Total', 'TPES', 'Total primary energy supply','TFEC', 'TFC', 'Total_industry', 'Total_transport', 'Total_fuels', 'Total combustion emissions', 'Total Industry & Non-energy', 'Production', 'Total power fuel consumption', 'Total generation', 'Total generation capacity','Total use of fuels', 'TFC_hydrogen','TFC_low_carbon_fuels', 'TPES_bioenergy', 'TFC_refined_fuels', 'Refined products', 'TFEC_incl_own_use_losses']

@@ -15,6 +15,7 @@ def load_and_format_configs():
     plotting_specifications = pd.read_excel('../config/master_config.xlsx', sheet_name='plotting_specifications')
     plotting_name_to_label = pd.read_excel('../config/master_config.xlsx', sheet_name='plotting_name_to_label')
     colours_dict = pd.read_excel('../config/master_config.xlsx', sheet_name='colors')
+    patterns_dict = pd.read_excel('../config/master_config.xlsx', sheet_name='patterns')
     with open(f'../intermediate_data/config/plotting_names_order_{FILE_DATE_ID}.pkl', 'rb') as handle:
         plotting_names_order = pickle.load(handle)
     ################################################################################
@@ -34,16 +35,16 @@ def load_and_format_configs():
 
     plotting_name_to_label_dict = plotting_name_to_label.set_index(plotting_name_to_label.columns[0]).to_dict()[plotting_name_to_label.columns[1]]
     colours_dict = colours_dict.set_index(colours_dict.columns[0]).to_dict()[colours_dict.columns[1]]
-    
+    patterns_dict = patterns_dict.set_index(patterns_dict.columns[0]).to_dict()[patterns_dict.columns[1]]    
     #find anything that contains 'inches' in the key, then set the key so it replaces 'inches' with 'pixels', then divide the inches by the 'dpi' key in plotting_specifications to get the pixels
     keys_ = [key for key in plotting_specifications.keys()]
     for key in keys_:
         if 'inches' in key:
             new_key = key.replace('inches', 'pixels')
             plotting_specifications[new_key] = plotting_specifications[key] * plotting_specifications['dpi']
-            plotting_specifications.pop(key)
+            # plotting_specifications.pop(key)#no need to pop it, we can just not use it
     
-    return plotting_specifications, plotting_name_to_label_dict, colours_dict, plotting_names_order
+    return plotting_specifications, plotting_name_to_label_dict, colours_dict, patterns_dict, plotting_names_order
 
 def gather_charts_mapping_dict(ECONOMY_ID, FILE_DATE_ID,sources = ['energy', 'emissions_co2', 'emissions_ch4', 'emissions_co2e', 'emissions_no2', 'capacity']):
     charts_mapping_1d = load_checkpoint(f'charts_mapping_1d_{ECONOMY_ID}')
@@ -90,7 +91,7 @@ def gather_charts_mapping_dict(ECONOMY_ID, FILE_DATE_ID,sources = ['energy', 'em
     # Add the unique sources from charts_mapping_1d to all_charts_mapping_files_dict
     for source in charts_mapping_1d.source.unique():
         all_charts_mapping_files_dict[source] = [charts_mapping_1d[charts_mapping_1d.source == source]]
-        
+    
     return all_charts_mapping_files_dict
 
 def find_most_recent_file_date_id(files):
@@ -127,16 +128,18 @@ def find_most_recent_file_date_id(files):
         print("No files found with a valid date ID.")
     return most_recent_file
 
-def find_and_load_latest_data_for_all_sources(ECONOMY_ID, sources): 
+def find_and_load_latest_data_for_all_sources(ECONOMY_ID, sources, WALK=True): 
     # Initialize variables
     all_file_paths = []
     folder =f'../input_data/{ECONOMY_ID}/'
     all_model_df_wides_dict = {}
+    
     # Fetch file paths based on the configuration
-
-    for root, dirs, files in os.walk(folder):
-        all_file_paths.extend([os.path.join(root, file) for file in os.listdir(root) if os.path.isfile(os.path.join(root, file))])
-
+    if WALK:
+        for root, dirs, files in os.walk(folder):
+            all_file_paths.extend([os.path.join(root, file) for file in os.listdir(root) if os.path.isfile(os.path.join(root, file))])
+    else:
+        all_file_paths = [os.path.join(folder, file) for file in os.listdir(folder) if os.path.isfile(os.path.join(folder, file))]
     # Check if files are found
     if not all_file_paths:
         raise Exception(f"No file found for {folder}")
@@ -177,7 +180,9 @@ def find_and_load_latest_data_for_all_sources(ECONOMY_ID, sources):
     for source in all_model_df_wides_dict.keys():
         file_path = all_model_df_wides_dict[source][0]
         all_model_df_wides_dict[source].append(load_data_to_df(file_path))
-        
+        #double check there are no columns with Unnamed in them
+        if all_model_df_wides_dict[source][1].columns.str.contains('Unnamed').any():
+            raise ValueError(f'There are columns with Unnamed in them in the {source} file. Please remove these columns')
     return all_model_df_wides_dict
 
 
@@ -269,8 +274,13 @@ def format_charts_mapping(charts_mapping, source_and_aggregate_name_column_to_pl
     #set the plotting_name_column based on what the aggregate_name_column is and source is:   
     for source in new_charts_mapping['source'].unique():
         #if the mapping doesent work then it should be an error from user input, so raise an error
-        new_charts_mapping.loc[new_charts_mapping['source'] == source, 'plotting_name_column'] = new_charts_mapping['aggregate_name_column'].map(source_and_aggregate_name_column_to_plotting_name_column_mapping_dict[source])
+        try:
+            new_charts_mapping.loc[new_charts_mapping['source'] == source, 'plotting_name_column'] = new_charts_mapping['aggregate_name_column'].map(source_and_aggregate_name_column_to_plotting_name_column_mapping_dict[source])
+        except KeyError:
+            breakpoint()
+            new_charts_mapping.loc[new_charts_mapping['source'] == source, 'plotting_name_column'] = new_charts_mapping['aggregate_name_column'].map(source_and_aggregate_name_column_to_plotting_name_column_mapping_dict[source])
         if new_charts_mapping.loc[(new_charts_mapping['source'] == source) &(new_charts_mapping.plotting_name_column.isna())].shape[0] > 0:
+            breakpoint()
             raise ValueError('There is a source in the new_charts_mapping that does not have a plotting_name_column. This is likely because the source_and_aggregate_name_column_to_plotting_name_column_mapping_dict is missing a source or aggregate_name_column. Otherwise you might have entered data wrong in the master_configs source or aggregate_name_column. Please check the source_and_aggregate_name_column_to_plotting_name_column_mapping_dict for the source: ', source)
     
     # Create a unique identifier for each source, sheet and table number
@@ -760,7 +770,9 @@ def split_gas_imports_exports_by_economy(df, ECONOMIES_TO_SPLIT_DICT={'01_AUS': 
     df_oecd_melt = df_oecd_melt[df_oecd_melt['subfuels'] != '08_02_lng']
     
     #adjust the names of the columns to match the data in df_oecd as well as work out what calcs to do
-    
+    # breakpoint()#can we save the ratio here so it can be used in EBT
+    #save the ratio so it can be used in EBT for estiamting losses from lng prodcution:
+    data.to_csv('../output/output_data/lng_to_pipeline_trade_ratios_for_oecds.csv', index=False)
     #now merge
     df_oecd_melt = df_oecd_melt.merge(data, on=['economy', 'Year', 'sectors'], how='left', suffixes=('', '_lng_to_natgas_ratio'))
     
@@ -831,6 +843,11 @@ def make_losses_and_own_use_bunkers_exports_positive(df):
     # Change values from negative to positive for the identified rows and year columns
     df_copy.loc[condition, year_columns] = df_copy.loc[condition, year_columns].abs()
     df_copy['sectors'] = df_copy['sectors'] + '_positive'
+    #also, we need to change the subsectors to have postive at end since the mappigns will sometimes use them. so wehre a sub1 sub2 and sub3 and su4sector is not x we need to change it to have positive at the end. This also prevents double counting when not expecting it
+    df_copy['sub1sectors'] = df_copy['sub1sectors'].apply(lambda x: x+'_positive' if x != 'x' else x)
+    df_copy['sub2sectors'] = df_copy['sub2sectors'].apply(lambda x: x+'_positive' if x != 'x' else x) 
+    df_copy['sub3sectors'] = df_copy['sub3sectors'].apply(lambda x: x+'_positive' if x != 'x' else x)
+    df_copy['sub4sectors'] = df_copy['sub4sectors'].apply(lambda x: x+'_positive' if x != 'x' else x)
     
     df = pd.concat([df, df_copy], ignore_index=True)
     
@@ -858,7 +875,7 @@ def convert_electricity_output_to_twh(df):
 
     return df
 
-def copy_and_modify_rows_with_conversion(df):
+def copy_and_convert_imported_electricity_to_output_in_gwh(df):
     """
     Finds rows with specific criteria, copies them, modifies certain values including converting
     energy values from PJ to TWh, and appends the modified rows to the dataframe.
@@ -870,8 +887,8 @@ def copy_and_modify_rows_with_conversion(df):
 
     The modifications for the copied rows are:
     - 'sectors' is changed to '18_electricity_output_in_gwh'
-    - 'sub1sectors' is changed to '18_01_electricity_plants'
-    - 'fuels' is changed to '19_imports'
+    - 'sub1sectors' is changed to 'x'
+    - 'fuels' is changed to '22_imports'
     - Values in year columns are converted from PJ to TWh by multiplying by 0.277778.
 
     Parameters:
