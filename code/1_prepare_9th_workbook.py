@@ -14,13 +14,13 @@ from utility_functions import *
 import csv
 #######################################################
 #%%
-ECONOMY_ID = '02_BD'
+ECONOMY_ID = '09_ROK'
 check_base_year_is_as_expected(ECONOMY_ID)
-import_files_from_ebt_system(ECONOMY_ID, ebt_system_file_path='../../../Outlook9th_EBT/results/')
+import_files_from_ebt_system(ECONOMY_ID, ebt_system_file_path='../../Outlook9th_EBT/results/')
 #files to load
 #
 #%%
-MAP_DATA_2D = True#False
+MAP_DATA_2D = False#False
 if MAP_DATA_2D:
     map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COLS, RAISE_ERROR=False, TESTING=False)
     
@@ -53,20 +53,20 @@ for source in all_charts_mapping_files_dict.keys():
 
 #%%
 new_charts_dict = {
-    'Refined products and crude supply': {
-        'source': 'energy',
-        'sheet_name': 'Refining_and_crude_supply',
-        'function': extra_graphs_plotting_functions.create_refined_products_bar_and_net_imports_line,
-        'chart_types': ['combined_line_bar'],
-        'tables': ['refining_and_crude_supply']
-},
-    'Refining output - incl. low-carbon fuels': {
-        'source': 'energy',
-        'sheet_name': 'Refining_and_low_carbon_fuels',
-        'function': extra_graphs_plotting_functions.create_refining_and_low_carbon_fuels,
-        'chart_types': ['line','percentage_bar'],
-        'tables': ['refining_and_low_carbon_fuels']
-    },
+    #     'Refined products and crude supply': {
+    #         'source': 'energy',
+    #         'sheet_name': 'Refining_and_crude_supply',
+    #         'function': extra_graphs_plotting_functions.create_refined_products_bar_and_net_imports_line,
+    #         'chart_types': ['combined_line_bar'],
+    #         'tables': ['refining_and_crude_supply']
+    # },
+    # 'Refining output - incl. low-carbon fuels': {
+    #     'source': 'energy',
+    #     'sheet_name': 'Refining_and_low_carbon_fuels',
+    #     'function': extra_graphs_plotting_functions.create_refining_and_low_carbon_fuels,
+    #     'chart_types': ['line','percentage_bar'],
+    #     'tables': ['refining_and_low_carbon_fuels']
+    # },
     'Natural gas and LNG supply': {
         'source': 'energy',
         'sheet_name': 'Natural_gas_and_LNG_supply',
@@ -100,16 +100,23 @@ new_charts_dict = {
         'source': 'emissions_co2',
         'sheet_name': 'Emissions_co2_publication',
         'function': extra_graphs_plotting_functions.create_emissions_seaborn,
-        'chart_types': ['line'],
+        'chart_types': ['seaborn', 'seaborn_wedge'],
         'tables': ['co2_emissions_by_sector', 'co2_emissions_by_fuel']
     },
-    'co2e_emissions_using_seaborn_plotting_library': {
-        'source': 'emissions_co2e',
-        'sheet_name': 'Emissions_co2e_publication',
-        'function': extra_graphs_plotting_functions.create_emissions_seaborn,
-        'chart_types': ['seaborn'],
-        'tables': ['co2e_emissions_by_sector', 'co2e_emissions_by_fuel']
-    },
+    # 'co2_emissions_wedge_using_seaborn_plotting_library': {
+    #     'source': 'emissions_co2',
+    #     'sheet_name': 'Emissions_co2_wedge',
+    #     'function': extra_graphs_plotting_functions.create_emissions_wedge_seaborn,
+    #     'chart_types': ['seaborn'],
+    #     'tables': ['co2_emissions_by_sector_wedge', 'co2_emissions_by_fuel_scenario_wedge']
+    # },
+    # 'co2e_emissions_using_seaborn_plotting_library': {
+    #     'source': 'emissions_co2e',
+    #     'sheet_name': 'Emissions_co2e_publication',
+    #     'function': extra_graphs_plotting_functions.create_emissions_seaborn,
+    #     'chart_types': ['seaborn'],
+    #     'tables': ['co2e_emissions_by_sector', 'co2e_emissions_by_fuel']
+    # },#until we know we want to show co2e then we dont need this
 }
 #%%
 workbook, writer = extra_graphs_plotting_functions.create_extra_graphs(workbook, all_charts_mapping_files_dict, total_plotting_names, MIN_YEAR,  plotting_specifications, plotting_names_order,plotting_name_to_label_dict, colours_dict, patterns_dict, cell_format1, cell_format2, new_charts_dict, header_format, writer, EXPECTED_COLS, ECONOMY_ID)

@@ -4,6 +4,8 @@ import workbook_creation_functions
 from utility_functions import *
 import numpy as np
 
+import re, os, matplotlib.pyplot as plt, seaborn as sns
+import pandas as pd
 import matplotlib.pyplot as plt
 
 def create_extra_graphs(workbook, all_charts_mapping_files_dict, total_plotting_names, MIN_YEAR,  plotting_specifications, plotting_names_order,plotting_name_to_label_dict, colours_dict, patterns_dict, cell_format1, cell_format2, new_charts_dict, header_format, writer, EXPECTED_COLS,ECONOMY_ID):
@@ -54,13 +56,16 @@ def create_extra_graphs(workbook, all_charts_mapping_files_dict, total_plotting_
             charts_mapping_scenario = charts_mapping[charts_mapping.scenario == scenario]
             for original_table_id in tables:
                 ##############
-                
+                if 'seaborn_wedge' in chart_types:#these need data from both scenarios
+                    charts_mapping_scenario = charts_mapping.copy()
                 charts_to_plot, chart_positions, worksheet,current_row = function(charts_mapping_scenario, sheet_name,plotting_names_order,plotting_name_to_label_dict, worksheet,workbook,  colours_dict, patterns_dict, cell_format1, cell_format2, scenario_num, scenarios_list, header_format, plotting_specifications, writer, chart_types,ECONOMY_ID, scenario, current_row, original_table_id,NEW_SCENARIO)
                 NEW_SCENARIO = False#wat is the chart pos and charts to plot when we are looking at imports
                 if charts_to_plot is None:
                     continue
                 worksheet = workbook_creation_functions.write_charts_to_sheet(charts_to_plot, chart_positions, worksheet)
+                
             scenario_num+=1
+        
             ###############
     workbook = workbook_creation_functions.order_sheets(workbook, plotting_specifications)
     return workbook, writer
@@ -691,10 +696,10 @@ def create_buildings_with_electricity_from_datacentre_demand_charts(charts_mappi
         breakpoint()
         return None, None, worksheet
     
-    #set the order of the plotting names in the table so that data centres and electricity are plotted at the bottom of the cahrt.
+    #set the order of the plotting names in the table so that data centres and electricity are plotted at the top of the cahrt.
     
     plotting_names = final_table.plotting_name.unique()
-    plotting_names_order[original_table_id] = ['Electricity - data centres', 'Electricity'] + [plotting_name for plotting_name in plotting_names if plotting_name not in ['Electricity', 'Electricity - data centres']]
+    plotting_names_order[original_table_id] =  [plotting_name for plotting_name in plotting_names if plotting_name not in ['Electricity', 'Electricity - data centres']] + ['Electricity', 'Electricity - data centres'] 
     
     
     #add the datacentres pattern to patterns_dict:
@@ -713,7 +718,8 @@ def create_buildings_with_electricity_from_datacentre_demand_charts(charts_mappi
     if not all([col in final_table.columns for col in expected_cols]):
         breakpoint()
         raise Exception(f'Not all expected columns found in final_table: {expected_cols}')
-    charts_to_plot, chart_positions, worksheet, current_scenario, current_row = format_sheet_for_other_graphs(final_table,plotting_names_order,plotting_name_to_label_dict, scenario_num, scenarios_list, header_format, worksheet, workbook, plotting_specifications, writer, sheet, colours_dict, patterns_dict,cell_format1, cell_format2,  max_and_min_values_dict, total_plotting_names, chart_types, ECONOMY_ID, unit_dict, current_scenario, current_row, original_table_id,NEW_SCENARIO, PLOTTING_SEABORN=True)
+    # breakpoint()
+    charts_to_plot, chart_positions, worksheet, current_scenario, current_row = format_sheet_for_other_graphs(final_table,plotting_names_order,plotting_name_to_label_dict, scenario_num, scenarios_list, header_format, worksheet, workbook, plotting_specifications, writer, sheet, colours_dict, patterns_dict,cell_format1, cell_format2,  max_and_min_values_dict, total_plotting_names, chart_types, ECONOMY_ID, unit_dict, current_scenario, current_row, original_table_id,NEW_SCENARIO)
     
     return charts_to_plot, chart_positions, worksheet, current_row
 
@@ -952,29 +958,30 @@ def calc_share_imports_within_adjusted_TPES(charts_mapping, sheet,plotting_names
 def create_emissions_seaborn(charts_mapping, sheet,plotting_names_order,plotting_name_to_label_dict, worksheet,workbook,  colours_dict, patterns_dict,cell_format1, cell_format2,  scenario_num,scenarios_list, header_format,plotting_specifications, writer, chart_types,ECONOMY_ID, current_scenario, current_row, original_table_id, NEW_SCENARIO):
     """    
     """
-    
     if 'co2e' in original_table_id:
         #use the co2e version of emissions
         if 'sector' in original_table_id:
-            table_id = 'emissions_co2e_Emissions_co2e_1'
+            table_id = 'emissions_co2e_Emissions_co2e_2'
             title = 'CO2e Combustion Emissions by sector'
             plotting_name_column_name = 'Sector'
         else:
-            table_id = 'emissions_co2e_Emissions_co2e_2'
+            table_id = 'emissions_co2e_Emissions_co2e_1'
             title = 'CO2e Combustion Emissions by fuel'
             plotting_name_column_name = 'Fuel'
     else:
         #use the co2 version of emissions
         if 'sector' in original_table_id:
-            table_id = 'emissions_co2_Emissions_co2_1'
+            table_id = 'emissions_co2_Emissions_co2_2'
             title = 'CO2 Combustion Emissions by sector'
             plotting_name_column_name = 'Sector'
         else:
-            table_id = 'emissions_co2_Emissions_co2_2'
+            table_id = 'emissions_co2_Emissions_co2_1'
             title = 'CO2 Combustion Emissions by fuel' 
             plotting_name_column_name = 'Fuel'           
         
     emissions = charts_mapping[(charts_mapping.table_id == table_id)].copy()
+    #filter for the current scenario since we get data from both scenarios in this function
+    emissions = emissions[emissions['scenario'] == scenarios_list[scenario_num]]
     if len(emissions) == 0:
         breakpoint()
         raise Exception(f'No data found for table {table_id}')
@@ -999,16 +1006,19 @@ def create_emissions_seaborn(charts_mapping, sheet,plotting_names_order,plotting
     fig, ax = plt.subplots(figsize=(10, 6))
     # Plot each unique fuel with its corresponding color
     
-    unique_plotting_names = emissions[plotting_name_column_name].unique()
-
+    #order them using the plotting_names_order dict
+    unique_plotting_names = plotting_names_order[table_id] + [plotting_name for plotting_name in emissions[plotting_name_column_name].unique() if plotting_name not in plotting_names_order[table_id]]
+    
     # Initialize a variable to keep track of the cumulative values for stacking
     cumulative_values = pd.Series([0] * len(year_cols), index=year_cols)
 
     for plotting_name in unique_plotting_names:
         plotting_data = emissions[emissions[plotting_name_column_name] == plotting_name].copy()
+        if plotting_data.empty:
+            continue
         for i, row in plotting_data.iterrows():
             values = row[year_cols]
-            color = colours_dict[plotting_name]
+            color = colours_dict.get(plotting_name, 'gray')
             
             # Plot net emissions as its own value, not cumulative
             if plotting_name == 'Net emissions':
@@ -1017,20 +1027,20 @@ def create_emissions_seaborn(charts_mapping, sheet,plotting_names_order,plotting
                 ax.fill_between(year_cols, cumulative_values.values.astype(float), (cumulative_values.values + values.values).astype(float), color=color, label=plotting_name)
                 cumulative_values += values
 
-    # breakpoint()
+    # breakpoint()#how to make power look ok?
     #COMMON PARAMETERS:
     # Draw a horizontal line at y=0 for a clear baseline
     ax.axhline(0, color='black', linewidth=1)
     #draw a dotten vertline at 2022
-    ax.axvline(2022, color='black', linewidth=1, linestyle='--')
+    ax.axvline(OUTLOOK_BASE_YEAR, color='black', linewidth=1, linestyle='--')
     #make the size of axis font to same
     ax.tick_params(axis='both', which='major', labelsize=FONTSIZE)
     # Set titles and labels using a font similar to Excel (Calibri)
-    ax.set_title(title, fontsize=FONTSIZE, fontname='Calibri')
+    ax.set_title(title, fontsize=FONTSIZE, fontname='Calibri', pad=20)
     # Add legend off teh chart
     ax.legend(loc='center left', bbox_to_anchor=(1.2, 0.5), fontsize=FONTSIZE)
     #drop vertical gridlines
-    ax.grid(axis='x')
+    ax.grid(axis='y')
     # Set gridlines to appear behind the charted colors
     ax.set_axisbelow(True)
     #make the chart show no gaps after  max and min years
@@ -1048,23 +1058,19 @@ def create_emissions_seaborn(charts_mapping, sheet,plotting_names_order,plotting
     # plt.tight_layout()
     #SAVE THE CHART TO THE WORKSHEET
     # breakpoint()
+    
     if 'code' in os.getcwd():
         #check file exists
-        file_path = f'../intermediate_data/charts/{sheet}.png'
-        if not os.path.isfile(file_path):
-            breakpoint()
-            raise FileNotFoundError(f'File {file_path} not found')
+        file_path = f'../intermediate_data/charts/{original_table_id}_{current_scenario}.png'
     else:
         #check file exists
-        file_path = f'intermediate_data/charts/{sheet}.png'
-        if not os.path.isfile(file_path):
-            breakpoint()
-            raise FileNotFoundError(f'File {file_path} not found')
+        file_path = f'intermediate_data/charts/{original_table_id}_{current_scenario}.png'
     
     # Save the figure with tight bounding box
     plt.savefig(file_path, dpi=300, bbox_inches='tight')
-    plt.close()
-
+    plt.close(fig)
+    plt.clf()
+    plt.close('all')
     ############################################
     #Extract chart positions and add to worksheet
     ############################################
@@ -1106,4 +1112,298 @@ def create_emissions_seaborn(charts_mapping, sheet,plotting_names_order,plotting
     # Add the image to the worksheet.. but first work out where to put it:
     worksheet.insert_image(chart_positions[0], file_path)
     
+    if scenario_num == 0: #we will create an emissions wedge as well as the normal emissions chart 
+        #run the wedge chart function instead, sicne most of it requries different processes but we want it in the same sheet
+        charts_to_plot, chart_positions, worksheet, current_row = create_emissions_wedge_seaborn(charts_mapping, sheet,plotting_names_order,plotting_name_to_label_dict, worksheet,workbook,  colours_dict, patterns_dict,cell_format1, cell_format2,  scenario_num,scenarios_list, header_format,plotting_specifications, writer, chart_types,ECONOMY_ID, current_scenario, current_row, original_table_id, NEW_SCENARIO, charts_to_plot, chart_positions)
+        
+    return charts_to_plot, chart_positions, worksheet, current_row
+
+def create_emissions_wedge_seaborn(charts_mapping, sheet,
+                           plotting_names_order,
+                           plotting_name_to_label_dict,
+                           worksheet, workbook,
+                           colours_dict, patterns_dict,
+                           cell_format1, cell_format2,
+                           scenario_num, scenarios_list,
+                           header_format, plotting_specifications,
+                           writer, chart_types, ECONOMY_ID,
+                           current_scenario, current_row,
+                           original_table_id, NEW_SCENARIO, charts_to_plot=None, chart_positions=None):
+    """
+    Creates a wedge chart showing the difference between two emissions scenarios.
+    Uses similar parameters and helper functions as create_emissions_seaborn.
+    Even though it runs at the end of create_emissions_seaborn, it is designed to run just like it, even if that means redoing some of the same work.
+    """
+    # Set Seaborn theme to emulate Excel styling with Calibri font
+    sns.set_theme(style="whitegrid", font="Calibri", context="notebook")
+    
+    # Determine table_id, title, and plotting name column based on original_table_id
+    if 'co2e' in original_table_id:
+        if 'sector' in original_table_id:
+            table_id = 'emissions_co2e_Emissions_co2e_2'
+            title = 'CO2e Combustion Emissions by sector'
+            plotting_name_column_name = 'Sector'
+        else:
+            table_id = 'emissions_co2e_Emissions_co2e_1'
+            title = 'CO2e Combustion Emissions by fuel'
+            plotting_name_column_name = 'Fuel'
+    else:
+        if 'sector' in original_table_id:
+            table_id = 'emissions_co2_Emissions_co2_2'
+            title = 'CO2 Combustion Emissions by sector'
+            plotting_name_column_name = 'Sector'
+        else:
+            table_id = 'emissions_co2_Emissions_co2_1'
+            title = 'CO2 Combustion Emissions by fuel'
+            plotting_name_column_name = 'Fuel'
+    
+    # Extract emissions data for both sceanrios in scenarios_list if tehre are two:
+    if len(scenarios_list) != 2:
+        raise ValueError(f"Expected exactly two scenarios in scenarios_list, found {len(scenarios_list)}")
+    
+    base_scenario = scenarios_list[0]
+    NEW_SCENARIO = scenarios_list[1]
+    emissions_base = charts_mapping[(charts_mapping.table_id == table_id) &
+                                    (charts_mapping['scenario'] == base_scenario)].copy()
+    emissions_new = charts_mapping[(charts_mapping.table_id == table_id) &
+                                   (charts_mapping['scenario'] == NEW_SCENARIO)].copy()
+
+    # Identify the year columns (e.g., 2020, 2021, …) based on a regex match
+    year_cols = [col for col in emissions_base.columns if re.search(r'\d{4}', str(col))]
+    
+    #double check that sum of emissions in emisisons new is lower than in emissions base
+    if emissions_base[year_cols].sum().sum() < emissions_new[year_cols].sum().sum():
+        breakpoint()
+        raise ValueError(f"Sum of emissions in {NEW_SCENARIO} is higher than in {base_scenario}. the wedge graph will look weird. just change the order of the scenarios in the scenarios_list")
+    
+    if emissions_base.empty or emissions_new.empty:
+        breakpoint()
+        raise Exception(f'No data found for table {table_id} for one or both scenarios')
+    
+    # Add common meta-data for each (using base for formatting later)
+    for df in [emissions_base, emissions_new]:
+        df.loc[:, 'chart_title'] = title
+        df.loc[:, 'aggregate_name'] = 'Total combustion emissions'
+        df.loc[:, 'sheet_name'] = sheet
+        df.loc[:, 'table_id'] = original_table_id
+        df.loc[:, 'chart_type'] = chart_types[0]
+    
+    # Rename the plotting column to match our expected column name
+    emissions_base.rename(columns={'plotting_name': plotting_name_column_name}, inplace=True)
+    emissions_new.rename(columns={'plotting_name': plotting_name_column_name}, inplace=True)
+    
+    #drop net emissions from both, but check its there first
+    if 'Net emissions' in emissions_base[plotting_name_column_name].unique():
+        emissions_base = emissions_base[emissions_base[plotting_name_column_name] != 'Net emissions']
+        emissions_new = emissions_new[emissions_new[plotting_name_column_name] != 'Net emissions']
+    else:
+        breakpoint()
+        raise ValueError(f"Net emissions not found in emissions data. Need to update the code")
+    # Compute total emissions per year for both scenarios (summing across sectors/fuels)
+    total_base = emissions_base[year_cols].sum()
+    total_new = emissions_new[year_cols].sum()
+
+    # there's a slight change we have different plotting names in the two scenarios. 
+    # we need to make sure we have all of them in the right order
+    unique_plotting_names_base = plotting_names_order[table_id] + [
+        plotting_name for plotting_name in emissions_base[plotting_name_column_name].unique() 
+        if plotting_name not in plotting_names_order[table_id]
+    ]
+    unique_plotting_names_new = plotting_names_order[table_id] + [
+        plotting_name for plotting_name in emissions_new[plotting_name_column_name].unique() 
+        if plotting_name not in plotting_names_order[table_id]
+    ]
+    unique_plotting_names = list(set(unique_plotting_names_base + unique_plotting_names_new))
+
+    # Instead of a single wedge fill from 0, fill from the NEW scenario line upward.
+    # Group emissions data by the plotting name for each scenario:
+    base_by_category = emissions_base.groupby(plotting_name_column_name)[year_cols].sum()
+    new_by_category = emissions_new.groupby(plotting_name_column_name)[year_cols].sum()
+
+    # Calculate difference in energy use for each plotting name.
+    # For plotting names containing ccus/ccs/captured emissions we want to treat them differently.
+    ccus_plotting_names = emissions_base[
+        emissions_base[plotting_name_column_name].str.contains('ccus|ccs|captured emissions|captured_emissions', case=False, na=False)
+    ][plotting_name_column_name].unique()
+
+    # Create an empty DataFrame to hold differences.
+    diff_df = pd.DataFrame()
+
+    for plotting_name in unique_plotting_names:
+        # Process only if the plotting name exists in base; and skip ccus here so we can handle them specially.
+        if plotting_name in base_by_category.index and plotting_name not in ccus_plotting_names:
+            base_vals = base_by_category.loc[plotting_name]
+            if plotting_name not in new_by_category.index:
+                raise ValueError(f"Plotting name {plotting_name} not found in {NEW_SCENARIO} scenario")
+            new_vals = new_by_category.loc[plotting_name]
+            diff_series = base_vals - new_vals
+            
+            # Find the ccus version of the plotting name, if it exists.
+            ccus_match = [ccus_name for ccus_name in ccus_plotting_names if plotting_name in ccus_name]
+            if ccus_match:
+                
+                # Subtract the captured emissions from the difference so it can be shown in the wedge. Make the captured emissions positive too
+                captured_emissions = - new_by_category.loc[ccus_match[0]]
+                
+                diff_series = diff_series - captured_emissions
+                #set the nae of the series to the plotting name
+                diff_series.name = plotting_name
+                diff_df = pd.concat([diff_df, captured_emissions], axis=1)
+            diff_df = pd.concat([diff_df, diff_series], axis=1)
+    #make sure that for all ears, the sum of diffs is equal to the difference in total emissionsbetween the two scenarios
+    diff_df['wedge'] = diff_df.sum(axis=1)
+    diff_df['line_diff'] = total_base - total_new
+    
+    if not np.allclose(diff_df['wedge'], diff_df['line_diff'], rtol=1e-2):
+        breakpoint()
+        # raise ValueError(f"Sum of differences in emissions does not match total difference between scenarios")
+    
+    #drop the line_diff and wedge cols
+    diff_df = diff_df.drop(columns=['wedge', 'line_diff'])
+    
+    # Ensure the columns are in the desired order (using unique_plotting_names order)
+    diff_df = diff_df.reindex(columns=unique_plotting_names, fill_value=0)
+    ##############
+    #START PLOTTING
+    ##############
+    # Plotting parameters
+    # Plotting parameters
+    LINE_WIDTH = 1
+    FONTSIZE = 14
+
+    # Create the plot with Seaborn styling
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    # Retrieve colors (or fallback to default colors)
+    color_base = colours_dict.get(base_scenario, 'steelblue')
+    color_new = colours_dict.get(NEW_SCENARIO, 'orange')
+
+    # Plot total emissions curves using Seaborn lineplot for consistency with Excel styling
+    # Give them a higher zorder so the lines appear on top
+    sns.lineplot(x=year_cols, y=total_base.values, ax=ax, color=color_base,
+                label=base_scenario, linewidth=LINE_WIDTH, zorder=3)
+    sns.lineplot(x=year_cols, y=total_new.values, ax=ax, color=color_new,
+                label=NEW_SCENARIO, linewidth=LINE_WIDTH, zorder=3)
+
+    # --- 1) Fill under the NEW scenario line with fully transparent white ---
+    #     This hides anything visually below that line (but remains transparent).
+    ax.fill_between(
+        year_cols,
+        0,                      # from 0
+        total_new.values,       # up to the new scenario line
+        color='white',
+        alpha=0,                # fully transparent
+        zorder=1
+    )
+
+    # --- Now, build the wedge fill starting at the NEW scenario line.
+    # We set a cumulative line starting from total_new.
+    cumulative_line = total_new.copy()
+
+    # Loop over each plotting name (in the desired order) and fill the wedge.
+    for plotting_name in unique_plotting_names:
+        if plotting_name in diff_df.columns:
+            diff_series = diff_df[plotting_name]
+            y1 = cumulative_line
+            y2 = cumulative_line + diff_series
+            ax.fill_between(
+                year_cols,
+                y1,
+                y2,
+                color=colours_dict.get(plotting_name, 'gray'),
+                alpha=1,  # 100% opaque
+                label=plotting_name_to_label_dict.get(plotting_name, plotting_name),
+                zorder=2
+            )
+            cumulative_line += diff_series
+
+    # Common formatting: horizontal baseline and vertical marker at OUTLOOK_BASE_YEAR
+    ax.axhline(0, color='black', linewidth=1)
+    ax.axvline(OUTLOOK_BASE_YEAR, color='black', linewidth=1, linestyle='--')
+    ax.tick_params(axis='both', which='major', labelsize=FONTSIZE)
+    ax.set_title(f'Change in gross co2 emissions by {plotting_name_column_name} (million tonnes)', fontsize=FONTSIZE, fontname='Calibri', pad=20)
+    ax.legend(loc='center left', bbox_to_anchor=(1.2, 0.5), fontsize=FONTSIZE)
+    ax.grid(axis='x')  # only horizontal grid lines
+    ax.set_axisbelow(True)
+    ax.set_xlim(min(year_cols), max(year_cols))
+
+    # Remove chart borders for a clean, Excel-like look
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['bottom'].set_visible(False)
+    ax.spines['left'].set_visible(False)
+
+    # Adjust the figure size (enlarged width to allow space for the legend)
+    fig.set_size_inches(plotting_specifications['width_inches'] * 1.3,
+                        plotting_specifications['height_inches'])
+
+    # Determine file path and save the chart
+    if 'code' in os.getcwd():
+        file_path = f'../intermediate_data/charts/{original_table_id}_wedge.png'
+    else:
+        file_path = f'intermediate_data/charts/{original_table_id}_wedge.png'
+
+    # breakpoint()#check the wedges
+    plt.savefig(file_path, dpi=300, bbox_inches='tight')   
+    plt.close(fig)
+    plt.clf()
+    plt.close('all')
+    ############################################
+    # Prepare to format the worksheet with the new chart
+    ############################################
+    if charts_to_plot==None and chart_positions==None:
+        breakpoint()
+        raise ValueError(f"INSERT_TABLE is True. This function is not designed to insert a table yet..")
+        # Update the base dataframe to reflect that this chart shows a wedge comparison
+        # emissions_base.loc[:, 'chart_title'] = f"Wedge: {NEW_SCENARIO} vs {base_scenario}"
+        # emissions_base.loc[:, 'scenario'] = f"{base_scenario} & {NEW_SCENARIO}"
+        #replace the emissions data with the diff data. note that diff data needs to be transposed and had the year cols added
+        # diff_df['year'] = year_cols #?
+        # diff_df_t = diff_df.T.reset_index()
+        # #make year cols the columns
+        # # diff_df_t.columns = diff_df_t.loc[0]
+        # # diff_df_t = diff_df_t.drop(0, axis=0)
+        # diff_df_t = diff_df_t.rename(columns={'index': plotting_name_column_name})
+        # diff_df_t = diff_df_t.melt(id_vars=[plotting_name_column_name], value_vars=year_cols, var_name='year', value_name='value').copy()
+        # max_and_min_values_dict_net_imports = {}
+        # unit_dict = {}
+        # total_plotting_names = emissions_base[plotting_name_column_name].unique().tolist()
+        
+        # #rename plotting_name_column to 'plotting_name'
+        # emissions_base.rename(columns={plotting_name_column_name:'plotting_name'}, inplace=True)
+        # # Call the common formatting function (same as in your original function)
+        # breakpoint()
+        #     charts_to_plot, chart_positions, worksheet, current_scenario, current_row = format_sheet_for_other_graphs(
+        #     emissions_base,
+        #     plotting_names_order,
+        #     plotting_name_to_label_dict,
+        #     scenario_num,
+        #     scenarios_list,
+        #     header_format,
+        #     worksheet,
+        #     workbook,
+        #     plotting_specifications,
+        #     writer,
+        #     sheet,
+        #     colours_dict,
+        #     patterns_dict,
+        #     cell_format1,
+        #     cell_format2,
+        #     max_and_min_values_dict_net_imports,
+        #     total_plotting_names,
+        #     chart_types,
+        #     ECONOMY_ID,
+        #     unit_dict,
+        #     current_scenario,
+        #     current_row,
+        #     original_table_id,
+        #     NEW_SCENARIO,
+        #     PLOTTING_SEABORN=True
+        # )
+        # worksheet.insert_image(chart_positions[0], file_path)
+    else:
+        # breakpoint()
+        # Insert the saved image into the worksheet in the second place returned by format_sheet_for_other_graphs
+        worksheet.insert_image(chart_positions[1], file_path)
+        
     return charts_to_plot, chart_positions, worksheet, current_row
