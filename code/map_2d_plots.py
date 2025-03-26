@@ -325,7 +325,7 @@ def map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COL
             elif source == 'capacity':
                 #capacity is just based off sectors so its relatively simple
                 new_capacity_plotting_mappings = all_plotting_mapping_dicts['capacity']['df']
-                # breakpoint()#why is the total for stocks not equal to what i would expect?#esecailly search for 15_02_01_02_02_gasoline_engine 15_02_01_01_02_gasoline_engine as they make up more than the total forprc.
+                breakpoint()#why is the total for stocks not equal to what i would expect?#esecailly search for 15_02_01_02_02_gasoline_engine 15_02_01_01_02_gasoline_engine as they make up more than the total forprc
 
                 model_df_tall_capacity = mapping_functions.merge_capacity_mappings(model_df_tall, new_capacity_plotting_mappings, capacity_plotting_mappings, RAISE_ERROR=True)
                 # model_df_tall = model_df_tall_capacity.copy()
