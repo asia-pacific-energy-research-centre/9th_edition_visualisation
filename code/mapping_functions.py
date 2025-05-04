@@ -183,6 +183,8 @@ def find_and_load_latest_data_for_all_sources(ECONOMY_ID, sources, WALK=True):
         #double check there are no columns with Unnamed in them
         if all_model_df_wides_dict[source][1].columns.str.contains('Unnamed').any():
             raise ValueError(f'There are columns with Unnamed in them in the {source} file. Please remove these columns')
+        
+        all_model_df_wides_dict[source][1] = ensure_all_year_cols_are_int(all_model_df_wides_dict[source][1])
     return all_model_df_wides_dict
 
 
@@ -344,6 +346,9 @@ def test_plotting_names_match_colors_df(plotting_names,colors_df):
     colors_plotting_names = set(colors_df.plotting_name.unique())
     if len(plotting_names) > len(colors_plotting_names):
         different_names = plotting_names - colors_plotting_names
+        breakpoint()
+        #provide them in a csv for easy use:
+        pd.DataFrame(list(different_names)).to_csv('../missing_plotting_names.csv', index=False, header=['Missing Plotting Names'])
         raise ValueError('there are plotting names in plotting_df that are not in colors_df. These are:\n ', different_names)
     elif len(plotting_names) < len(colors_plotting_names):
         different_names = colors_plotting_names - plotting_names
@@ -598,7 +603,7 @@ def format_plotting_df_from_mapped_plotting_names(plotting_df, new_charts_mappin
         
         plotting_df_mapped = pd.concat([plotting_df_mapped, plotting_df_subset])
     #filter rfor the cols we want
-    plotting_df_mapped = plotting_df_mapped.groupby(['source', 'economy','table_number','sheet_name', 'chart_type', 'chart_title', 'plotting_name_column', 'plotting_name','aggregate_name_column', 'aggregate_name', 'scenarios', 'year', 'table_id']).sum().reset_index()               
+    plotting_df_mapped = plotting_df_mapped.groupby(['source', 'economy','table_number','sheet_name', 'chart_type', 'chart_title', 'plotting_name_column', 'plotting_name','aggregate_name_column', 'aggregate_name', 'scenarios', 'year', 'table_id']).sum().reset_index()         
     return plotting_df_mapped
 
 
@@ -760,7 +765,7 @@ def split_gas_imports_exports_by_economy(df, ECONOMIES_TO_SPLIT_DICT={'01_AUS': 
     #now we have the data in the correct format, we can merge it with the df_oecd
     #first melt the df_oecd
     df_oecd_melt = df_oecd.melt(id_vars=['scenarios', 'economy', 'sectors', 'sub1sectors', 'sub2sectors', 'sub3sectors', 'sub4sectors', 'fuels', 'subfuels', 'subtotal_layout', 'subtotal_results'], var_name='Year', value_name='Value')
-    #filter for years before the outlook base year
+    
     df_oecd_melt = df_oecd_melt[df_oecd_melt['Year'].astype(int) <= OUTLOOK_BASE_YEAR]
     #check there is no energy in the 08_02_lng subfuels
     if df_oecd_melt[(df_oecd_melt['fuels'] == '08_gas') & (df_oecd_melt['subfuels'] == '08_02_lng')]['Value'].sum() != 0:
@@ -822,6 +827,29 @@ def modify_gas_splits(df):
     """
     return split_gas_imports_exports_by_economy(df)
 
+def ensure_all_year_cols_are_int(df):
+    #in case manual edits are made to the data then make sure all data is int where we expect it. year cols are those with 4 digits
+    year_columns = [col for col in df.columns if re.match(r'^\d{4}$', col)]
+    # Coerce year columns to numeric, converting non-numeric values to NaN
+    df_copy = df.copy()
+    #set current nas to 123456789 so that we can spot new naas
+    df_copy[year_columns] = df_copy[year_columns].replace(np.nan, 123456789)
+    
+    df_copy[year_columns] = df_copy[year_columns].apply(pd.to_numeric, errors='coerce')
+    #if any nas then throw an error
+    if df_copy[year_columns].isnull().any().any():
+        na_cols   = []
+        for col in year_columns:
+            if df_copy[col].isnull().any():
+                na_cols.append(col)
+                print(f"NaN values found in column: {col}")
+        breakpoint()#its confusing me how to extract exactly where these nas are.
+        raise ValueError(f"There are NaN values in the year columns after coercion in columns: {na_cols}.")
+    else:
+        #set old nas, which would have been from missing values cause we dont have data for those years, back to na
+        df_copy[year_columns] = df_copy[year_columns].replace(123456789, np.nan)
+        
+    return df_copy
 def make_losses_and_own_use_bunkers_exports_positive(df):
     """
     Changes the numeric values in the year columns for rows where the 'losses_and_own_use_bunkers_exports' column
@@ -933,46 +961,6 @@ def copy_and_convert_imported_electricity_to_output_in_gwh(df):
 
     return modified_df
 
-def modify_gas_to_gas_ccs(df):
-    """
-    Searches for rows with '18_01_02_gas_power_ccs' under 'sub2sectors' column and changes
-    '08_gas' under 'fuels' column to '08_gas_ccs'.
-    Additionally, searches for rows with '14_03_01_03_ccs', '14_03_02_02_ccs', or '14_03_04_01_ccs' 
-    under 'sub3sectors' column and changes '08_gas' under 'fuels' column to '08_gas_ccs'.
-    
-    Parameters:
-    - df (pd.DataFrame): The dataframe to modify.
-    
-    Returns:
-    - df (pd.DataFrame): The modified dataframe.
-    """
-    # Define the condition for the rows to modify in sub2sectors
-    condition_sub2 = (df['sub2sectors'] == '18_01_02_gas_power_ccs') & (df['fuels'] == '08_gas')
-    
-    # Define the condition for the rows to modify in sub3sectors
-    condition_sub3 = (df['sub3sectors'].isin(['14_03_01_03_ccs', '14_03_02_02_ccs', '14_03_04_01_ccs'])) & (df['fuels'] == '08_gas')
-    
-    # Combine both conditions
-    condition = condition_sub2 | condition_sub3
-    
-    # Apply the modification
-    df.loc[condition, 'fuels'] = '08_gas_ccs'
-
-    return df
-
-def modify_coal_to_coal_ccs(df):
-    """
-    Searches for rows with '18_01_01_coal_power_ccs' under 'sub2sectors'
-    and changes '01_coal' under 'fuels' to '01_coal_ccs'.
-    """
-    # Define the condition for the rows to modify
-    condition = (df['sub2sectors'] == '18_01_01_coal_power_ccs') & (df['fuels'] == '01_coal')
-    
-    # Apply the modification
-    df.loc[condition, 'fuels'] = '01_coal_ccs'
-
-    return df
-
 def modify_hydrogen_green_electricity(df):
     """
     Searches for a row where it is '09_total_transformation_sector' in 'sectors',
@@ -984,6 +972,8 @@ def modify_hydrogen_green_electricity(df):
     
     Returns:
     - df (pd.DataFrame): The modified dataframe.
+    
+    To be honest i dont know why we did create this ?
     """
     # Define the condition for the rows to modify
     condition = (df['sectors'] == '09_total_transformation_sector') & \
@@ -1023,15 +1013,91 @@ def create_net_emission_rows(df):
     new_rows1['sectors'] = '20_total_combustion_emissions'
     new_rows2 = df[condition].copy()
     new_rows2['fuels'] = '22_total_combustion_emissions'
+    # breakpoint()#why is net emisisons not correct for 'by sector'
     df = pd.concat([df, new_rows1, new_rows2], ignore_index=True)
     return df
     
-def rename_sectors_and_negate_values_based_on_ccs_cap(df):
+def create_net_imports_rows(df):
+    imports = df[df['sectors'] == '02_imports'].copy()
+    exports = df[df['sectors'] == '03_exports'].copy()
+    #join on key cols to calculate the net imports
+    new_df = exports.merge(imports, on=['scenarios', 'economy', 'fuels', 'subfuels', 'subtotal_layout', 'subtotal_results'], how='outer', suffixes=('_export', '_import'))
+    #extract year columns and then run through them calcualtiing the net imports
+    year_columns = [col for col in df.columns if re.match(r'^\d{4}$', str(col))]
+    # breakpoint()
+    for col in year_columns:
+        #add them together. if either is na though, set them to 0
+        new_df[col] = new_df[col+'_import'].fillna(0) + new_df[col+'_export'].fillna(0)
+    #drop the _import and _export cols
+    new_df = new_df.drop(columns=[col for col in new_df.columns if '_import' in col or '_export' in col])
+    #set sectors to 23_net_imports
+    new_df['sectors'] = '23_net_imports'
+    new_df['sub1sectors'] = 'x'
+    new_df['sub2sectors'] = 'x'
+    new_df['sub3sectors'] = 'x'
+    new_df['sub4sectors'] = 'x'
+    
+    df = pd.concat([df, new_df], ignore_index=True)
+    #check for duplicates
+    if df.duplicated(subset=['scenarios', 'economy', 'sectors', 'sub1sectors', 'sub2sectors', 'sub3sectors', 'sub4sectors', 'fuels', 'subfuels', 'subtotal_layout', 'subtotal_results']).any():
+        breakpoint()
+        raise Exception('There are duplicated rows in the dataframe. Please check the data.')
+    return df
+
+def rename_energy_df_where_ccs_in_subsectors_to_have_ccs_in_sector_and_fuels(df):
+    """
+    run through all the sub1, 2,3 4 sectors and chekc if _ccs is at the end of the name. if so then rename the sub1sectors name to have _ccs at the end.
+    
+    note that we pruposefully chose not to rename sectors col because it meant we would have to remap more things in the master_config.xlsx
+    Parameters:
+    - df (pd.DataFrame): The dataframe to modify.
+    
+    Returns:
+    - df (pd.DataFrame): The modified dataframe.
+    """
+    df_copy = df.copy()
+    for sector_col in ['sub2sectors', 'sub3sectors', 'sub4sectors']:
+        other_cols = ['sub1sectors', 'sub2sectors', 'sub3sectors', 'sub4sectors', 'subfuels', 'fuels']
+        other_cols.remove(sector_col)
+        # Define the condition for the rows to modify. make sure it avoids where str ends with _nonccs
+        condition = df[sector_col].str.endswith('_ccs') & ~df[sector_col].str.endswith('_nonccs') & ~df[sector_col].str.endswith('wo_ccs')
+        
+        # Apply the modification to all other columns as long as _ccs is not there already, or they are x:
+        for other_sector_col in other_cols:
+            condition2 =  df[other_sector_col].str.endswith('_nonccs') |df[other_sector_col].str.endswith('_ccs') | (df[other_sector_col] == 'x') | df[other_sector_col].str.endswith('wo_ccs') 
+            df.loc[condition & ~condition2, other_sector_col] = df.loc[condition & ~condition2, other_sector_col] + '_ccs'
+    # breakpoint()#check it worked ok
+    return df
+
+
+# def rename_energy_df_where_ccs_in_sectors_to_have_ccs_in_fuel(df):
+#     """
+#     run through all the subfuels and chekc if _ccs is at the end of the name. if so then rename the fuels name to have _ccs at the end.
+    
+#     Parameters:
+#     - df (pd.DataFrame): The dataframe to modify.
+    
+#     Returns:
+#     - df (pd.DataFrame): The modified dataframe.
+#     """
+#     breakpoint()
+#     for fuel_col in ['subfuels']:
+#         # Define the condition for the rows to modify
+#         condition = df[fuel_col].str.endswith('_ccs') & ~df[fuel_col].str.endswith('_nonccs') & ~df[fuel_col].str.endswith('wo_ccs')
+#         if len(df.loc[condition, 'fuels']) > 0:
+#             breakpoint()
+#         # Apply the modification
+#         df.loc[condition, 'fuels'] = df.loc[condition, 'fuels'] + '_ccs'
+
+#     return df
+
+def emissions_rename_sectors_and_negate_values_based_on_ccs_cap(df):
     """
     For rows with a suffix '_captured_emissions' in 'sub2sectors' or 'sub3sectors' columns:
     - Creates more rows and adds '_captured_emissions' to the suffix of the category name in the 'sectors' column and checks values in year columns are negative.
     #(redacted) - Copies these rows, renames the category in 'sectors' to '_captured_emissions_pos', and makes the year values positive.
     
+    #note this got updated a little to make sure that there are never any duplicated sector names. i.e. previously we were jsut changeing sector names but allowing sub3/2/4/1sectors to have the same name as other ones.
     Parameters:
     - df (pd.DataFrame): The dataframe to modify.
     
@@ -1049,12 +1115,23 @@ def rename_sectors_and_negate_values_based_on_ccs_cap(df):
     
     # Update 'sectors' and year values for rows matching the condition
     rows.loc[condition, 'sectors'] = rows.loc[condition, 'sectors'] + '_captured_emissions'
+    
+    # Update 'sectors' and year values for rows matching the condition
+    rows.loc[condition, 'sub1sectors'] = rows.loc[condition, 'sub1sectors'] + '_captured_emissions'
+    
+    #where sub2sectors doesnt end with _captured_emissions then change that since we have to make sure that every sector is unique
+    rows.loc[condition & ~rows['sub2sectors'].str.endswith('_captured_emissions'), 'sub2sectors'] += '_captured_emissions'
+    
+    #where sub3sectors is not x and doesnt end with _captured_emissions then change that since we have to make sure that every sector is unique
+    rows.loc[condition & (rows['sub3sectors'] != 'x') & ~rows['sub3sectors'].str.endswith('_captured_emissions'), 'sub3sectors'] += '_captured_emissions'
+    
+    # breakpoint()#check above works
     for col in year_columns:
         #check if the values are negative, if not throw an error
         if (rows[col] > 0).any():
             raise Exception('There are positive values in the year columns for rows with "_captured_emissions" in "sub2sectors" or "sub3sectors".')
         
-    #we also want these rwos to be accessible within Total combustion emissions plotting name for fuels plotting aggregation. so copy the new rows and set the fuel to 22_total_combustion_emissions    
+    #we also want these rows to be accessible within Total combustion emissions plotting name for fuels plotting aggregation. so copy the new rows and set the fuel to 22_total_combustion_emissions    
     new_rows = rows.copy()
     new_rows['fuels'] = '22_total_combustion_emissions'
     new_rows['subfuels'] = 'x'
@@ -1068,7 +1145,7 @@ def rename_sectors_and_negate_values_based_on_ccs_cap(df):
     new_fuels_rows['sub4sectors'] = 'x'
     
     new_fuels_rows['fuels'] = new_fuels_rows['fuels'] + '_captured_emissions'   
-    
+    # breakpoint()#where are these values i cant find them
     # Copy the rows that meet the condition, to modify and append them
     # new_rows = rows.loc[condition].copy()
     # new_rows['sectors'] = new_rows['sectors'].str.replace('_captured_emissions', '_captured_emissions_pos')

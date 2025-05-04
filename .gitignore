@@ -8,6 +8,7 @@
 # original_preparation_code/*
 *.png
 *.7z
+*.zip
 *.xlsx
 *.csv
 *.html

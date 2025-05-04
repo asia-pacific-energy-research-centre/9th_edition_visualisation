@@ -1,11 +1,15 @@
 #%%
-
+import time    
+from openpyxl import load_workbook
+from openpyxl.styles import PatternFill
+from openpyxl import Workbook
 import pandas as pd 
 import re
 import os
 from datetime import datetime
 import pickle
 import shutil
+from zipfile import BadZipFile
 STRICT_DATA_CHECKING = False
 
 # ECONOMY_ID = '22_SEA'#'00_APEC'#08_JPN#tremoved this because its just confusing. might as well set it in the script
@@ -13,12 +17,10 @@ STRICT_DATA_CHECKING = False
 #######################################################
 #CONFIG PREPARATION
 #create FILE_DATE_ID for use in file names
-FILE_DATE_ID ='20250317'# datetime.now().strftime('%Y%m%d')
+FILE_DATE_ID =datetime.now().strftime('%Y%m%d')#'20250401'#datetime.now().strftime('%Y%m%d')#'20250317'# '20250409'#'20250410'#'20250415'#
 
 # FILE_DATE_ID = '20241112'
-total_plotting_names=['Total', 'TPES', 'Total primary energy supply','TFEC', 'TFC', 'Total_industry', 'Total_transport', 'Total_fuels', 'Total combustion emissions', 'Total Industry & Non-energy', 'Production', 'Total power fuel consumption', 'Total generation', 'Total generation capacity','Total use of fuels', 'TFC_hydrogen','TFC_low_carbon_fuels', 'TPES_bioenergy', 'TFC_refined_fuels', 'Refined products', 'TFEC_incl_own_use_losses']
-
-MIN_YEAR = 2000
+total_plotting_names=['Total', 'TPES', 'Total primary energy supply','TFEC', 'TFC', 'Total_industry', 'Total_transport', 'Total_fuels', 'Total combustion emissions', 'Total Industry & Non-energy', 'Total production', 'Total power fuel consumption', 'Total generation', 'Total generation capacity','Total use of fuels', 'TFC_hydrogen','TFC_low_carbon_fuels', 'TPES_bioenergy', 'TFC_refined_fuels', 'Refined products', 'TFEC_incl_own_use_losses', 'Refined products and low carbon fuels', 'TFC_refined_products_and_low_carbon_fuels']#dont add ,'Net emissions' to this!
 
 EXPECTED_COLS = ['source', 'table_number', 'chart_type','plotting_name', 'plotting_name_column','aggregate_name', 'aggregate_name_column', 'scenario', 'unit', 'table_id', 'dimensions', 'chart_title', 'year', 'value','sheet_name']
 
@@ -37,6 +39,7 @@ AGGREGATE_ECONOMY_MAPPING = {
     '26_NA': ['03_CDA', '20_USA'],
 }
 
+MIN_YEAR = 2000
 EBT_EARLIEST_YEAR = 1980
 OUTLOOK_BASE_YEAR = 2022 #if running vis for russia, set this to the same as OUTLOOK_BASE_YEAR_RUSSIA
 OUTLOOK_BASE_YEAR_RUSSIA = 2021
@@ -268,6 +271,7 @@ def highlight_differences_in_master_config_xlsx(file1, file2, output_file):
 
 def compare_sheets(sheet1, sheet2):
     import numpy as np
+
     differences = []
     
     # Ensure both sheets have the same shape and fill missing rows/columns with NaN
@@ -313,22 +317,120 @@ def compare_sheets(sheet1, sheet2):
 
     return differences
 
+def clean_up_old_files(ECONOMY_ID):
+    #empty this folder ifit exists:
+    folder_path = f'../output/plotting_output/{ECONOMY_ID}'
+    
+    if os.path.exists(folder_path):
+        shutil.rmtree(folder_path)
+    os.makedirs(folder_path)
+    # intermediate_data\charts
+    folder_path = '../intermediate_data/charts'
+    
+    if os.path.exists(folder_path):
+        shutil.rmtree(folder_path)
+    os.makedirs(folder_path)
+    
+def save_used_colors_dict(colors_dict):
+    #this is used in check_plotting_names_in_colours_dict()
+    start_time = time.time()
+    
+    #for helping to remove plotting names that arent used anymore, keep a record of all plotting names that are actually used. this will get cleaned every once in a while
+    
+    #open up the csv and where there arent any matches, enter into the bottom. have a colomn for plotting_name and a column for color
+    used_colors_excel_path = '../config/used_colors_dict.xlsx'
 
+    # Load the Excel file or create a new one if it doesn't exist
+    try:
+        workbook = load_workbook(used_colors_excel_path)
+        sheet = workbook.active
+    except Exception as e:  # Handle multiple exceptions
+        if isinstance(e, BadZipFile):
+            print(f"Skipped processing {used_colors_excel_path} as it might be open in another script.")
+            return  # Skip further processing
+        breakpoint()
+        workbook = Workbook()
+        sheet = workbook.active
+        sheet.title = "Used Colors"
+        sheet.append(["plotting_name", "color"])  # Add headers
+        print(f"Exception occurred: {e}. Created a new workbook.")
+
+    # Create a dictionary from the existing data in the Excel file
+    used_colors_dict = {row[0]: row[1] for row in sheet.iter_rows(min_row=2, values_only=True) if row[0]}
+
+    # Add new plotting names and colors to the Excel file
+    for plotting_name, color in colors_dict.items():
+        if plotting_name not in used_colors_dict:
+            sheet.append([plotting_name, color])
+            used_colors_dict[plotting_name] = color
+
+    # Apply color fill to the color cells
+    for row in sheet.iter_rows(min_row=2, max_col=2):
+        color_cell = row[1]
+        if color_cell.value and isinstance(color_cell.value, str) and color_cell.value.startswith("#"):
+            try:
+                color_fill = PatternFill(start_color=color_cell.value[1:], end_color=color_cell.value[1:], fill_type="solid")
+                color_cell.fill = color_fill
+            except ValueError:
+                print(f"Invalid color value: {color_cell.value}")
+
+    # Save the Excel file
+    workbook.save(used_colors_excel_path)
+    # print(f"Used colors saved to {used_colors_excel_path}")
+    
+    end_time = time.time()
+    # print(f"Execution time: {end_time - start_time:.2f} seconds")
 #%%
-if __name__ == "__main__":
-    # RUN THIS FILE IF YOU WANT TO RUN THE BELOW:
+# if __name__ == "__main__":
+#     # RUN THIS FILE IF YOU WANT TO RUN THE BELOW:
     
-    file1_path = "../config/master_config.xlsx"
-    #find other file in the folder that has master config in the name. if there is no other one or multiple, raise an error
-    files = os.listdir("../config")
-    files = [f for f in files if 'master_config' in f]
-    #ignore any files with ~$ in the name since they are temporary files
-    files = [f for f in files if '~$' not in f]
-    if len(files) != 2:
-        raise ValueError("There are not exactly 2 files with 'master_config' in the name in the config folder.")
-    file2_path = os.path.join("../config", [f for f in files if f != 'master_config.xlsx'][0])
-    output_file_path = "../comparison_master_config.xlsx"
+#     file1_path = "../config/master_config.xlsx"
+#     #find other file in the folder that has master config in the name. if there is no other one or multiple, raise an error
+#     files = os.listdir("../config")
+#     files = [f for f in files if 'master_config' in f]
+#     #ignore any files with ~$ in the name since they are temporary files
+#     files = [f for f in files if '~$' not in f]
+#     if len(files) != 2:
+#         raise ValueError("There are not exactly 2 files with 'master_config' in the name in the config folder.")
+#     file2_path = os.path.join("../config", [f for f in files if f != 'master_config.xlsx'][0])
+#     output_file_path = "../comparison_master_config.xlsx"
 
-    highlight_differences_in_master_config_xlsx(file1_path, file2_path, output_file_path)
+# highlight_differences_in_master_config_xlsx(file1_path, file2_path, output_file_path)
     
+#%%
+
+def move_workbooks_to_onedrive(origin_date_id=FILE_DATE_ID, econ_list=ALL_ECONOMY_IDS, FIND_LATEST_FILE_ID=True):
+    # clean_onedrive_workbooks_folder(date_ids_to_keep='20241211', specific_files_to_keep=[], econ_list=ALL_ECONOMY_IDS, archive_folder_name="first_iteration")
+    # clean_onedrive_workbooks_folder(date_ids_to_keep='20241211', specific_files_to_keep=[], econ_list=AGGREGATE_ECONOMY_MAPPING.keys(), archive_folder_name="first_iteration")
+    # CURRENT_DATE_ID = datetime.now().strftime("%Y%m%d")
+    for economy_id in econ_list:
+        source_folder = f'C:/Users/finbar.maunsell/github/9th_edition_visualisation/output/output_workbooks/{economy_id}/'
+        source_file = f'{economy_id}_charts_{origin_date_id}.xlsx'
+        source_path = f'{source_folder}/{source_file}'
+        destination_folder = f'C:/Users/finbar.maunsell/OneDrive - APERC/outlook 9th/Modelling/Visualisation/{economy_id}'
+        destination_file = f'{economy_id}_charts_{origin_date_id}.xlsx'
+        destination_path = f'{destination_folder}/{destination_file}'
+        
+        if FIND_LATEST_FILE_ID and not os.path.exists(
+            source_path
+        ):
+            f, latest_file_id = find_most_recent_file_date_id(
+                source_folder, RETURN_DATE_ID=True
+            )
+            if latest_file_id != None:
+                source_path = source_path.replace(origin_date_id, latest_file_id)
+                destination_path = destination_path.replace(origin_date_id, latest_file_id)
+            else:
+                raise ValueError("Latest file ID is None, cannot proceed.")
+            
+        # Create destination directory if it doesn't exist
+        os.makedirs(os.path.dirname(destination_path), exist_ok=True)
+        
+        # Move the file
+        shutil.copy(source_path, destination_path)
+        print(f"Moved {source_path} to {destination_path}")
+        
+# #%%
+# move_workbooks_to_onedrive(origin_date_id=FILE_DATE_ID, econ_list= [ '14_PE', '20_USA', '08_JPN', '12_NZ', '17_SGP', '03_CDA','13_PNG'])
+
 #%%

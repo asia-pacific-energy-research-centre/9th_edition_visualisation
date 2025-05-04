@@ -21,13 +21,15 @@ def map_9th_data_to_one_dimensional_plots(ECONOMY_ID, EXPECTED_COLS):#, total_em
     all_1d_plotting_dfs = pd.DataFrame()
     population_df, gdp_df, gdp_per_capita_df = extract_macro_data(ECONOMY_ID)
     all_1d_plotting_dfs = pd.concat([all_1d_plotting_dfs, population_df, gdp_df, gdp_per_capita_df], axis=0)
-    energy_intensity, emissions_co2_intensity, raw_energy_intensity_df, raw_emissions_co2_intensity_df, emissions_co2_melt = calculate_and_extract_intensity_data(ECONOMY_ID)
     
+    emissions_diff_df = calculate_emissions_difference(ECONOMY_ID)
+    
+    energy_intensity, emissions_co2_intensity, raw_energy_intensity_df, raw_emissions_co2_intensity_df, emissions_co2_melt = calculate_and_extract_intensity_data(ECONOMY_ID)
     all_1d_plotting_dfs = pd.concat([all_1d_plotting_dfs, energy_intensity, emissions_co2_intensity], axis=0)
     
     renewable_share_df, renewable_share_in_TPEC_df, electricity_renewable_share = calculate_and_extract_energy_share_data(ECONOMY_ID)
     
-    all_1d_plotting_dfs = pd.concat([all_1d_plotting_dfs, renewable_share_df,  renewable_share_in_TPEC_df, electricity_renewable_share], axis=0)
+    all_1d_plotting_dfs = pd.concat([all_1d_plotting_dfs, renewable_share_df,  renewable_share_in_TPEC_df, electricity_renewable_share,emissions_diff_df], axis=0)
     kaya_identity_df_COMBINED = calculate_and_extract_kaya_identity_data_COMBINED(ECONOMY_ID, raw_energy_intensity_df, emissions_co2_melt, raw_emissions_co2_intensity_df)
     kaya_identity_df = calculate_and_extract_kaya_identity_data(ECONOMY_ID, raw_energy_intensity_df, emissions_co2_melt, raw_emissions_co2_intensity_df)
     
@@ -39,7 +41,50 @@ def map_9th_data_to_one_dimensional_plots(ECONOMY_ID, EXPECTED_COLS):#, total_em
     # charts_mapping_1d.to_csv('../intermediate_data/charts_mapping_1d.csv')
     return charts_mapping_1d
     
-
+def calculate_emissions_difference(ECONOMY_ID):
+    #load in emissions data
+    all_model_df_wides_dict = mapping_functions.find_and_load_latest_data_for_all_sources(ECONOMY_ID, ['emissions_co2'],WALK=False)
+    emissions_co2_w_subtotals = all_model_df_wides_dict['emissions_co2'][1]
+    
+    #make all values after the base year 0 in historical data
+    historical_data = emissions_co2_w_subtotals.copy()
+    historical_data.drop(columns=PROJ_YEARS_str, inplace=True)
+    proj_data = emissions_co2_w_subtotals.copy()
+    proj_data.drop(columns=HIST_YEARS_str, inplace=True)
+    
+    #filter for only not subtotal_layout in historical data and not subtotal_results in proj data
+    historical_data = historical_data[(historical_data.subtotal_layout==False)]
+    proj_data = proj_data[(proj_data.subtotal_results==False)].copy()
+    
+    #merge them and sum
+    emissions_co2 = pd.concat([historical_data, proj_data], axis=0)
+    
+    #set any nas in the energy data to 0
+    emissions_co2.fillna(0, inplace=True)
+    #filter for the following fuels and sbifeules:
+    emissions_co2 = emissions_co2[(emissions_co2.fuels == '23_total_combustion_emissions_net') & (emissions_co2.sectors == '21_total_combustion_emissions_net')]
+    #keep only year cols and scenarios, year cols are : PROJ_YEARS_str, HIST_YEARS_str
+    emissions_co2=emissions_co2[['scenarios'] + PROJ_YEARS_str + HIST_YEARS_str]
+    #now sum up by the key columns
+    emissions_co2 = emissions_co2.groupby(['scenarios']).sum().reset_index()
+    emissions_co2 = emissions_co2.melt(id_vars=['scenarios'], var_name='year', value_name='value')
+    emissions_co2['value'] = emissions_co2['value'].astype(float)
+    emissions_co2['year'] = emissions_co2['year'].astype(int)
+    #sort by year
+    emissions_co2.sort_values(by='year', inplace=True)
+    #now create other cols:
+    # plotting_name
+    # unit
+    # source
+    # plotting_name_column
+    emissions_co2['plotting_name'] = 'CO2_Emissions'
+    emissions_co2['unit'] = 'MtCO2'
+    emissions_co2['source'] = 'Indicators'
+    #rename scenarios to scenario
+    
+    emissions_co2.rename(columns={'scenarios': 'scenario'}, inplace=True)
+    return emissions_co2
+    
 def map_all_1d_plotting_dfs_to_charts_mapping(all_1d_plotting_dfs, EXPECTED_COLS):
     # charts_mapping.head(2)
     # source economy  table_number   sheet_name chart_type plotting_name_column  \
@@ -303,9 +348,9 @@ def calculate_and_extract_intensity_data(ECONOMY_ID):
     # emissions_co2_intensity.loc[(emissions_co2_intensity['scenario'] == 'target') & (emissions_co2_intensity['year'] >= MIN_YEAR) & (emissions_co2_intensity['year'] < OUTLOOK_BASE_YEAR), 'value'] = np.nan
     
     #now we have energy_intensity and emissions_co2_intensity, we need to put them in the format we want to plot them in
-    energy_intensity['source'] = 'intensity'
+    energy_intensity['source'] = 'Indicators'
     energy_intensity['plotting_name'] = 'energy_intensity'
-    emissions_co2_intensity['source'] = 'intensity'
+    emissions_co2_intensity['source'] = 'Indicators'
     emissions_co2_intensity['plotting_name'] = 'emissions_co2_intensity'
 
     #change unit
@@ -443,7 +488,7 @@ def calc_share_of_renewables_in_TPEC(energy,ECONOMY_ID):
     #drop columns that arent needed sectors	fuels	subfuels
     TPEC.drop(columns=['sectors', 'fuels', 'subfuels'], inplace=True)
     #create columns for plotting
-    TPEC['source'] = 'renewables_share'
+    TPEC['source'] = 'Indicators'
     TPEC['plotting_name'] = 'renewables_share_in_TPEC'
     TPEC['unit'] = 'Renewables % of total primary energy consumption'
     TPEC.rename(columns={'scenarios':'scenario'}, inplace=True)
@@ -504,14 +549,14 @@ def calc_share_of_modern_renewables_in_TFEC(energy):
     # electricity_renewable_share.loc[(electricity_renewable_share['scenarios'] == 'target') & (electricity_renewable_share['year'] >= MIN_YEAR) & (electricity_renewable_share['year'] < OUTLOOK_BASE_YEAR), 'value'] = np.nan
     
     # we need to put them in the format we want to plot them in
-    renewable_share['source'] = 'renewables_share'
+    renewable_share['source'] = 'Indicators'
     renewable_share['plotting_name'] = 'renewables_share'
     renewable_share['unit'] = 'Modern renewables % of total final energy consumption'
     renewable_share.drop(columns=['energy_total', 'energy_renewables'], inplace=True)
     renewable_share.rename(columns={'scenarios':'scenario'}, inplace=True)
     
     # Format electricity data
-    electricity_renewable_share['source'] = 'renewables_share'
+    electricity_renewable_share['source'] = 'Indicators'
     electricity_renewable_share['plotting_name'] = 'renewables_share_in_electricity_generation'
     electricity_renewable_share['unit'] = 'Renewables % of total electricity generation'
     electricity_renewable_share.drop(columns=['electricity_total', 'electricity_renewables'], inplace=True)
@@ -869,5 +914,5 @@ def calc_share_imports_within_TPES_adjusted(energy, ECONOMY_ID):
         fig.update_yaxes(title_text='(%)')
         fig.update_layout(title=f'Import share of adjusted TPES vs regular TPES (%) - {ECONOMY_ID}')
     fig.write_html(f'../output/plotting_output/IMPORTS_analysis_dashboard_{ECONOMY_ID}.html')
-    breakpoint()
+    # breakpoint()
     return share_of_tpes

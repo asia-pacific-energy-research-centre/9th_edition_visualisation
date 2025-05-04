@@ -1,3 +1,5 @@
+import time
+import uuid
 import pandas as pd
 import math
 import numpy as np
@@ -5,7 +7,11 @@ import ast
 import os
 import shutil
 from utility_functions import *
-
+import matplotlib.pyplot as plt
+from matplotlib.patches import Patch
+import random
+from matplotlib.lines import Line2D
+import create_legend
 def create_sheets_from_mapping_df(workbook, charts_mapping_df, total_plotting_names, MIN_YEAR, colours_dict, patterns_dict, cell_format1, cell_format2, header_format, plotting_specifications, plotting_names_order, plotting_name_to_label_dict, writer, EXPECTED_COLS, ECONOMY_ID): 
     #PREPARE DATA ########################################
     charts_mapping = charts_mapping_df.copy()
@@ -18,7 +24,7 @@ def create_sheets_from_mapping_df(workbook, charts_mapping_df, total_plotting_na
         #make values 1 decimal place
         charts_mapping['value'] = charts_mapping['value'].round(1).copy()
     # Replace NaNs with 0 except for 'Transport stocks', 'Transport activity' and 'Intensity' sheets
-    mask = ~charts_mapping['sheet_name'].isin(['Transport stocks', 'Transport activity', 'Intensity', 'Renewables share'])
+    mask = ~charts_mapping['sheet_name'].isin(['Transport stocks', 'Transport activity', 'Indicators'])
     charts_mapping.loc[mask, 'value'] = charts_mapping.loc[mask, 'value'].fillna(0).copy()
     ########################################
     #Addition to handle transport capacity data not having data from before the base year. It sets the data from the base year as the data for all years before the base year. This is a pretty quick hack but unnoticable in the final output, as long as there is onyl 1 or 2 years before the base year.
@@ -90,8 +96,8 @@ def create_sheets_from_mapping_df(workbook, charts_mapping_df, total_plotting_na
             sheet_data = sheet_data.pivot(index=EXPECTED_COLS_wide, columns='year', values='value')
         except Exception as e:
             #check for duplicates
-            if sheet_data.duplicated(subset=EXPECTED_COLS_wide).any():
-                dupes = sheet_data[sheet_data.duplicated(subset=EXPECTED_COLS_wide)]
+            if sheet_data.duplicated(subset=EXPECTED_COLS_wide+['year']).any():
+                dupes = sheet_data[sheet_data.duplicated(subset=EXPECTED_COLS_wide+['year'])]
             breakpoint()
             raise Exception('There are duplicates in the data. Please check the data. Duplicates:', dupes)
         # #potentially here we get nas from missing years for certain rows, so replace with 0
@@ -114,7 +120,7 @@ def create_sheets_from_mapping_df(workbook, charts_mapping_df, total_plotting_na
 
         #         #add table data to tuple
         #         sheet_dfs[sheet] = sheet_dfs[sheet] + (table_data,)
-        if sheet in ['Intensity', 'Renewables share']:
+        if sheet in ['Indicators']:
             # Handle all data as one scenario block for "Intensity" or "Renewables share" sheet
             for table in sheet_data['table_number'].unique():
                 table_data = sheet_data.loc[(sheet_data['table_number'] == table)]
@@ -161,6 +167,7 @@ def create_sheets_from_mapping_df(workbook, charts_mapping_df, total_plotting_na
     
         current_row = 0
         for table in sheet_dfs[sheet]:
+            
             dimensions = table['dimensions'].unique()[0]
             if len(table['dimensions'].unique()) > 1:
                 raise Exception('we should only have one dimension type per table') 
@@ -228,7 +235,7 @@ def create_sheets_from_mapping_df(workbook, charts_mapping_df, total_plotting_na
                     #drop 3006 drom the table
                     table = table.drop(columns=[3006], errors='ignore')
                 #need to reset the year_cols_start (it wasnt correct before either)
-                year_cols_start = table.columns.get_loc(f'Emissions {OUTLOOK_BASE_YEAR}') + 1
+                year_cols_start = table.columns.get_loc(f'Emissions {OUTLOOK_BASE_YEAR}')
                 
             ########################
             #write table to sheet
@@ -236,9 +243,13 @@ def create_sheets_from_mapping_df(workbook, charts_mapping_df, total_plotting_na
             current_row += len(table.index) + space_under_tables + column_row
             num_table_rows = len(table.index)
             ######################## 
+            # breakpoint()#do we have access to colors and labelshere and can we create legends here?
             #identify and format charts we need to create
             chart_positions = identify_chart_positions(current_row,num_table_rows,space_under_tables,column_row, space_above_charts, space_under_charts, plotting_specifications,chart_types)
             # print('max_and_min_values_dict', max_and_min_values_dict, 'for sheet', sheet)
+            # breakpoint()#do we have access to a charts type map?
+            worksheet = create_legend.create_legend(colours_dict, patterns_dict, plotting_name_column, table,plotting_specifications, chart_positions, worksheet,ECONOMY_ID,total_plotting_names,chart_types)
+            
             charts_to_plot = create_charts(table, chart_types, plotting_specifications, workbook,num_table_rows, plotting_name_column, table_id, sheet, current_row, space_under_tables, column_row, year_cols_start, num_cols, colours_dict, patterns_dict,total_plotting_names, max_and_min_values_dict, chart_titles, first_year_col, sheet_name)
             ########################
 
@@ -251,32 +262,12 @@ def create_sheets_from_mapping_df(workbook, charts_mapping_df, total_plotting_na
             # except:
             #     breakpoint()
             #     print('writer close failed')
-
+            
+            
     workbook = order_sheets(workbook, plotting_specifications)
     # breakpoint()
-    return workbook, writer
+    return workbook, writer, colours_dict
 
-def write_charts_to_sheet(charts_to_plot, chart_positions, worksheet):
-    #write charts to sheet
-    for i, chart in enumerate(charts_to_plot):
-        chart_position = chart_positions[i]
-        import warnings
-
-        try:
-            with warnings.catch_warnings(record=True) as w:
-                # Cause all warnings to always be triggered.
-                warnings.simplefilter("always")
-
-                # Attempt to insert the chart
-                worksheet.insert_chart(chart_position, chart)
-
-                # Check if a warning occurred
-                if len(w) > 0:
-                    print("Warning caught: ", str(w[-1].message))
-        except Exception as e:
-            print("Error: ", str(e))
-    return worksheet
-        
 def add_section_titles(current_row, current_scenario, sheet, worksheet, cell_format1, cell_format2, space_under_titles, table, space_under_tables,unit_dict, ECONOMY_ID, NEW_SCENARIO=False):
     
     if current_scenario == '':
@@ -445,7 +436,6 @@ def calculate_y_axis_value(value):
 
 def create_charts(table, chart_types, plotting_specifications, workbook, num_table_rows, plotting_name_column, table_id, sheet, current_row, space_under_tables, column_row, year_cols_start, num_cols, colours_dict, patterns_dict, total_plotting_names, max_and_min_values_dict, chart_titles, first_year_col, sheet_name):
     
-    #check the colors here again, jsut in case since its really tough to spot the error if the colors are wrong:
     colours_dict = check_plotting_names_in_colours_dict(table, colours_dict, plotting_name_column=plotting_name_column)
     patterns_dict = check_plotting_names_in_patterns_dict(patterns_dict)
     # Depending on the chart type, create different charts. Then add them to the worksheet according to their positions
@@ -537,7 +527,7 @@ def create_charts(table, chart_types, plotting_specifications, workbook, num_tab
 #     return bar_chart_table, bar_chart, writer, current_row,charts_to_plot
 
 def sort_table_rows_and_columns(table,table_id,plotting_names_order,year_cols):
-    column_order = ['aggregate_name', 'plotting_name']+ year_cols.tolist()
+    column_order = ['aggregate_name', 'plotting_name']+ year_cols
     #sort column_order
     try:
         table = table[column_order].copy()
@@ -578,11 +568,6 @@ def format_table(table,plotting_names_order,plotting_name_to_label_dict):
     #format some cols:
     num_cols = len(table.dropna(axis='columns', how='all').columns) - 1
     year_cols = [col for col in table.columns if re.search(r'\d{4}', str(col))]
-    try:
-        year_cols_start = table.columns.get_loc(year_cols[0])
-    except:
-        breakpoint()
-    year_cols = table.columns[year_cols_start:]
     
     # Adjust num_cols for 'Transport stocks' and 'Transport activity' sheet
     # if sheet_name == 'Transport stocks' or sheet_name == 'Transport activity':
@@ -619,6 +604,12 @@ def format_table(table,plotting_names_order,plotting_name_to_label_dict):
     # try:
     #set order of columns and table, dependent on what the aggregate column is:
     table = sort_table_rows_and_columns(table,table_id,plotting_names_order,year_cols)
+    
+    # try:
+    year_cols_start = table.columns.get_loc(year_cols[0])
+    # except:
+    #     breakpoint()
+    year_cols = table.columns[year_cols_start:]
     # except:
     #     breakpoint()
     #     table = sort_table_rows_and_columns(table,table_id,plotting_names_order,year_cols)
@@ -671,6 +662,11 @@ def create_bar_chart_table(table,year_cols_start,bar_years, sheet_name):
         years_to_keep = [year for year in table.columns[year_cols_start:] if str(year) in bar_years]
     else:    
         years_to_keep = [year for year in table.columns[year_cols_start:] if int(year) % 10 == 0 or year == table.columns[year_cols_start]]
+    
+    if sheet_name =='Generation capacity':
+        #drop all years before 2020:
+        years_to_keep = [year for year in years_to_keep if int(year) >= 2020]
+        # breakpoint()#not working?
     new_table = table.copy()
     #for every col after year_cols_start, filter for the years we want to keep only
     non_year_cols = table.columns[:year_cols_start]
@@ -733,10 +729,11 @@ def create_area_chart(num_table_rows, table, plotting_name_column, sheet, curren
         else:
             if series_name in patterns_dict.keys():#if 'CCS' in series_name or 'idle' in series_name:
                 # Apply a pattern fill for 'CCS' or 'idle'
+                
                 area_chart.add_series({
                     'name':       [sheet, table_start_row + row_i + 1, plotting_name_column_index],
-                    'categories': [sheet, table_start_row, year_cols_start - 1, table_start_row, num_cols - 1],
-                    'values':     [sheet, table_start_row + row_i + 1, year_cols_start - 1, table_start_row + row_i + 1, num_cols - 1],
+                    'categories': [sheet, table_start_row, year_cols_start, table_start_row, num_cols - 1],
+                    'values':     [sheet, table_start_row + row_i + 1, year_cols_start, table_start_row + row_i + 1, num_cols - 1],
                     'pattern':    {'pattern': patterns_dict[series_name], 'fg_color': table[plotting_name_column].map(colours_dict).iloc[row_i], 'bg_color': 'white'},
                     'border':     {'none': True}
                     })
@@ -748,8 +745,8 @@ def create_area_chart(num_table_rows, table, plotting_name_column, sheet, curren
                 # Apply a solid fill for others
                 area_chart.add_series({
                     'name':       [sheet, table_start_row + row_i + 1, plotting_name_column_index],
-                    'categories': [sheet, table_start_row, year_cols_start - 1, table_start_row, num_cols - 1],
-                    'values':     [sheet, table_start_row + row_i + 1, year_cols_start - 1, table_start_row + row_i + 1, num_cols - 1],
+                    'categories': [sheet, table_start_row, year_cols_start, table_start_row, num_cols - 1],
+                    'values':     [sheet, table_start_row + row_i + 1, year_cols_start, table_start_row + row_i + 1, num_cols - 1],
                     'fill':       {'color': table[plotting_name_column].map(colours_dict).iloc[row_i]},
                     'border':     {'none': True}
                     })
@@ -777,8 +774,8 @@ def create_line_chart(num_table_rows, table, plotting_name_column, sheet, curren
         else:
             line_chart.add_series({
                 'name':       [sheet, table_start_row + row_i + 1, plotting_name_column_index],
-                'categories': [sheet, table_start_row, year_cols_start - 1, table_start_row, num_cols - 1],
-                'values':     [sheet, table_start_row + row_i + 1, year_cols_start - 1, table_start_row + row_i + 1, num_cols - 1],
+                'categories': [sheet, table_start_row, year_cols_start, table_start_row, num_cols - 1],
+                'values':     [sheet, table_start_row + row_i + 1, year_cols_start, table_start_row + row_i + 1, num_cols - 1],
                 'line':       {'color': table[plotting_name_column].map(colours_dict).iloc[row_i], 'width': line_thickness}
             })   
     
@@ -808,8 +805,8 @@ def create_bar_chart(num_table_rows, table, plotting_name_column, sheet, current
                 # Apply a pattern fill for 'CCS' or 'idle'
                 bar_chart.add_series({
                     'name':       [sheet, table_start_row + row_i + 1, plotting_name_column_index],
-                    'categories': [sheet, table_start_row, year_cols_start - 1, table_start_row, num_cols - 1],
-                    'values':     [sheet, table_start_row + row_i + 1, year_cols_start - 1, table_start_row + row_i + 1, num_cols - 1],
+                    'categories': [sheet, table_start_row, year_cols_start, table_start_row, num_cols - 1],
+                    'values':     [sheet, table_start_row + row_i + 1, year_cols_start, table_start_row + row_i + 1, num_cols - 1],
                     'pattern':    {'pattern': patterns_dict[series_name], 'fg_color': table[plotting_name_column].map(colours_dict).iloc[row_i], 'bg_color': 'white'},
                     'border':     {'none': True}
                     })
@@ -817,8 +814,8 @@ def create_bar_chart(num_table_rows, table, plotting_name_column, sheet, current
                 # Apply no fill for base
                 bar_chart.add_series({
                     'name':       [sheet, table_start_row + row_i + 1, plotting_name_column_index],
-                    'categories': [sheet, table_start_row, year_cols_start - 1, table_start_row, num_cols - 1],
-                    'values':     [sheet, table_start_row + row_i + 1, year_cols_start - 1, table_start_row + row_i + 1, num_cols - 1],
+                    'categories': [sheet, table_start_row, year_cols_start, table_start_row, num_cols - 1],
+                    'values':     [sheet, table_start_row + row_i + 1, year_cols_start, table_start_row + row_i + 1, num_cols - 1],
                     'fill':       {'none': True},
                     'border':     {'none': True},
                     'gap':        '20'
@@ -827,8 +824,8 @@ def create_bar_chart(num_table_rows, table, plotting_name_column, sheet, current
                 # Apply transparent fill for 'rise' or 'fall'
                 bar_chart.add_series({
                     'name':       [sheet, table_start_row + row_i + 1, plotting_name_column_index],
-                    'categories': [sheet, table_start_row, year_cols_start - 1, table_start_row, num_cols - 1],
-                    'values':     [sheet, table_start_row + row_i + 1, year_cols_start - 1, table_start_row + row_i + 1, num_cols - 1],
+                    'categories': [sheet, table_start_row, year_cols_start, table_start_row, num_cols - 1],
+                    'values':     [sheet, table_start_row + row_i + 1, year_cols_start, table_start_row + row_i + 1, num_cols - 1],
                     'fill':       {'color': table[plotting_name_column].map(colours_dict).iloc[row_i], 'transparency': 50},
                     'border':     {'none': True}
                     })
@@ -836,8 +833,8 @@ def create_bar_chart(num_table_rows, table, plotting_name_column, sheet, current
                 # Apply a solid fill for others
                 bar_chart.add_series({
                     'name':       [sheet, table_start_row + row_i + 1, plotting_name_column_index],
-                    'categories': [sheet, table_start_row, year_cols_start - 1, table_start_row, num_cols - 1],
-                    'values':     [sheet, table_start_row + row_i + 1, year_cols_start - 1, table_start_row + row_i + 1, num_cols - 1],
+                    'categories': [sheet, table_start_row, year_cols_start, table_start_row, num_cols - 1],
+                    'values':     [sheet, table_start_row + row_i + 1, year_cols_start, table_start_row + row_i + 1, num_cols - 1],
                     'fill':       {'color': table[plotting_name_column].map(colours_dict).iloc[row_i]},
                     'border':     {'none': True}
                     })
@@ -874,8 +871,8 @@ def create_combined_line_bar_chart(num_table_rows, table, plotting_name_column, 
         else:
             series_options = {
                 'name':       [sheet, table_start_row + row_i + 1, plotting_name_column_index],
-                'categories': [sheet, table_start_row, year_cols_start - 1, table_start_row, num_cols - 1],
-                'values':     [sheet, table_start_row + row_i + 1, year_cols_start - 1, table_start_row + row_i + 1, num_cols - 1],
+                'categories': [sheet, table_start_row, year_cols_start, table_start_row, num_cols - 1],
+                'values':     [sheet, table_start_row + row_i + 1, year_cols_start, table_start_row + row_i + 1, num_cols - 1],
                 'border':     {'none': True}
             }
             if series_name not in plotting_specifications['combined_line_bar_chart_lines_plotting_names']:
@@ -900,8 +897,8 @@ def create_combined_line_bar_chart(num_table_rows, table, plotting_name_column, 
                 # Add a series to secondary chart with line settings
                 secondary_chart.add_series({
                     'name':       [sheet, table_start_row + row_i + 1, plotting_name_column_index],
-                    'categories': [sheet, table_start_row, year_cols_start - 1, table_start_row, num_cols - 1],
-                    'values':     [sheet, table_start_row + row_i + 1, year_cols_start - 1, table_start_row + row_i + 1, num_cols - 1],
+                    'categories': [sheet, table_start_row, year_cols_start, table_start_row, num_cols - 1],
+                    'values':     [sheet, table_start_row + row_i + 1, year_cols_start, table_start_row + row_i + 1, num_cols - 1],
                     'line':       {'color': table[plotting_name_column].map(colours_dict).iloc[row_i], 'width': line_thickness}
                 })
     # Combine the charts and configure the combined chart as before
@@ -925,8 +922,8 @@ def create_percentage_bar_chart(num_table_rows, table, plotting_name_column, she
         else:
             series_options = {
                 'name':       [sheet, table_start_row + row_i + 1, plotting_name_column_index],
-                'categories': [sheet, table_start_row, year_cols_start - 1, table_start_row, num_cols - 1],
-                'values':     [sheet, table_start_row + row_i + 1, year_cols_start - 1, table_start_row + row_i + 1, num_cols - 1],
+                'categories': [sheet, table_start_row, year_cols_start, table_start_row, num_cols - 1],
+                'values':     [sheet, table_start_row + row_i + 1, year_cols_start, table_start_row + row_i + 1, num_cols - 1],
                 'border':     {'none': True}
             }
             if series_name in patterns_dict.keys():
@@ -1269,6 +1266,7 @@ def check_plotting_name_label_in_plotting_name_to_label_dict(colours_dict, patte
 import re
 
 def check_plotting_names_in_colours_dict(charts_mapping, colours_dict, RAISE_ERROR_IF_NOT_IN_DICT=False, plotting_name_column='plotting_name'):
+    temp_plotting_name_to_color_dict = {}
     # Check that all unique plotting names are in colours_dict, patterns_dict, otherwise we will get an error when we try to save the workbook to Excel
     unique_plotting_names = colours_dict.keys()
     plotting_names_in_charts_mapping = charts_mapping.copy()
@@ -1281,7 +1279,6 @@ def check_plotting_names_in_colours_dict(charts_mapping, colours_dict, RAISE_ERR
         else:
             # Set the missing values to random colours
             print('WARNING: The following plotting names are not in colours_dict, patterns_dict, they will have random colors assigned: {}'.format(plotting_names_not_in_colours_dict))
-            import random
             for plotting_name in plotting_names_not_in_colours_dict:
                 colours_dict[plotting_name] = '#{:06x}'.format(random.randint(0, 256**3-1))
     
@@ -1290,7 +1287,15 @@ def check_plotting_names_in_colours_dict(charts_mapping, colours_dict, RAISE_ERR
         if not re.match(r"#[0-9a-fA-F]{6}", color):
             breakpoint()
             raise Exception("Color '%s' isn't a valid Excel color for plotting name '%s'" % (color, plotting_name))
-
+    
+    for plotting_name in plotting_names_in_charts_mapping:
+        if plotting_name in plotting_names_not_in_colours_dict:
+            temp_plotting_name_to_color_dict[plotting_name] = ''
+        else:
+            temp_plotting_name_to_color_dict[plotting_name] = colours_dict[plotting_name]
+    
+    save_used_colors_dict(temp_plotting_name_to_color_dict)
+                
     return colours_dict
 
 
@@ -1318,7 +1323,27 @@ def check_plotting_names_in_patterns_dict(patterns_dict):
 
     return patterns_dict
 
+def write_charts_to_sheet(charts_to_plot, chart_positions, worksheet):
+    #write charts to sheet
+    for i, chart in enumerate(charts_to_plot):
+        chart_position = chart_positions[i]
+        import warnings
 
+        try:
+            with warnings.catch_warnings(record=True) as w:
+                # Cause all warnings to always be triggered.
+                warnings.simplefilter("always")
+
+                # Attempt to insert the chart
+                worksheet.insert_chart(chart_position, chart)
+
+                # Check if a warning occurred
+                if len(w) > 0:
+                    print("Warning caught: ", str(w[-1].message))
+        except Exception as e:
+            print("Error: ", str(e))
+    return worksheet
+        
 # def create_combined_bar_and_line_chart(num_table_rows, table, plotting_name_column, sheet, current_row, space_under_tables, column_row, 
 #                           plotting_name_column_index, year_cols_start, num_cols, colours_dict, patterns_dict, bar_chart, line_chart, total_plotting_names, 
 #                           line_thickness, table_id, chart_title):
