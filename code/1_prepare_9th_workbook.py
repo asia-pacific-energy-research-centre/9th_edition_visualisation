@@ -15,7 +15,7 @@ import csv
 from create_table import create_table_handler
 #######################################################
 #%%
-ECONOMY_ID = '13_PNG'#00_APEC'
+ECONOMY_ID = '21_VN'#00_APEC'
 check_base_year_is_as_expected(ECONOMY_ID)
 import_files_from_ebt_system(ECONOMY_ID, ebt_system_file_path='../../Outlook9th_EBT/results/')
 clean_up_old_files(ECONOMY_ID)
@@ -71,6 +71,13 @@ new_charts_dict = {
     #     'chart_types': ['line','percentage_bar'],
     #     'tables': ['refining_and_low_carbon_fuels']
     # },
+    'Bioenergy supply by fuel type': {
+        'source': ['energy'],
+        'sheet_name': 'bioenergy_supply_by_type',
+        'function': extra_graphs_plotting_functions.create_bioenergy_supply_charts,
+        'chart_types': ['bar'],
+        'tables': ['bioenergy_supply']
+    },
     'Natural gas, LNG and biogas supply': {
         'source': ['energy'],
         'sheet_name': 'Natural_gas_LNG_and_biogas',
@@ -90,14 +97,14 @@ new_charts_dict = {
         'sheet_name': 'coal_and_bioenergy_supply',
         'function': extra_graphs_plotting_functions.create_coal_and_biomass_supply_charts,
         'chart_types': ['bar'],
-        'tables': ['coal_and_bioenergy_supply']
+        'tables': ['coal_and_bioenergy_supply', 'coal_supply']
     },
     'refined_products_and_liquid_biofuels_supply':{
         'source': ['energy'],
         'sheet_name': 'refined_products_and_liq_bio',
         'function': extra_graphs_plotting_functions.create_refined_products_and_liquid_biofuels_supply_charts,
         'chart_types': ['line'],
-        'tables': ['output']#'net_imports', 
+        'tables': ['refined_products_and_liq_bio', 'refined_products']#'output']#'net_imports', 
     },
     # 'Liquid biofuels and bioenergy supply': {
     #     'source': ['energy'],
@@ -119,7 +126,7 @@ new_charts_dict = {
         'sheet_name': 'share_imports_within_TPES',
         'function': extra_graphs_plotting_functions.calc_share_imports_within_adjusted_TPES,
         'chart_types': ['bar'],#area doesnt work since there are negatives. and line doesnt show agregate as sum 
-        'tables': ['share_imports_within_TPES', 'net_imports']
+        'tables': ['share_imports_within_TPES',  'net_imports', 'import_dependency']#'share_imports_within_TPES_adjusted',, 'import_dependency_adjusted'
     },
     'co2_emissions_using_seaborn_plotting_library': {
         'source': ['emissions_co2'],

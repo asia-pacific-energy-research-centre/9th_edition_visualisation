@@ -95,9 +95,10 @@ def create_legend(colours_dict, patterns_dict, plotting_name_column, table, plot
     else:
         #we will have unique handles for each label/color combination as set out in chart type to label mapping
         handles = []
-        for label, chart_type in plotting_name_to_chart_type.items():
-            if label not in labels:
-                continue
+        for label in labels:
+            chart_type = plotting_name_to_chart_type.get(label)
+            # if label not in labels:
+            #     continue
             color = colours_dict.get(label)
             label_type = chart_type_to_label_type_dict.get(chart_type)
             if label_type == 'line':
@@ -157,6 +158,7 @@ def create_legend(colours_dict, patterns_dict, plotting_name_column, table, plot
         # )
         # inside create_legend(), after you have `labels` and created your `handles` list:
         # breakpoint()
+        # after computing ncol, rows:
         ncol, rows = compute_optimal_ncol(
             labels,
             fontsize=FONTSIZE,
@@ -168,30 +170,36 @@ def create_legend(colours_dict, patterns_dict, plotting_name_column, table, plot
             max_rows=plotting_specifications.get('MAX_LEGEND_ROWS', 3),
             char_width_multiplier=plotting_specifications['LEGEND_FONTSIZE_MULT']
         )
-        # breakpoint()
-        # Now build the column-major ordering of indices:
+            
+        if 'Raw Materials Mining & Processing' in labels:
+            breakpoint()
+        # 1) create an empty proxy artist
+        empty_handle = Line2D([], [], color='none')
+
+        # rows is your [[0,1], [2,3,4], [5]]
+        # ncol is 3, nrow = len(rows)
         nrow = len(rows)
-        # pad each row to length ncol with None
-        padded = [row + [None]*(ncol - len(row)) for row in rows]
 
-        # flatten by columns, skipping None
-        order = []
-        for c in range(ncol):
-            for r in range(nrow):
-                idx = padded[r][c]
-                if idx is not None:
-                    order.append(idx)
-        
-        # reorder your handles
-        try:
-            handles_ordered = [handles[i] for i in order]
-        except:
-            breakpoint()#chances are its an issue where you ahve rerun the mapping functions after changing a plotting name
-            handles_ordered = [handles[i] for i in order]
-        # handles_ordered = reorder_handles_row_major(handles, ncol)
+        # 2) pad every row to length ncol
+        padded = [ row + [None]*(ncol - len(row)) for row in rows ]
 
+        # 3) column-major flatten of the padded grid
+        flat = [ padded[r][c] for c in range(ncol) for r in range(nrow) ]
+
+        # 4) build the final handles & labels lists, turning None→empty
+        handles_ordered = [
+            empty_handle if idx is None else handles[idx]
+            for idx in flat
+        ]
+        labels_ordered = [
+            ""          if idx is None else labels[idx]
+            for idx in flat
+        ]
+
+        # 5) call legend exactly as before
         legend = ax.legend(
             handles=handles_ordered,
+            labels=labels_ordered,
             loc='upper left',
             bbox_to_anchor=(0, 1),
             ncol=ncol,
@@ -214,7 +222,70 @@ def create_legend(colours_dict, patterns_dict, plotting_name_column, table, plot
             title_fontsize=10,
             alignment='center'
         )
+        ###############double commetned rows below are preivous version of the code:
+        # # ncol, rows = compute_optimal_ncol(
+        # #     labels,
+        # #     fontsize=FONTSIZE,
+        # #     fig_width_inches=width_inches,
+        # #     dpi=dpi,
+        # #     handlelength=1,
+        # #     handletextpad=0.2,
+        # #     columnspacing=0.3,
+        # #     max_rows=plotting_specifications.get('MAX_LEGEND_ROWS', 3),
+        # #     char_width_multiplier=plotting_specifications['LEGEND_FONTSIZE_MULT']
+        # # )
+        # # if 'Raw Materials Mining & Processing' in labels:
+        # #     breakpoint()
+        # # # breakpoint()
+        # # # Now build the column-major ordering of indices:
+        # # nrow = len(rows)
+        # # # pad each row to length ncol with None
+        # # padded = [row + [None]*(ncol - len(row)) for row in rows]
+
+        # # # flatten by columns, skipping None
+        # # order = []
+        # # for c in range(ncol):
+        # #     for r in range(nrow):
+        # #         idx = padded[r][c]
+        # #         if idx is not None:
+        # #             order.append(idx)
+        
+        # # # reorder your handles
+        # # try:
+        # #     handles_ordered = [handles[i] for i in order]
+        # # except:
+        # #     breakpoint()#chances are its an issue where you ahve rerun the mapping functions after changing a plotting name
+        # #     handles_ordered = [handles[i] for i in order]
+        # # # handles_ordered = reorder_handles_row_major(handles, ncol)
+
+        # # legend = ax.legend(
+        # #     handles=handles_ordered,
+        # #     loc='upper left',
+        # #     bbox_to_anchor=(0, 1),
+        # #     ncol=ncol,
+        # #     fontsize=FONTSIZE,
+        # #     prop={'size': FONTSIZE, 'family': 'Calibri'},
+        # #     frameon=True,
+        # #     facecolor='none',
+        # #     edgecolor='none',
+        # #     framealpha=1,
+        # #     fancybox=True,
+        # #     shadow=False,
+        # #     borderpad=0,
+        # #     labelspacing=0,
+        # #     handlelength=1,
+        # #     handleheight=1,
+        # #     handletextpad=0.2,
+        # #     columnspacing=0.3,
+        # #     borderaxespad=0,
+        # #     title="",
+        # #     title_fontsize=10,
+        # #     alignment='center'
+        # # )
+        
+        ##############double commetned rows above are preivous version of the code:
         # plt.tight_layout()
+        
         folder_path = f'../output/plotting_output/{ECONOMY_ID}'
         file_path = folder_path + f'/legend_{uuid.uuid4()}.png'  
         #save it to plotting output  with a unique id in the economy foldder so we can load it and save it to the xlsx
@@ -249,6 +320,9 @@ def compute_optimal_ncol(
     max_rows=3,
     char_width_multiplier=2.5
 ):
+    
+    if 'Raw Materials Mining & Processing' in labels:
+        breakpoint()
     # 1) pixel geometry
     total_px = fig_width_inches * dpi
     usable_px = total_px * (1 - left_margin - right_margin)
@@ -269,6 +343,8 @@ def compute_optimal_ncol(
 
     # 4) derive ncol as the longest row
     ncol = max(len(r) for r in rows)
+    if 'Raw Materials Mining & Processing' in labels:
+        breakpoint()
     return ncol, rows
 
 
@@ -328,41 +404,129 @@ def compute_optimal_ncol(
 #     raise ValueError("\n".join(msg))
 # # if we get here no packing was possible
 # raise ValueError(f"Cannot pack {n} labels into ≤{max_rows} rows of width {usable_width_px:.0f}px, for labels {labels}")
+
+# # def _pack_labels_into_rows(label_widths, usable_width_px, max_rows, labels):
+# #     """
+# #     1) Try the order-preserving wrap-and-fill (row 1, then 2, …) for each r.
+# #     2) If that fails, do an order-preserving best-fit: for each label in its original
+# #        sequence, place it into the row which, after adding it, leaves the smallest
+# #        leftover space ≥ 0.  This keeps labels in order but still packs tightly.
+# #     """
+# #     if 'Raw Materials Mining & Processing' in labels:
+# #         breakpoint()
+# #     n = len(label_widths)
+
+# #     # 1) Sequential wrap-and-fill
+# #     for r in range(1, max_rows+1):
+# #         rows = [[] for _ in range(r)]
+# #         widths = [0.0]*r
+# #         row = 0
+# #         ok = True
+# #         for idx, w in enumerate(label_widths):
+# #             if widths[row] + w <= usable_width_px:
+# #                 rows[row].append(idx)
+# #                 widths[row] += w
+# #             else:
+# #                 row += 1
+# #                 if row >= r:
+# #                     ok = False
+# #                     break
+# #                 rows[row].append(idx)
+# #                 widths[row] = w
+# #         if ok:
+# #             return rows
+
+# #     # 2) Order-preserving best-fit
+# #     for r in range(1, max_rows+1):
+# #         rows = [[] for _ in range(r)]
+# #         widths = [0.0]*r
+# #         for idx, w in enumerate(label_widths):
+# #             # find the row that will have the minimal leftover after placing this label
+# #             candidates = [
+# #                 (usable_width_px - (widths[j] + w), j)
+# #                 for j in range(r)
+# #                 if widths[j] + w <= usable_width_px
+# #             ]
+# #             if not candidates:
+# #                 break
+# #             # pick the candidate with smallest leftover; ties → lowest row index
+# #             _, best_row = min(candidates)
+# #             rows[best_row].append(idx)
+# #             widths[best_row] += w
+# #         else:
+# #             return rows
+
+# #     # 3) Last-resort fallback (just evenly distribute biggest first)
+# #     bins = [[] for _ in range(max_rows)]
+# #     widths = [0.0]*max_rows
+# #     for idx in sorted(range(n), key=lambda i: label_widths[i], reverse=True):
+# #         j = min(range(max_rows), key=lambda x: widths[x])
+# #         bins[j].append(labels[idx])
+# #         widths[j] += label_widths[idx]
+
+# #     msg = [f"Cannot pack {n} labels into ≤{max_rows} rows of width {usable_width_px:.0f}px.",
+# #            "Best guess row layout:"]
+# #     for i, lab in enumerate(bins, 1):
+# #         msg.append(f"  Row {i}: {lab!r}")
+# #     raise ValueError("\n".join(msg))
+
 def _pack_labels_into_rows(label_widths, usable_width_px, max_rows, labels):
     """
-    1) Try the order-preserving wrap-and-fill (row 1, then 2, …) for each r.
-    2) If that fails, do an order-preserving best-fit: for each label in its original
-       sequence, place it into the row which, after adding it, leaves the smallest
-       leftover space ≥ 0.  This keeps labels in order but still packs tightly.
+    1) Try to split into the MINIMUM number of contiguous rows ≤ max_rows
+       (via DP), so no row > usable_width_px.
+    2) If that fails, order-preserving best-fit into max_rows rows.
+    3) If that still fails, largest-first bin packing into max_rows.
+    4) Sort final rows by descending LABEL COUNT (longest row first).
     """
     n = len(label_widths)
 
-    # 1) Sequential wrap-and-fill
-    for r in range(1, max_rows+1):
-        rows = [[] for _ in range(r)]
-        widths = [0.0]*r
-        row = 0
-        ok = True
-        for idx, w in enumerate(label_widths):
-            if widths[row] + w <= usable_width_px:
-                rows[row].append(idx)
-                widths[row] += w
-            else:
-                row += 1
-                if row >= r:
-                    ok = False
-                    break
-                rows[row].append(idx)
-                widths[row] = w
-        if ok:
-            return rows
+    # prefix‐sum to get any segment width in O(1)
+    prefix = [0.0]*(n+1)
+    for i in range(n):
+        prefix[i+1] = prefix[i] + label_widths[i]
+    def seg_width(i, j):
+        return prefix[j] - prefix[i]
 
-    # 2) Order-preserving best-fit
+    # try to find a contiguous r-way split that minimizes max row width
+    def try_dp(r):
+        dp   = [[float('inf')] * (n+1) for _ in range(r+1)]
+        back = [[None]           * (n+1) for _ in range(r+1)]
+        dp[0][0] = 0.0
+
+        for k in range(1, r+1):
+            for i in range(k, n+1):
+                # consider putting labels[j:i] in the k-th row
+                for j in range(k-1, i):
+                    w = seg_width(j, i)
+                    if w <= usable_width_px:
+                        cost = max(dp[k-1][j], w)
+                        if cost < dp[k][i]:
+                            dp[k][i]   = cost
+                            back[k][i] = j
+
+        if dp[r][n] == float('inf'):
+            return None
+
+        # reconstruct the exact segmentation
+        rows = []
+        i = n
+        for k in range(r, 0, -1):
+            j = back[k][i]
+            rows.insert(0, list(range(j, i)))
+            i = j
+        return rows
+
+    # 1) find the smallest r for which DP succeeds
     for r in range(1, max_rows+1):
+        rows = try_dp(r)
+        if rows is not None:
+            break
+    else:
+        # 2) fallback: order-preserving best-fit into max_rows rows
+        r = max_rows
         rows = [[] for _ in range(r)]
         widths = [0.0]*r
         for idx, w in enumerate(label_widths):
-            # find the row that will have the minimal leftover after placing this label
             candidates = [
                 (usable_width_px - (widths[j] + w), j)
                 for j in range(r)
@@ -370,26 +534,22 @@ def _pack_labels_into_rows(label_widths, usable_width_px, max_rows, labels):
             ]
             if not candidates:
                 break
-            # pick the candidate with smallest leftover; ties → lowest row index
             _, best_row = min(candidates)
             rows[best_row].append(idx)
             widths[best_row] += w
-        else:
-            return rows
 
-    # 3) Last-resort fallback (just evenly distribute biggest first)
-    bins = [[] for _ in range(max_rows)]
-    widths = [0.0]*max_rows
-    for idx in sorted(range(n), key=lambda i: label_widths[i], reverse=True):
-        j = min(range(max_rows), key=lambda x: widths[x])
-        bins[j].append(labels[idx])
-        widths[j] += label_widths[idx]
+        if sum(len(row) for row in rows) != n:
+            # 3) last-resort: largest-first bin packing
+            rows = [[] for _ in range(r)]
+            widths = [0.0]*r
+            for idx in sorted(range(n), key=lambda i: label_widths[i], reverse=True):
+                j = min(range(r), key=lambda x: widths[x])
+                rows[j].append(idx)
+                widths[j] += label_widths[idx]
 
-    msg = [f"Cannot pack {n} labels into ≤{max_rows} rows of width {usable_width_px:.0f}px.",
-           "Best guess row layout:"]
-    for i, lab in enumerate(bins, 1):
-        msg.append(f"  Row {i}: {lab!r}")
-    raise ValueError("\n".join(msg))
+    # 4) sort by descending number of labels in each row
+    rows.sort(key=lambda row: len(row), reverse=True)
+    return rows
 
 
 # def compute_optimal_ncol(

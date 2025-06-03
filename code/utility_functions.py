@@ -17,10 +17,10 @@ STRICT_DATA_CHECKING = False
 #######################################################
 #CONFIG PREPARATION
 #create FILE_DATE_ID for use in file names
-FILE_DATE_ID =datetime.now().strftime('%Y%m%d')#'20250401'#datetime.now().strftime('%Y%m%d')#'20250317'# '20250409'#'20250410'#'20250415'#
+FILE_DATE_ID = datetime.now().strftime('%Y%m%d')#'20250401'#datetime.now().strftime('%Y%m%d')#'20250317'# '20250409'#'20250410'#'20250415'#
 
 # FILE_DATE_ID = '20241112'
-total_plotting_names=['Total', 'TPES', 'Total primary energy supply','TFEC', 'TFC', 'Total_industry', 'Total_transport', 'Total_fuels', 'Total combustion emissions', 'Total Industry & Non-energy', 'Total production', 'Total power fuel consumption', 'Total generation', 'Total generation capacity','Total use of fuels', 'TFC_hydrogen','TFC_low_carbon_fuels', 'TPES_bioenergy', 'TFC_refined_fuels', 'Refined products', 'TFEC_incl_own_use_losses', 'Refined products and low carbon fuels', 'TFC_refined_products_and_low_carbon_fuels']#dont add ,'Net emissions' to this!
+total_plotting_names=['Total', 'TPES', 'Total primary energy supply','TFEC', 'TFC', 'Total_industry', 'Total_transport', 'Total_fuels', 'Total combustion emissions', 'Total Industry & Non-energy', 'Total production', 'Total power fuel consumption', 'Total generation', 'Total generation capacity','Total use of fuels', 'TFC_hydrogen','TFC_low_carbon_fuels', 'TPES_bioenergy', 'TFC_refined_fuels', 'Refined products', 'TFEC_incl_own_use_losses', 'Refined products & low carbon fuels', 'TFC_refined_products_and_low_carbon_fuels', 'TPES_bioenergy_waste']#dont add ,'Net emissions' to this!
 
 EXPECTED_COLS = ['source', 'table_number', 'chart_type','plotting_name', 'plotting_name_column','aggregate_name', 'aggregate_name_column', 'scenario', 'unit', 'table_id', 'dimensions', 'chart_title', 'year', 'value','sheet_name']
 
@@ -430,7 +430,6 @@ def move_workbooks_to_onedrive(origin_date_id=FILE_DATE_ID, econ_list=ALL_ECONOM
         shutil.copy(source_path, destination_path)
         print(f"Moved {source_path} to {destination_path}")
         
-# #%%
-# move_workbooks_to_onedrive(origin_date_id=FILE_DATE_ID, econ_list= [ '14_PE', '20_USA', '08_JPN', '12_NZ', '17_SGP', '03_CDA','13_PNG'])
-
+# # #%%
+move_workbooks_to_onedrive(origin_date_id=FILE_DATE_ID, econ_list= ['06_HKC', '03_CDA','09_ROK', '20_USA','02_BD', '21_VN', '13_PNG','05_PRC', '17_SGP','07_INA','15_PHL','08_JPN', '19_THA'], FIND_LATEST_FILE_ID=True)
 #%%

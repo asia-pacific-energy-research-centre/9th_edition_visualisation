@@ -45,6 +45,9 @@ def map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COL
     all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'emissions_no2', mapping_functions.emissions_rename_sectors_and_negate_values_based_on_ccs_cap).copy()
     
     all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'energy', mapping_functions.create_net_imports_rows).copy()
+    
+    all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'energy', mapping_functions.
+    create_24_TPES_excluding_bunkers).copy()
     # breakpoint()#is there any reason to be doing the renaming of sectors to have _ccs in their names ? can we make them merge funcitons wtih this emissions_rename_sectors_and_negate_values_based_on_ccs_cap? but i guess the toruble is we want to identify them for when we label their energy?
     # breakpoint()#inspect power for co2 emissions.
     all_model_df_wides_dict = mapping_functions.modify_dataframe_content(all_model_df_wides_dict, 'emissions_co2', mapping_functions.create_net_emission_rows).copy()

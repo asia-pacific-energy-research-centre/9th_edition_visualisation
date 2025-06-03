@@ -13,17 +13,20 @@ from map_1d_plots import map_9th_data_to_one_dimensional_plots
 from utility_functions import *
 from create_table import create_table_handler
 import csv
-# FORGOT = ['01_AUS']
 RUSSIA = ['16_RUS']
-COMPLETED = ['18_CT', '09_ROK', '02_BD', '15_PHL', '10_MAS', '21_VN','01_AUS', '20_USA']
-TRANSFORMATION = ['08_JPN','12_NZ', '13_PNG', '14_PE','04_CHL', '17_SGP', '03_CDA']# '03_CDA'
+COMPLETED = ['06_HKC', '03_CDA','09_ROK', '20_USA','02_BD', '21_VN', '13_PNG','05_PRC', '17_SGP','07_INA','15_PHL','12_NZ', '19_THA']
+TRANSFORMATION = ['08_JPN']
 DEMAND = []
-SUPPLY = ['20_USA','19_THA','05_PRC', '06_HKC', '07_INA', '11_MEX']
+SUPPLY = [  '18_CT', '10_MAS','14_PE','04_CHL',  '11_MEX','01_AUS']#this is for when we are inputting suply for the first time
 #%%
 #######################################################
 #"01_AUS", "02_BD", "03_CDA", "04_CHL", "05_PRC", "06_HKC", "07_INA", "08_JPN", "09_ROK", "10_MAS", "11_MEX", "12_NZ", "13_PNG", "14_PE",
 #  '01_AUS', "02_BD", "03_CDA", "04_CHL", "05_PRC", "06_HKC", "07_INA", "08_JPN", "09_ROK", "10_MAS", "11_MEX", "12_NZ", "13_PNG", "14_PE", "15_PHL", "17_SGP", #up to aus
-for ECONOMY_ID in  [ '14_PE', '20_USA', '08_JPN', '12_NZ', '17_SGP', '03_CDA','13_PNG']:#COMPLETED+SUPPLY:#CURRENT+COMPLETED+TRANSFORMATION+SUPPLY:#['14_PE','11_MEX', '07_INA', '17_SGP']:#['17_SGP']:#[ '19_THA', '20_USA']:#ALL_ECONOMY_IDS:#[ "01_AUS", "02_BD", "03_CDA", "04_CHL", "05_PRC", "06_HKC", "07_INA", "08_JPN", "09_ROK", "10_MAS", "11_MEX", "12_NZ", "13_PNG", "14_PE",]:#, '18_CT', '05_PRC']:#ALL_ECONOMY_IDS:'01_AUS': 'Australia', '03_CDA': 'Canada', '04_CHL': 'Chile', '08_JPN': 'Japan', '09_ROK':'Republic of Korea', '11_MEX': 'Mexico', '20_USA': 'United States of America'"18_CT", ,'01_AUS', "02_BD",  "15_PHL",  "21_VN","03_CDA","05_PRC","07_INA","11_MEX","18_CT","19_THA"
+for ECONOMY_ID in ['08_JPN']:#['05_PRC', '03_CDA']:#,'05_PRC', '04_CHL']:#
+    
+    # COMPLETED:#list(AGGREGATE_ECONOMY_MAPPING.keys()) + COMPLETED:##['05_PRC']:#'20_USA', '08_JPN', '12_NZ', '17_SGP', '03_CDA','13_PNG']:#COMPLETED+SUPPLY:#CURRENT+COMPLETED+TRANSFORMATION+SUPPLY:#['14_PE','11_MEX', '07_INA', '17_SGP']:#['17_SGP']:#[ '19_THA', '20_USA']:#ALL_ECONOMY_IDS:#[ "01_AUS", "02_BD", "03_CDA", "04_CHL", "05_PRC", "06_HKC", "07_INA", "08_JPN", "09_ROK", "10_MAS", "11_MEX", "12_NZ", "13_PNG", "14_PE",]:#, '18_CT', '05_PRC']:#ALL_ECONOMY_IDS:'01_AUS': 'Australia', '03_CDA': 'Canada', '04_CHL': 'Chile', '08_JPN': 'Japan', '09_ROK':'Republic of Korea', '11_MEX': 'Mexico', '20_USA': 'United States of America'"18_CT", ,'01_AUS', "02_BD",  "15_PHL",  "21_VN","03_CDA","05_PRC","07_INA","11_MEX","18_CT","19_THA"
+    
+    print(f"Starting run for {ECONOMY_ID}\n")
     try:
         # if ECONOMY_ID =='15_PHL':
         #     continue
@@ -34,8 +37,8 @@ for ECONOMY_ID in  [ '14_PE', '20_USA', '08_JPN', '12_NZ', '17_SGP', '03_CDA','1
         clean_up_old_files(ECONOMY_ID)
         
         print(f"Starting workbook creation for {ECONOMY_ID}\n")
-        MAP_DATA = True#True
-        if MAP_DATA:# and ECONOMY_ID not in ['18_CT', '09_ROK', '02_BD', '15_PHL']:
+        MAP_DATA = True#
+        if MAP_DATA:# and ECONOMY_ID in [ '09_ROK']:
             map_9th_data_to_two_dimensional_plots(FILE_DATE_ID, ECONOMY_ID, EXPECTED_COLS, RAISE_ERROR=False)
         
         charts_mapping_1d = map_9th_data_to_one_dimensional_plots(ECONOMY_ID, EXPECTED_COLS)
@@ -79,12 +82,19 @@ for ECONOMY_ID in  [ '14_PE', '20_USA', '08_JPN', '12_NZ', '17_SGP', '03_CDA','1
             #     'chart_types': ['line','percentage_bar'],
             #     'tables': ['refining_and_low_carbon_fuels']
             # },
+            'Bioenergy supply by fuel type': {
+                'source': ['energy'],
+                'sheet_name': 'bioenergy_supply_by_type',
+                'function': extra_graphs_plotting_functions.create_bioenergy_supply_charts,
+                'chart_types': ['bar'],
+                'tables': ['bioenergy_supply']
+            },
             'Natural gas, LNG and biogas supply': {
                 'source': ['energy'],
                 'sheet_name': 'Natural_gas_LNG_and_biogas',
                 'function': extra_graphs_plotting_functions.create_natural_gas_LNG_and_biogas_supply_charts,
                 'chart_types': ['bar'],
-                'tables': ['natural_gas_LNG_and_biogas_supply']
+                'tables': ['natural_gas_LNG_and_biogas_supply', 'natural_gas_and_LNG_supply']
             },
             'crude_and_ngl_supply':{
                 'source': ['energy'],
@@ -98,14 +108,14 @@ for ECONOMY_ID in  [ '14_PE', '20_USA', '08_JPN', '12_NZ', '17_SGP', '03_CDA','1
                 'sheet_name': 'coal_and_bioenergy_supply',
                 'function': extra_graphs_plotting_functions.create_coal_and_biomass_supply_charts,
                 'chart_types': ['bar'],
-                'tables': ['coal_and_bioenergy_supply']
+                'tables': ['coal_and_bioenergy_supply', 'coal_supply']
             },
             'refined_products_and_liquid_biofuels_supply':{
                 'source': ['energy'],
                 'sheet_name': 'refined_products_and_liq_bio',
                 'function': extra_graphs_plotting_functions.create_refined_products_and_liquid_biofuels_supply_charts,
                 'chart_types': ['line'],
-                'tables': ['output']#'net_imports', 
+                'tables': ['refined_products_and_liq_bio', 'refined_products']#'output']#'net_imports', 
             },
             # 'Liquid biofuels and bioenergy supply': {
             #     'source': ['energy'],
@@ -127,7 +137,7 @@ for ECONOMY_ID in  [ '14_PE', '20_USA', '08_JPN', '12_NZ', '17_SGP', '03_CDA','1
                 'sheet_name': 'share_imports_within_TPES',
                 'function': extra_graphs_plotting_functions.calc_share_imports_within_adjusted_TPES,
                 'chart_types': ['bar'],#area doesnt work since there are negatives. and line doesnt show agregate as sum 
-                'tables': ['share_imports_within_TPES', 'net_imports']
+                'tables': ['share_imports_within_TPES_adjusted', 'share_imports_within_TPES', 'net_imports', 'import_dependency', 'import_dependency_adjusted']
             },
             'co2_emissions_using_seaborn_plotting_library': {
                 'source': ['emissions_co2'],
@@ -177,4 +187,6 @@ for ECONOMY_ID in  [ '14_PE', '20_USA', '08_JPN', '12_NZ', '17_SGP', '03_CDA','1
         print(f"An error occurred: {e}")
 
     
+# %%
+# move_workbooks_to_onedrive(origin_date_id=FILE_DATE_ID, econ_list=  ['05_PRC','15_PHL','17_SGP','07_INA','09_ROK', '20_USA','02_BD', '21_VN', '13_PNG', '04_CHL'], FIND_LATEST_FILE_ID=True)
 # %%

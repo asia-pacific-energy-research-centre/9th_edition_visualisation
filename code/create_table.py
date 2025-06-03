@@ -40,7 +40,7 @@ def extract_macro_value(macro_df: pd.DataFrame, variable: str, base_year: int, l
     if variable == 'population' and base_unit.lower() == "thousands":
         base_val = base_val / 1000
         last_val = last_val / 1000
-    return int(base_val), int(last_val)
+    return int(round(base_val)), int(round(last_val))
 
 def calculate_pct_change(ref_value, target_value):
     """
@@ -121,6 +121,9 @@ def create_table(datasets,
     ]#"16_02_industrial_waste", since we are strict for charts, we should be strict about our def of bioenergy here too "16_03_municipal_solid_waste_renewable",
     # "16_04_municipal_solid_waste_nonrenewable","16_09_other_sources",
     # "16_others_unallocated", 
+    OTHER_SUBFUELS = ["16_02_industrial_waste", "16_03_municipal_solid_waste_renewable",
+                      "16_04_municipal_solid_waste_nonrenewable", "16_09_other_sources", "16_others_unallocated"
+    ]
     HYDROGEN_SUBFUELS = ["16_x_ammonia", "16_x_efuel", "16_x_hydrogen"]
     LOW_CARBON_ELECTRICITY_FUELS = [
         "09_nuclear", "10_hydro", "11_geothermal", "12_solar",
@@ -141,31 +144,31 @@ def create_table(datasets,
         "Transport (PJ)" : {"sectors": "15_transport_sector", 'dataset': 'energy'},
         "Non-energy (PJ)": {"sectors": "17_nonenergy_use", 'dataset': 'energy'},
 
-        "Electricity": None,    # Section header.
+        "Electricity & hydrogen": None,    # Section header.
         "Generation (TWh)": {"sectors": "18_electricity_output_in_gwh", 'dataset': 'energy', 'adjustment': 1/1e3},
         'Renewable Share (%)': {"sectors": "19_renewable_share", 'dataset': 'other'},  # Skipped for now.
         'Capacity (GW)': {"sheet": "generation_capacity", 'dataset': 'capacity'},#, 'adjustment': 1/1e3},           # Skipped for now.
         'Capacity Factor (%)': {"sectors": "21_capacity_factor", 'dataset': 'other'},       # Skipped for now.
         
-        "Supply": None,  # Section header.
-        "Coal (PJ)":   {"sectors": "07_total_primary_energy_supply", 
+        'Hydrogen-based fuels supply (PJ)': {"sectors": ["07_total_primary_energy_supply", '09_total_transformation_sector_POSITIVE'], "subfuels": HYDROGEN_SUBFUELS, 'dataset': 'energy'},
+        
+        "Total Primary Energy Supply": None,  # Section header.
+        "Coal & coal products (PJ)":   {"sectors": "07_total_primary_energy_supply", 
                         "fuels": ["01_coal", "02_coal_products", "03_peat", "04_peat_products"],
                         'dataset': 'energy'},
-        "Oil (PJ)":    {"sectors": "07_total_primary_energy_supply", 
+        "Petroleum products & crude (PJ)":    {"sectors": "07_total_primary_energy_supply", 
                         "fuels": ["06_crude_oil_and_ngl", "07_petroleum_products", "05_oil_shale_and_oil_sands"],
                         'dataset': 'energy'},
-        "Gas (PJ)":    {"sectors": "07_total_primary_energy_supply", "fuels": ["08_gas"],
+        "Natural gas (PJ)":    {"sectors": "07_total_primary_energy_supply", "fuels": ["08_gas"],
                         'dataset': 'energy'},
-        'Bioenergy (PJ)': {"sectors": "07_total_primary_energy_supply", "subfuels": BIOENERGY_SUBFUELS,
+        'Bioenergy & waste (PJ)': {"sectors": "07_total_primary_energy_supply", "subfuels": BIOENERGY_SUBFUELS + OTHER_SUBFUELS,
                            'dataset': 'energy'},
-        'Hydrogen-based fuels (PJ)': {"sectors": "07_total_primary_energy_supply", "subfuels": HYDROGEN_SUBFUELS,
-                                                       'dataset': 'energy'},
         'Renewables for electricity generation (PJ)': {"sectors": "07_total_primary_energy_supply", 
                                                        "fuels": RENEWABLE_ELECTRICITY_FUELS,
                                                        'dataset': 'energy'},
         'Nuclear (PJ)': {"sectors": "07_total_primary_energy_supply", "fuels": ["09_nuclear"],
                          'dataset': 'energy'},
-        
+        'Emissions': None,  # Section header.
         'CO2 net Emissions (million Tonnes)': {"sectors": "21_total_combustion_emissions_net", 
                                                "fuels": "23_total_combustion_emissions_net",
                                                'dataset': 'emissions_co2'},
@@ -173,6 +176,15 @@ def create_table(datasets,
                                                 "fuels": "23_total_combustion_emissions_net",
                                                 'dataset': 'emissions_co2e'},
     }
+    
+    #within the energy data, createrows for 09_total_transformation_sector_POSITIVE. they will be where the 09_total_transformation_sector is used but also wehre the values are postivie. 
+    transformation_output = datasets['energy'][datasets['energy']['sectors'] == '09_total_transformation_sector']
+    years = [col for col in transformation_output.columns if re.match(r'^\d{4}$', col)]
+    # Filter out rows where any of the values are negative.
+    transformation_output = transformation_output[~(transformation_output[years] < 0).any(axis=1)].copy()
+    transformation_output['sectors'] = '09_total_transformation_sector_POSITIVE'
+    # Append the filtered rows to the energy dataset.
+    datasets['energy'] = pd.concat([datasets['energy'], transformation_output], ignore_index=True)
     
     # Create multi-level columns for the table.
     cols = pd.MultiIndex.from_tuples([
@@ -192,8 +204,8 @@ def create_table(datasets,
         #     breakpoint()
         
         filters = row_filters[row_name]
-        if row_name =='Capacity (GW)':
-            breakpoint()  # check why our numbers are so wrong
+        # if row_name =='Capacity (GW)':
+        #     breakpoint()  # check why our numbers are so wrong
         # For section headers (or blank rows), add an empty row.
         if not filters:
             table_data.append([""] * len(cols))
@@ -241,9 +253,9 @@ def create_table(datasets,
         # Calculate percent change.
         pct_change_ref = calculate_pct_change(base_val_ref, last_val_ref)
         pct_change_tgt = calculate_pct_change(base_val_tgt, last_val_tgt)
-        pct_str_ref = f"{int(pct_change_ref)}%" if not np.isnan(pct_change_ref) else " "
-        pct_str_tgt = f"{int(pct_change_tgt)}%" if not np.isnan(pct_change_tgt) else " " 
-        
+        pct_str_ref = f"{int(round(pct_change_ref))}%" if not np.isnan(pct_change_ref) else " "
+        pct_str_tgt = f"{int(round(pct_change_tgt))}%" if not np.isnan(pct_change_tgt) else " "
+
         adjustment = filters.get('adjustment', 1)
         # Mirror the same values for Reference and Target (adjust if you have separate scenarios).
         
@@ -254,12 +266,27 @@ def create_table(datasets,
         # if np.isnan(base_val_ref) or np.isnan(last_val_ref) or np.isnan(base_val_tgt) or np.isnan(last_val_tgt):
         #     breakpoint()
         #     print(f"NaN values found for row: {row_name}")
+        # row_vals = [
+        #     int(round(base_val_ref*adjustment)) if not np.isnan(base_val_ref) else 0,  # Reference, base-year
+        #     int(round(last_val_ref*adjustment)) if not np.isnan(last_val_ref) else 0,  # Reference, target-year
+        #     pct_str_ref if not np.isnan(pct_change_ref) else " ",  # Reference, % Change
+        #     int(round(base_val_tgt*adjustment)) if not np.isnan(base_val_tgt) else 0,  # Target, base-year
+        #     int(round(last_val_tgt*adjustment)) if not np.isnan(last_val_tgt) else 0,  # Target, target-year
+        #     pct_str_tgt if not np.isnan(pct_change_tgt) else " "  # Target, % Change
+        # ]    
+        def round_sig(x, sig=2):
+            if np.isnan(x):
+                return 0
+            if x == 0:
+                return 0
+            return int(round(x, -int(np.floor(np.log10(abs(x))) - (sig - 1))))
+
         row_vals = [
-            int(base_val_ref*adjustment) if not np.isnan(base_val_ref) else 0,  # Reference, base-year
-            int(last_val_ref*adjustment) if not np.isnan(last_val_ref) else 0,  # Reference, target-year
+            round_sig(base_val_ref * adjustment) if not np.isnan(base_val_ref) else 0,  # Reference, base-year
+            round_sig(last_val_ref * adjustment) if not np.isnan(last_val_ref) else 0,  # Reference, target-year
             pct_str_ref if not np.isnan(pct_change_ref) else " ",  # Reference, % Change
-            int(base_val_tgt*adjustment) if not np.isnan(base_val_tgt) else 0,  # Target, base-year
-            int(last_val_tgt*adjustment) if not np.isnan(last_val_tgt) else 0,  # Target, target-year
+            round_sig(base_val_tgt * adjustment) if not np.isnan(base_val_tgt) else 0,  # Target, base-year
+            round_sig(last_val_tgt * adjustment) if not np.isnan(last_val_tgt) else 0,  # Target, target-year
             pct_str_tgt if not np.isnan(pct_change_tgt) else " "  # Target, % Change
         ]    
         table_data.append(row_vals)

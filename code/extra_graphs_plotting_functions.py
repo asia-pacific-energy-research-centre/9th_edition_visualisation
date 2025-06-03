@@ -299,7 +299,7 @@ def format_sheet_for_other_graphs(data,plotting_names_order,plotting_name_to_lab
 #             breakpoint()
 #             raise Exception(f'No data found for table {table_id} , plotting names {plotting_names} in create_refining_and_low_carbon_fuels()')
 #         #biofuels are in production so charted separately to hydrogen
-#         table_id = 'energy_Bioenergy_3'
+#         table_id = 'energy_Bioenergy & waste_3'
 #         plotting_names = ['Production']
 #         low_carbon_fuels_biofuels = charts_mapping[(charts_mapping.table_id == table_id) & (charts_mapping.plotting_name.isin(plotting_names))]
 #         if len(low_carbon_fuels_biofuels) == 0:
@@ -369,7 +369,7 @@ def format_sheet_for_other_graphs(data,plotting_names_order,plotting_name_to_lab
 #     final_table = pd.DataFrame()
 #     for chart_type in chart_types:
 #         #extract the data we want to use for the refined products graph, then do wahtever manipulations and calculations are needed to get it into the right format, then plotit
-#         table_id = 'energy_Bioenergy_3'
+#         table_id = 'energy_Bioenergy & waste_3'
 #         liquid_biofuels_supply = charts_mapping[(charts_mapping.table_id == table_id)]
 #         if len(liquid_biofuels_supply) == 0:
 #             breakpoint()
@@ -385,7 +385,7 @@ def format_sheet_for_other_graphs(data,plotting_names_order,plotting_name_to_lab
 #         #drop plpotting names = stock change, TPES and bunkers since we dont want to plot these with - LNG as they are for all natural gas (including LNG)
 #         liquid_biofuels_supply = liquid_biofuels_supply[~liquid_biofuels_supply.plotting_name.isin(['Stock change', 'TPES', 'Bunkers'])]
 #         ######
-#         table_id = 'energy_Bioenergy_4'
+#         table_id = 'energy_Bioenergy & waste_4'
 #         bioenergy_supply = charts_mapping[(charts_mapping.table_id == table_id)]
 #         if len(bioenergy_supply) == 0:
 #             breakpoint()
@@ -474,7 +474,8 @@ def format_sheet_for_other_graphs(data,plotting_names_order,plotting_name_to_lab
 
 
 def create_natural_gas_LNG_and_biogas_supply_charts(charts_mapping, sheet,plotting_names_order,plotting_name_to_label_dict, worksheet,workbook,  colours_dict, patterns_dict,cell_format1, cell_format2,  scenario_num,scenarios_list, header_format,plotting_specifications, writer, chart_types,ECONOMY_ID, current_scenario, current_row,original_table_id, NEW_SCENARIO):
-    """    
+    """   
+    #note we have an extra bit if the eocnmoy is hina, so we show biogas and gas works gas. also note that lng is taken away from natural gas in a step in thei funcitonm 
     # Add the new chart creation function to the new_charts_dict
     new_charts_dict = {
         'Natural gas, LNG and biogas supply': {
@@ -509,7 +510,7 @@ def create_natural_gas_LNG_and_biogas_supply_charts(charts_mapping, sheet,plotti
         lng_supply.loc[:, 'chart_type'] = chart_type
         lng_supply.loc[:, 'scenario'] = scenarios_list[scenario_num]
         
-        #drop plpotting names = stock change, production TPES and bunkers since we dont want to plot these with - LNG as they are for all natural gas (including LNG)
+        #drop plpotting names = stock change, production TPES, 'Transformation_output' and bunkers since we dont want to plot these with - LNG as they are for all natural gas (including LNG) or basically just double ups of transfomration
         lng_supply = lng_supply[~lng_supply.plotting_name.isin(['Stock change', 'TPES', 'Bunkers', 'Production'])]
         
         ######
@@ -525,10 +526,12 @@ def create_natural_gas_LNG_and_biogas_supply_charts(charts_mapping, sheet,plotti
         
         nat_gas_supply.loc[:, 'chart_type'] = chart_type
         nat_gas_supply.loc[:, 'scenario'] = scenarios_list[scenario_num]
+        
+        nat_gas_supply = nat_gas_supply[~nat_gas_supply.plotting_name.isin(['Stock change', 'TPES', 'Bunkers', 'Production'])]
         ######
         if original_table_id == 'natural_gas_LNG_and_biogas_supply':
-                
-            table_id = 'energy_Bioenergy_5'
+            # breakpoint()#fir china this is not turning up
+            table_id = 'energy_Bioenergy & waste_5'
             biogas_supply = charts_mapping[(charts_mapping.table_id == table_id)]
             if len(nat_gas_supply) == 0:
                 breakpoint()
@@ -542,8 +545,25 @@ def create_natural_gas_LNG_and_biogas_supply_charts(charts_mapping, sheet,plotti
             biogas_supply.loc[:, 'scenario'] = scenarios_list[scenario_num]
             
             #drop TPES from plotting names
-            biogas_supply = biogas_supply[biogas_supply.plotting_name!='TPES']
-        
+            biogas_supply = biogas_supply[~biogas_supply.plotting_name.isin(['Stock change', 'TPES', 'Bunkers'])]
+
+        #also if economy is china we will find data on gas works gas so we can show that data separately from natural gas
+        if ECONOMY_ID == '05_PRC':#ITS VERY LIKELY THIS IS ONLY PRODUCTION OF GAS WORKS GAS
+            #extract the data for chart 'gas works' and use that
+                
+            table_id = 'energy_05_PRC Coal gasification_1'
+            gas_works_supply = charts_mapping[(charts_mapping.table_id == table_id)]
+            if len(gas_works_supply) == 0:
+                breakpoint()
+                raise Exception(f'No data found for table {table_id}')
+            gas_works_supply.loc[:, 'chart_title'] = title
+            gas_works_supply.loc[:, 'table_id'] = original_table_id
+            gas_works_supply.loc[:, 'aggregate_name'] = 'Gas works gas'
+            gas_works_supply.loc[:, 'sheet_name'] = sheet
+
+            gas_works_supply.loc[:, 'chart_type'] = chart_type
+            gas_works_supply.loc[:, 'scenario'] = scenarios_list[scenario_num]
+
         ##################
         #join and then take LNG away from the Natural gas data to get the non-LNG data:
         year_cols = [col for col in nat_gas_supply.columns if re.search(r'\d{4}', str(col))]
@@ -554,11 +574,31 @@ def create_natural_gas_LNG_and_biogas_supply_charts(charts_mapping, sheet,plotti
         nat_gas_supply['value'] = nat_gas_supply['value'] - nat_gas_supply['value_lng'].replace(np.nan, 0)
         nat_gas_supply = nat_gas_supply.drop(columns=[col for col in nat_gas_supply.columns if col.endswith('_lng')])
         nat_gas_supply = nat_gas_supply.pivot(index=non_year_cols, columns='year', values='value').reset_index()
+        #also if economy is china we will take away gas works gas from natual gas we can show that data separately from natural gas
+        if ECONOMY_ID == '05_PRC':
+            #extract the data for chart 'gas works' and use that
+            gas_works_supply_melt = gas_works_supply.melt(id_vars=non_year_cols, value_vars=year_cols, var_name='year', value_name='value').copy()
+            #double check that the only plotting name is Gas_works_output
+            if len(gas_works_supply_melt.plotting_name.unique()) != 1 and gas_works_supply_melt.plotting_name.unique()[0] != 'Gas_works_output':
+                breakpoint()
+                raise Exception(f'Expected only one plotting name in gas works supply that is Gas_works_output, but found {gas_works_supply_melt.plotting_name.unique()}')
+            #rename Gas_works_output to Production
+            gas_works_supply_melt.loc[gas_works_supply_melt['plotting_name'] == 'Gas_works_output', 'plotting_name'] = 'Production'
+            #then merge the two dataframes on production plotting name
+            nat_gas_supply_melt = nat_gas_supply.melt(id_vars=non_year_cols, value_vars=year_cols, var_name='year', value_name='value').copy()
+            nat_gas_supply = pd.merge(gas_works_supply_melt, nat_gas_supply_melt, on=['plotting_name', 'year'], how='right', suffixes=('_gas_works', ''))
+            nat_gas_supply['value'] = nat_gas_supply['value'] - nat_gas_supply['value_gas_works'].replace(np.nan, 0)
+            nat_gas_supply = nat_gas_supply.drop(columns=[col for col in nat_gas_supply.columns if col.endswith('_gas_works')])
+            nat_gas_supply = nat_gas_supply.pivot(index=non_year_cols, columns='year', values='value').reset_index()
+            #add - Gas works to the plotting name
+            gas_works_supply.loc[:, 'plotting_name'] = 'Production - Coal gasification'
         ##################
         #add '- LNG' to the plotting names for the LNG data
         lng_supply.loc[:, 'plotting_name'] = lng_supply['plotting_name'] + ' - LNG'
-        nat_gas_supply.loc[:, 'plotting_name'] = nat_gas_supply['plotting_name'] + ' - Gas'
+        nat_gas_supply.loc[:, 'plotting_name'] = nat_gas_supply['plotting_name'] + ' - Natural Gas'
         nat_gas_supply = pd.concat([nat_gas_supply, lng_supply])
+        if ECONOMY_ID == '05_PRC':
+            nat_gas_supply = pd.concat([nat_gas_supply, gas_works_supply])
         ###################
         #add in biogas
         
@@ -783,20 +823,41 @@ def calc_share_imports_within_adjusted_TPES(charts_mapping, sheet,plotting_names
     
     #NOTE THIS IS A BIT DIFFERENT TO THE OTHER PLOTTING SCRIPTS SINCE IT IS MEANT TO RUN FOR TWO TALBE ID'S. IT WILL IDENTIFY WAHT ONEIS BEING USED AND CHANGE A FEW THINGS ACCORDINGLY
     """
-    # breakpoint()
+    
     #times the TPES by ADJUSMTENT_FACTOR to account ofr renewables being 1-1 with their electricity production but other fuels being less efficient
-    ADJUSTMENT_FACTOR = 2.5
-    ONE_HUNDRED_PERCENT_EFF_RENEWABLES = [
-        '09_nuclear',
-        '10_hydro',
-        '12_01_of_which_photovoltaics',
-        '12_solar_unallocated',
-        '13_tide_wave_ocean',
-        '14_wind'
+    
+    #times the TPES by ADJUSMTENT_FACTOR to account ofr renewables being 1-1 with their electricity production but other fuels being less efficient
+    if original_table_id == 'share_imports_within_TPES_adjusted':
+        ADJUSTMENT_FACTOR = 2.5
+        chart_title = 'Net imports adjusted'
+    elif original_table_id == 'share_imports_within_TPES':
+        ADJUSTMENT_FACTOR = 1
+        chart_title = 'Net imports'
+    elif original_table_id == 'import_dependency':
+        chart_types = ['line']
+        ADJUSTMENT_FACTOR = 1
+        chart_title = 'Import dependency'
+    elif original_table_id == 'import_dependency_adjusted':
+        chart_types = ['line']
+        ADJUSTMENT_FACTOR = 2.5
+        chart_title = 'Import dependency adjusted'
+    elif original_table_id == 'net_imports':
+        chart_title = 'Net imports'
+        ADJUSTMENT_FACTOR = 1
+    else:
+        raise ValueError(f'Unknown original_table_id: {original_table_id}')
+    ONE_HUNDRED_PERCENT_EFF_SUPPLY_SOURCES = [
+        'Wind & Solar',
+        'Hydro',
+        # 'Nuclear',
+        'Electricity'
     ]
     bar_years = plotting_specifications['bar_years']
     net_imports_final_table = pd.DataFrame()
     import_share_of_tpes_final_table = pd.DataFrame()
+    import_share_of_tpes_adjusted_final_table = pd.DataFrame()
+    import_dependency_adjusted_final_table = pd.DataFrame()
+    import_dependency_final_table = pd.DataFrame()
     max_and_min_values_dict_net_imports={}
     max_and_min_values_dict_tpes = {}
     for chart_type in chart_types:
@@ -807,8 +868,9 @@ def calc_share_imports_within_adjusted_TPES(charts_mapping, sheet,plotting_names
         if len(imports) == 0:
             breakpoint()
             raise Exception(f'No data found for table {table_id}')
-        imports.loc[:, 'chart_title'] = 'Net imports adjusted'
-        imports.loc[:, 'aggregate_name'] = 'Net imports adjusted'
+        
+        imports.loc[:, 'chart_title'] = chart_title
+        imports.loc[:, 'aggregate_name'] = chart_title
         imports.loc[:, 'sheet_name'] = sheet
         imports.loc[:, 'table_id'] = original_table_id
         imports.loc[:, 'chart_type'] = chart_type
@@ -831,16 +893,45 @@ def calc_share_imports_within_adjusted_TPES(charts_mapping, sheet,plotting_names
             breakpoint()
             raise Exception(f'No data found for table {table_id}')
         
-        exports.loc[:, 'chart_title'] = 'Net imports adjusted'
-        exports.loc[:, 'aggregate_name'] = 'Net imports adjusted'
+        exports.loc[:, 'chart_title'] = chart_title
+        exports.loc[:, 'aggregate_name'] = chart_title
         exports.loc[:, 'sheet_name'] = sheet
         exports.loc[:, 'table_id'] = original_table_id
         exports.loc[:, 'chart_type'] = chart_type
         exports.loc[:, 'scenario'] = scenarios_list[scenario_num]
         
-        #concat the two dataframes since we'lll jsut sum up their values to get the total TPES
-        net_imports = pd.concat([imports, exports])
         
+        ###### BUNKERS
+        table_id = 'energy_Transport_4'
+        
+        
+        bunkers_air = charts_mapping[(charts_mapping.table_id == table_id) & (charts_mapping.chart_type == 'line')]
+        
+        table_id = 'energy_Transport_5'
+        bunnkers_marine = charts_mapping[(charts_mapping.table_id == table_id) & (charts_mapping.chart_type == 'line')]
+        bunkers = pd.concat([bunkers_air, bunnkers_marine])
+        
+        year_cols = [col for col in bunkers.columns if re.search(r'\d{4}', str(col))]
+        if len(bunkers) == 0:
+            breakpoint()
+            raise Exception(f'No data found for table {table_id}')
+        
+        bunkers.loc[:, 'chart_title'] = chart_title
+        bunkers.loc[:, 'aggregate_name'] = chart_title
+        bunkers.loc[:, 'sheet_name'] = sheet
+        bunkers.loc[:, 'table_id'] = original_table_id
+        bunkers.loc[:, 'chart_type'] = chart_type
+        bunkers.loc[:, 'scenario'] = scenarios_list[scenario_num]
+        
+        #make sure the values are negatve
+        if bunkers.loc[:, year_cols].sum().sum() > 0:
+            #if they are positive, we need to make them negative so we can calcualte the net imports
+            bunkers.loc[:, year_cols] = bunkers[year_cols] * -1
+        
+        # breakpoint()#are we taking buynkers away or adding them?
+        
+        #concat the two dataframes since we'lll jsut sum up their values to get the total TPES
+        net_imports = pd.concat([imports, exports, bunkers])
         # breakpoint()#need ti di this
         #get all the plotting names. they should be fuels. and map them to more simple categories:
         unique_plotting_names = net_imports['plotting_name'].unique()
@@ -850,51 +941,114 @@ def calc_share_imports_within_adjusted_TPES(charts_mapping, sheet,plotting_names
         #    'Hydrogen-based fuels', 'Jet fuel', 'Kerosene', 'LPG', 'Naphtha',
         #    'Other petroleum products', 'Others_tpes',
         #    'Refinery gas not liquefied', 'Total_fuels'], dtype=object)
+        # breakpoint()#make sure the plottingnames match the new ones froim bunkersJet fuel_bunkers	Diesel_bunkers	Fuel oil	Liquified gas	Others_bunkers	Biodiesel	Biojet kerosene	Ammonia	eFuel	HydrogenTotal bunkers
+        #also make sure to remove Total bunkers from datra after.
 
         # breakpoint()
-        plotting_names_mapping = {'Aviation gasoline':'Refined fuels', 'Biofuels':'Others', 'Coal':'Coal', 'Crude oil & NGL':'Crude', 'Diesel':'Refined fuels', 'Ethane':'Natural gas', 'Fuel oil':'Refined fuels', 'Gas':'Natural gas', 'Gasoline':'Refined fuels', 'Hydrogen-based fuels':'Others', 'Jet fuel':'Refined fuels', 'Kerosene':'Refined fuels', 'LPG':'Refined fuels', 'Naphtha':'Refined fuels', 'Other petroleum products':'Refined fuels', 'Others_tpes':'Others', 'Refinery gas not liquefied':'Natural gas', 'Total_fuels':'Total'}
+        plotting_names_mapping = {
+            'Aviation fuels': 'Petroleum products & crude',
+            'Biofuels': 'Low-carbon fuels & waste',
+            'Coal': 'Coal & coal products',
+            'Crude, NGL & others': 'Petroleum products & crude',
+            'Diesel': 'Petroleum products & crude',
+            # 'Gas': 'Natural gas',
+            'Gasoline': 'Petroleum products & crude',
+            'Hydrogen-based fuels': 'Low-carbon fuels & waste',
+            'Other_refining_products': 'Petroleum products & crude',
+            'Others_tpes': 'Low-carbon fuels & waste',
+            'Nuclear': 'Low-carbon fuels & waste',
+            'Electricity': 'Electricity',
+            'Hydro': 'Low-carbon fuels & waste',
+            'Geothermal': 'Low-carbon fuels & waste',
+            'Wind & Solar': 'Low-carbon fuels & waste',
+            'Total_fuels': 'Total',
+            'TPES': 'TPES',
+            'Natural gas': 'Natural gas',
+            'LPG': 'Petroleum products & crude',
+            # Added mappings for missing plotting names
+            'Jet fuel_bunkers': 'Petroleum products & crude',
+            'Diesel_bunkers': 'Petroleum products & crude',
+            'Fuel oil': 'Petroleum products & crude',
+            'LNG': 'Natural gas',
+            'Others_bunkers': 'Petroleum products & crude',
+            'Biodiesel': 'Low-carbon fuels & waste',
+            'Biojet kerosene': 'Low-carbon fuels & waste',
+            'Ammonia': 'Low-carbon fuels & waste',
+            'eFuel': 'Low-carbon fuels & waste',
+            'Hydrogen': 'Low-carbon fuels & waste',
+            'Total bunkers': 'Total',
+            'Other_biofuels_bunkers': 'Low-carbon fuels & waste',
+        }
         #where something doesnt map to seomthing in the plotting_names_mapping create an error so we know to add it and then adjsut colors too.
         unmapped_values = net_imports['plotting_name'][~net_imports['plotting_name'].isin(plotting_names_mapping.keys())]
         if not unmapped_values.empty:
             breakpoint()
             raise ValueError(f"Unmapped plotting names found: {unmapped_values.unique()}")
-        net_imports.loc[:, 'plotting_name'] = net_imports['plotting_name'].map(plotting_names_mapping)
-        
+        # breakpoint()#why are we getting electiricyt imports where they arent appearing tin hte graph for ina? should we #drop rows full of 0s
         #melt the data so we can sum up the values by year
         net_imports = net_imports.melt(id_vars=[col for col in net_imports.columns if col not in year_cols], value_vars=year_cols, var_name='year', value_name='value').copy()
+        
+        #apply adjustment to net_imports values acording to the ONE_HUNDRED_PERCENT_EFF_SUPPLY_SOURCES:
+        
+        net_imports['value'] = np.where(net_imports['plotting_name'].isin(ONE_HUNDRED_PERCENT_EFF_SUPPLY_SOURCES), net_imports['value'] * ADJUSTMENT_FACTOR, net_imports['value'])
+        
+        net_imports.loc[:, 'plotting_name'] = net_imports['plotting_name'].map(plotting_names_mapping)
+        
+        #drop Total from plotting names
+        net_imports = net_imports[net_imports['plotting_name'] != 'Total']
+        net_imports = net_imports[net_imports['plotting_name'] != 'TPES']
         # breakpoint()
         #sum up the values to get the total net imports
+        if original_table_id == 'import_dependency' or original_table_id == 'import_dependency_adjusted':
+            #we want to set all plotting anmes to the same so we get a total amount
+            net_imports.loc[:, 'plotting_name'] = 'Net imports'
         net_imports = net_imports.groupby(['year', 'source', 'plotting_name_column', 'dimensions', 'plotting_name', 'aggregate_name', 'aggregate_name_column', 'scenario', 'unit', 'table_id', 'chart_title', 'sheet_name'])['value'].sum(numeric_only=True).reset_index()
         #drop years not in bar_years or the int version of bar_years
+        if chart_type == 'bar':
+            net_imports = net_imports[net_imports['year'].isin(bar_years) | net_imports['year'].isin([int(year) for year in bar_years])]
         
-        net_imports = net_imports[net_imports['year'].isin(bar_years) | net_imports['year'].isin([int(year) for year in bar_years])]  
         ##################
         
         #now grab the total TPES:
-        table_id = 'energy_Supply & production_3'
-        TPES = charts_mapping[(charts_mapping.table_id == table_id) & (charts_mapping.chart_type == 'line') & (charts_mapping['plotting_name'] == 'TPES')]
+        table_id = 'energy_Supply & production_2'
+        TPES = charts_mapping[(charts_mapping.table_id == table_id) & (charts_mapping.chart_type == 'line')& (charts_mapping['plotting_name'] != 'Total')& (charts_mapping['plotting_name'] != 'TPES')]
         if len(TPES) == 0:
             breakpoint()
             raise Exception(f'No data found for table {table_id}')
         #melt tpes
         TPES = TPES.melt(id_vars=[col for col in TPES.columns if col not in year_cols], value_vars=year_cols, var_name='year', value_name='value').copy()
-        #times the TPES by ADJUSMTENT_FACTOR to account ofr renewables being 1-1 with their electricity production but other fuels being less efficient
-        ADJUSTMENT_FACTOR = 2.5
         
+        # breakpoint()
         #firslty we need to be sure that there are the folowing fuels in the TPES plotting names, otherwise we may be missing something
         #Nuclear	Hydro	Geothermal	Wind/Solar
         #we will then multiply these by 2.5 to account for the inefficiencies of other fuels
-        TPES['value'] = np.where(TPES['plotting_name'].isin(ONE_HUNDRED_PERCENT_EFF_RENEWABLES), TPES['value'] * ADJUSTMENT_FACTOR, TPES['value'])
-        
+        TPES['value'] = np.where(TPES['plotting_name'].isin(ONE_HUNDRED_PERCENT_EFF_SUPPLY_SOURCES), TPES['value'] * ADJUSTMENT_FACTOR, TPES['value'])
+        #now sum up by cols 'year', 'scenario'
+        TPES = TPES.groupby(['year', 'scenario'])['value'].sum(numeric_only=True).reset_index()
+
         ######
         
         #now calculate the share of net imports by fuel type. since there is no fuel type within the total TPES, we will have to do this using a left join on the net imports table
         import_share_of_tpes = pd.merge(net_imports, TPES, on=['year', 'scenario'], how='left', suffixes=('', '_TPES'))
+        #save the df to a csv with economy name so we can see hwy calcaulteionsare differnt to expected:
+        # if original_table_id == 'share_imports_within_TPES':
+        #     import_share_of_tpes.to_csv(f'{ECONOMY_ID}_{scenario_num}_import_share_of_tpes.csv', index=False)
+        #     breakpoint()
         import_share_of_tpes['value'] = import_share_of_tpes['value'] / import_share_of_tpes['value_TPES'] * 100
         
         #and make the cols different:
-        import_share_of_tpes.loc[:, 'chart_title'] = 'Fig 9-2. Net imports share of adjusted TPES (%)'
-        import_share_of_tpes.loc[:, 'aggregate_name'] = 'Net imports share of adjusted TPES (%)'
+        if original_table_id == 'share_imports_within_TPES_adjusted':
+            import_share_of_tpes.loc[:, 'chart_title'] = 'Net imports share of adjusted TPES (%)'
+            import_share_of_tpes.loc[:, 'aggregate_name'] = 'Net imports share of adjusted TPES (%)'
+        elif original_table_id == 'share_imports_within_TPES':  
+            import_share_of_tpes.loc[:, 'chart_title'] = 'Fig 9-2. Net imports share of TPES (%)'
+            import_share_of_tpes.loc[:, 'aggregate_name'] = 'Net imports share of TPES (%)'
+        elif original_table_id == 'import_dependency':
+            import_share_of_tpes.loc[:, 'chart_title'] = 'Import dependency (%)'
+            import_share_of_tpes.loc[:, 'aggregate_name'] = 'Import dependency (%)'
+        elif original_table_id == 'import_dependency_adjusted':
+            import_share_of_tpes.loc[:, 'chart_title'] = 'Import dependency share of adjusted TPES (%)'
+            import_share_of_tpes.loc[:, 'aggregate_name'] = 'Import dependency share of adjusted TPES (%)'
         exports.loc[:, 'table_id'] = original_table_id
         import_share_of_tpes.loc[:, 'sheet_name'] = sheet
         import_share_of_tpes.loc[:, 'chart_type'] = chart_type
@@ -907,12 +1061,12 @@ def calc_share_imports_within_adjusted_TPES(charts_mapping, sheet,plotting_names
         net_imports.loc[:, 'chart_type'] = chart_type
         net_imports.loc[:, 'scenario'] = scenarios_list[scenario_num]
         
-        import_share_of_tpes = import_share_of_tpes.drop(columns=['table_number', 'value_TPES'] + [col for col in import_share_of_tpes.columns if col.endswith('_TPES')])        
+        import_share_of_tpes = import_share_of_tpes.drop(columns=['value_TPES'] + [col for col in import_share_of_tpes.columns if col.endswith('_TPES')])        
         
         ##################
         
-        #we woud be better of doing these max and min values manually here since we want them to match for the two chart types (and they wont if we use the funciton below)
-        new_dfs_and_other_vars = {'net_imports': {'df': net_imports, 'max_and_min_values_dict': max_and_min_values_dict_net_imports}, 'import_share_of_tpes': {'df': import_share_of_tpes, 'max_and_min_values_dict': max_and_min_values_dict_tpes}}
+        #we woud be better off doing these max and min values manually here since we want them to match for the two chart types (and they wont if we use the funciton below)
+        new_dfs_and_other_vars = {'net_imports': {'df': net_imports, 'max_and_min_values_dict': max_and_min_values_dict_net_imports}, 'import_share_of_tpes': {'df': import_share_of_tpes, 'max_and_min_values_dict': max_and_min_values_dict_tpes}, 'import_share_of_tpes_adjusted': {'df': import_share_of_tpes, 'max_and_min_values_dict': max_and_min_values_dict_tpes}, 'import_dependency_adjusted': {'df': import_share_of_tpes, 'max_and_min_values_dict': max_and_min_values_dict_tpes}, 'import_dependency': {'df': import_share_of_tpes, 'max_and_min_values_dict': max_and_min_values_dict_tpes}}
         for df_name, df_dict in new_dfs_and_other_vars.items():
             df = df_dict['df']
             max_and_min_values_dict = df_dict['max_and_min_values_dict']
@@ -921,15 +1075,20 @@ def calc_share_imports_within_adjusted_TPES(charts_mapping, sheet,plotting_names
             #filter
             
             if chart_type == 'line':
-                maximum = maximum[(maximum['plotting_name'] != 'Total')]
+                maximum = maximum[~(maximum['plotting_name'].isin(['Total', 'TPES']))]
             else:
-                maximum = maximum[(maximum['plotting_name'] != 'Total') & (maximum['value'] > 0)]
+                maximum = maximum[(maximum['plotting_name'] != 'Total') & (maximum['value'] > 0) & (maximum['plotting_name'] != 'TPES')]
                 maximum = maximum.groupby(['year'])['value'].sum().reset_index()
                 
             max_value = maximum.value.max()
             if pd.isna(max_value):
                 max_value = 0
-            max_value = workbook_creation_functions.calculate_y_axis_value(max_value)
+            try:
+                max_value = workbook_creation_functions.calculate_y_axis_value(max_value)
+            except:
+                breakpoint()
+                max_value = 0
+            # max_value = workbook_creation_functions.calculate_y_axis_value(max_value)
                 
             key_max = (sheet, chart_type, original_table_id, "max")
                 
@@ -937,19 +1096,23 @@ def calc_share_imports_within_adjusted_TPES(charts_mapping, sheet,plotting_names
             minimum = df.copy()
             #filter
             if chart_type == 'line':
-                minimum = minimum[(minimum['plotting_name'] != 'Total')]
+                minimum = minimum[(minimum['plotting_name'] != 'Total') & (minimum['plotting_name'] != 'TPES')]
             else:
-                minimum = minimum[(minimum['plotting_name'] != 'Total') & (minimum['value'] < 0)]
+                minimum = minimum[(minimum['plotting_name'] != 'Total') & (minimum['value'] < 0) & (minimum['plotting_name'] != 'TPES')]
                 minimum = minimum.groupby(['year'])['value'].sum().reset_index()
             #group by and sum
             min_value = minimum.value.min()
             if pd.isna(min_value):
                 min_value = 0
-            min_value = workbook_creation_functions.calculate_y_axis_value(min_value)
+            try:
+                min_value = workbook_creation_functions.calculate_y_axis_value(min_value)
+            except:
+                breakpoint()
+                min_value = 0
                         
             key_min = (sheet, chart_type, original_table_id, "min")
             
-            if df_name == 'import_share_of_tpes':
+            if df_name == 'import_share_of_tpes' or df_name == 'import_share_of_tpes_adjusted' or df_name == 'import_dependency' or df_name == 'import_dependency_adjusted':
                 if max_value < 110:
                     max_value = 100
             if min_value > 0:#i think this would already be don e but ok
@@ -964,21 +1127,36 @@ def calc_share_imports_within_adjusted_TPES(charts_mapping, sheet,plotting_names
         # breakpoint()
         net_imports_final_table = pd.concat([net_imports_final_table, new_dfs_and_other_vars['net_imports']['df']])
         import_share_of_tpes_final_table = pd.concat([import_share_of_tpes_final_table, new_dfs_and_other_vars['import_share_of_tpes']['df']])
+        import_share_of_tpes_adjusted_final_table = pd.concat([import_share_of_tpes_adjusted_final_table, new_dfs_and_other_vars['import_share_of_tpes_adjusted']['df']])
+        import_dependency_adjusted_final_table = pd.concat([import_dependency_adjusted_final_table, new_dfs_and_other_vars['import_dependency_adjusted']['df']])
+        import_dependency_final_table = pd.concat([import_dependency_final_table, new_dfs_and_other_vars['import_dependency']['df']])
+        
         
         max_and_min_values_dict_net_imports = new_dfs_and_other_vars['net_imports']['max_and_min_values_dict']
         max_and_min_values_dict_tpes = new_dfs_and_other_vars['import_share_of_tpes']['max_and_min_values_dict']
+        max_and_min_values_dict_tpes_adjusted = new_dfs_and_other_vars['import_share_of_tpes_adjusted']['max_and_min_values_dict']
+        max_and_min_values_dict_import_dependency_adjusted = new_dfs_and_other_vars['import_dependency_adjusted']['max_and_min_values_dict']
+        max_and_min_values_dict_import_dependency = new_dfs_and_other_vars['import_dependency']['max_and_min_values_dict']
+        
         ##################
     # breakpoint()
-    if net_imports_final_table.empty or net_imports_final_table.value.sum() == 0 or import_share_of_tpes_final_table.empty or import_share_of_tpes_final_table.value.sum() == 0:
+    if net_imports_final_table.empty or net_imports_final_table.value.sum() == 0 or import_share_of_tpes_final_table.empty or import_share_of_tpes_final_table.value.sum() == 0 or import_share_of_tpes_adjusted_final_table.empty or import_share_of_tpes_adjusted_final_table.value.sum() == 0:
         breakpoint()
         return None, None, worksheet, current_row, colours_dict
     # breakpoint()
     #double check the columns are: year, plotting_name, aggregate_name, aggregate_name_column, scenario, unit, table_id, chart_title, sheet_name, value
     #make the yearsinto columns
+    # breakpoint()#why arent we getting two net import share graphs
     net_imports_final_table = net_imports_final_table.pivot(values='value', index=[col for col in net_imports_final_table.columns if col not in ['value', 'year']], columns='year').reset_index()  
     import_share_of_tpes_final_table = import_share_of_tpes_final_table.pivot(values='value', index=[col for col in import_share_of_tpes_final_table.columns if col not in ['value', 'year']], columns='year').reset_index()
+    import_share_of_tpes_adjusted_final_table = import_share_of_tpes_adjusted_final_table.pivot(values='value', index=[col for col in import_share_of_tpes_adjusted_final_table.columns if col not in ['value', 'year']], columns='year').reset_index()
+    import_dependency_adjusted_final_table = import_dependency_adjusted_final_table.pivot(values='value', index=[col for col in import_dependency_adjusted_final_table.columns if col not in ['value', 'year']], columns='year').reset_index()
+    import_dependency_final_table = import_dependency_final_table.pivot(values='value', index=[col for col in import_dependency_final_table.columns if col not in ['value', 'year']], columns='year').reset_index()
     colours_dict = workbook_creation_functions.check_plotting_names_in_colours_dict(import_share_of_tpes_final_table, colours_dict)
     colours_dict = workbook_creation_functions.check_plotting_names_in_colours_dict(net_imports_final_table, colours_dict)
+    colours_dict = workbook_creation_functions.check_plotting_names_in_colours_dict(import_share_of_tpes_adjusted_final_table, colours_dict)
+    colours_dict = workbook_creation_functions.check_plotting_names_in_colours_dict(import_dependency_final_table, colours_dict)
+    colours_dict = workbook_creation_functions.check_plotting_names_in_colours_dict(import_dependency_adjusted_final_table, colours_dict)
     patterns_dict = workbook_creation_functions.check_plotting_names_in_patterns_dict(patterns_dict)
     
     plotting_name_to_label_dict = workbook_creation_functions.check_plotting_name_label_in_plotting_name_to_label_dict(colours_dict, patterns_dict, plotting_name_to_label_dict)
@@ -987,15 +1165,25 @@ def calc_share_imports_within_adjusted_TPES(charts_mapping, sheet,plotting_names
     #we should have the columns source	chart_type	plotting_name	plotting_name_column	aggregate_name	aggregate_name_column	scenario	unit	table_id	dimensions	chart_title	sheet_name + year_cols before we call this function
     
     expected_cols = ['source', 'chart_type', 'plotting_name', 'plotting_name_column', 'aggregate_name', 'aggregate_name_column', 'scenario', 'unit', 'table_id', 'dimensions', 'chart_title', 'sheet_name']
-    if not all([col in import_share_of_tpes_final_table.columns for col in expected_cols]) or not all([col in net_imports_final_table.columns for col in expected_cols]):
-        missing_cols = [col for col in expected_cols if col not in import_share_of_tpes_final_table.columns] + [col for col in expected_cols if col not in net_imports_final_table.columns]
+    if not all([col in import_share_of_tpes_final_table.columns for col in expected_cols]) or not all([col in net_imports_final_table.columns for col in expected_cols]) or not all([col in import_share_of_tpes_adjusted_final_table.columns for col in expected_cols]) or not all([col in import_dependency_final_table.columns for col in expected_cols]) or not all([col in import_dependency_adjusted_final_table.columns for col in expected_cols]):
+        missing_cols = [col for col in expected_cols if col not in import_share_of_tpes_final_table.columns] + [col for col in expected_cols if col not in net_imports_final_table.columns] + [col for col in expected_cols if col not in import_share_of_tpes_adjusted_final_table.columns] + [col for col in expected_cols if col not in import_dependency_final_table.columns] + [col for col in expected_cols if col not in import_dependency_adjusted_final_table.columns]
         breakpoint()
         raise Exception(f'Not all expected columns found in final_table: {expected_cols}')
-    
+    # breakpoint()#n error occurred: cannot convert float infinity to integer
     if original_table_id == 'share_imports_within_TPES':
         
         import_share_of_tpes_final_table.loc[:, 'table_id'] = original_table_id
         charts_to_plot, chart_positions, worksheet, current_scenario, current_row = format_sheet_for_other_graphs(import_share_of_tpes_final_table,plotting_names_order,plotting_name_to_label_dict, scenario_num, scenarios_list, header_format, worksheet, workbook, plotting_specifications, writer, sheet, colours_dict, patterns_dict,cell_format1, cell_format2,  max_and_min_values_dict_tpes, total_plotting_names, chart_types, ECONOMY_ID, unit_dict, current_scenario, current_row, original_table_id,NEW_SCENARIO)
+    elif original_table_id == 'share_imports_within_TPES_adjusted':
+        import_share_of_tpes_adjusted_final_table.loc[:, 'table_id'] = original_table_id
+        charts_to_plot, chart_positions, worksheet, current_scenario, current_row = format_sheet_for_other_graphs(import_share_of_tpes_adjusted_final_table,plotting_names_order,plotting_name_to_label_dict, scenario_num, scenarios_list, header_format, worksheet, workbook, plotting_specifications, writer, sheet, colours_dict, patterns_dict,cell_format1, cell_format2,  max_and_min_values_dict_tpes_adjusted, total_plotting_names, chart_types, ECONOMY_ID, unit_dict, current_scenario, current_row, original_table_id,NEW_SCENARIO)
+    elif original_table_id == 'import_dependency':
+        # breakpoint()
+        import_dependency_final_table.loc[:, 'table_id'] = original_table_id
+        charts_to_plot, chart_positions, worksheet, current_scenario, current_row = format_sheet_for_other_graphs(import_dependency_final_table,plotting_names_order,plotting_name_to_label_dict, scenario_num, scenarios_list, header_format, worksheet, workbook, plotting_specifications, writer, sheet, colours_dict, patterns_dict,cell_format1, cell_format2,  max_and_min_values_dict_import_dependency, total_plotting_names, chart_types, ECONOMY_ID, unit_dict, current_scenario, current_row, original_table_id,NEW_SCENARIO)
+    elif original_table_id == 'import_dependency_adjusted':
+        import_dependency_adjusted_final_table.loc[:, 'table_id'] = original_table_id
+        charts_to_plot, chart_positions, worksheet, current_scenario, current_row = format_sheet_for_other_graphs(import_dependency_adjusted_final_table,plotting_names_order,plotting_name_to_label_dict, scenario_num, scenarios_list, header_format, worksheet, workbook, plotting_specifications, writer, sheet, colours_dict, patterns_dict,cell_format1, cell_format2,  max_and_min_values_dict_import_dependency_adjusted, total_plotting_names, chart_types, ECONOMY_ID, unit_dict, current_scenario, current_row, original_table_id,NEW_SCENARIO)
     elif original_table_id == 'net_imports':
         
         net_imports_final_table.loc[:, 'table_id'] = original_table_id
@@ -1211,13 +1399,14 @@ def create_emissions_seaborn(charts_mapping, sheet,plotting_names_order,plotting
     # for label in ax.get_xticklabels() + ax.get_yticklabels():
     #     label.set_fontsize(FONTSIZE/2)
         
+    plt.savefig(file_path.replace('.png', '_no_title.png'), dpi=300, bbox_inches='tight')
     fig.set_size_inches(plotting_specifications['bar_width_inches'], plotting_specifications['bar_height_inches'])
     plt.savefig(file_path.replace('.png', '_small.png'), dpi=300, bbox_inches='tight')
     # breakpoint()
     plt.close(fig)
     plt.clf()
     plt.close('all')
-    # breakpoint()#check the ahtches work
+    breakpoint()#check the ahtches work
     #create plotting_name_to_chart_type based on the different kinds of charts for each plotting name so our labels match them e.g. lines for line, boxes for area or bar
     # breakpoint()#check order o f legend
     plotting_name_to_chart_type = {}
@@ -1228,7 +1417,7 @@ def create_emissions_seaborn(charts_mapping, sheet,plotting_names_order,plotting
             plotting_name_to_chart_type[plotting_name] = 'line'
         else:
             plotting_name_to_chart_type[plotting_name] = 'bar'
-    # breakpoint()  
+    breakpoint()  
     
     ############################################
     #Extract chart positions and add to worksheet
@@ -1272,6 +1461,7 @@ def create_emissions_seaborn(charts_mapping, sheet,plotting_names_order,plotting
     # breakpoint()
     # Add the image to the worksheet..
     worksheet.insert_image(chart_positions[0], file_path)
+    worksheet.insert_image(chart_positions[0], file_path.replace('.png', '_no_title.png'))
     # Add the small image to the worksheet.. 
     worksheet.insert_image(chart_positions[0], file_path.replace('.png', '_small.png'))
     
@@ -1586,6 +1776,7 @@ def create_emissions_wedge_seaborn(charts_mapping, sheet,
         # breakpoint()
         # Insert the saved image into the worksheet in the second place returned by format_sheet_for_other_graphs
         worksheet.insert_image(new_chart_pos, file_path)
+        worksheet.insert_image(new_chart_pos, file_path.replace('.png', '_no_title.png'))
         # Insert the smaller image into the worksheet in the same place returned by format_sheet_for_other_graphs
         worksheet.insert_image(new_chart_pos, file_path.replace('.png', '_small.png'))
     else:
@@ -1708,7 +1899,7 @@ def plot_emissions_wedge(
     ax.set_title('', fontsize=0, fontname='Calibri', pad=0) 
     # for label in ax.get_xticklabels() + ax.get_yticklabels():
     #     label.set_fontsize(FONTSIZE/2)
-        
+    plt.savefig(file_path.replace('.png', '_no_title.png'), dpi=300, bbox_inches='tight')
     fig.set_size_inches(plotting_specifications['bar_width_inches'], plotting_specifications['bar_height_inches'])
     # Save the figure with tight bounding box
     plt.savefig(file_path.replace('.png', '_small.png'), dpi=300, bbox_inches='tight')
@@ -2338,13 +2529,15 @@ def create_double_axis_crude_supply_and_refining_capacity(charts_mapping, sheet,
         file_path = f'intermediate_data/charts/{original_table_id}_double_axis_{unique_id}.png'
         file_path_temp = f'../intermediate_data/temp/{original_table_id}_double_axis_{unique_id}.png'
 
-    plt.savefig(file_path, dpi=300, bbox_inches='tight')   
-    breakpoint()#get this one working right.. its not!
+    plt.savefig(file_path, dpi=300, bbox_inches='tight')  
+    #create one with no title
+     
+    ax.set_title('', fontsize=0, fontname='Calibri', pad=0) 
+    plt.savefig(file_path.replace('.png', '_no_title.png'), dpi=300, bbox_inches='tight')
     #remove the legend and create a very small one
     # legend = ax.get_legend()
     # if legend:
     #     legend.remove()
-    ax.set_title('', fontsize=0, fontname='Calibri', pad=0) 
     for label in ax.get_xticklabels() + ax.get_yticklabels():
         label.set_fontsize(FONTSIZE/1.5)
     for label in ax2.get_xticklabels() + ax2.get_yticklabels():
@@ -2434,7 +2627,7 @@ def create_double_axis_crude_supply_and_refining_capacity(charts_mapping, sheet,
     
     # Add the image to the worksheet.. but first work out where to put it:
     worksheet.insert_image(chart_positions[0], file_path)
-
+    worksheet.insert_image(chart_positions[0], file_path.replace('.png', '_no_title.png'))
     # Insert the smaller image into the worksheet in the same place returned by format_sheet_for_other_graphs
     worksheet.insert_image(chart_positions[0], file_path.replace('.png', '_small.png'))
     
@@ -2458,12 +2651,18 @@ def create_coal_and_biomass_supply_charts(charts_mapping, sheet,plotting_names_o
     final_table = pd.DataFrame()
     for chart_type in chart_types:
         #extract the data we want to use for the refined products graph, then do wahtever manipulations and calculations are needed to get it into the right format, then plotit
+        if original_table_id == 'coal_and_bioenergy_supply':
+            chart_title = 'Figure 9-29. Coal and biomass supply'
+        elif original_table_id == 'coal_supply':
+            chart_title = 'Figure 9-29. Coal supply'
+            
+            
         table_id = 'energy_Coal_3'
         coal = charts_mapping[(charts_mapping.table_id == table_id)]
         if len(coal) == 0:
             breakpoint()
             raise Exception(f'No data found for table {table_id}')
-        coal.loc[:, 'chart_title'] = 'Figure 9-29. Coal and biomass supply'
+        coal.loc[:, 'chart_title'] = chart_title
         coal.loc[:, 'table_id'] = original_table_id
         coal.loc[:, 'aggregate_name'] = 'Coal'
         coal.loc[:, 'sheet_name'] = sheet
@@ -2473,39 +2672,71 @@ def create_coal_and_biomass_supply_charts(charts_mapping, sheet,plotting_names_o
         
         coal = coal[~coal.plotting_name.isin(['Stock change', 'TPES', 'Bunkers'])]
         ######Figure 9-29. 
-        table_id = 'energy_Bioenergy_6'
-        bioenergy_supply = charts_mapping[(charts_mapping.table_id == table_id)]
-        if len(bioenergy_supply) == 0:
+        if original_table_id == 'coal_and_bioenergy_supply':
+            table_id = 'energy_Bioenergy & waste_6'
+            bioenergy_supply = charts_mapping[(charts_mapping.table_id == table_id)]
+            if len(bioenergy_supply) == 0:
+                breakpoint()
+                raise Exception(f'No data found for table {table_id}')
+            bioenergy_supply.loc[:, 'chart_title'] = chart_title
+            bioenergy_supply.loc[:, 'table_id'] = original_table_id
+            bioenergy_supply.loc[:, 'aggregate_name'] = 'Biomass'
+            bioenergy_supply.loc[:, 'sheet_name'] = sheet
+            
+            bioenergy_supply.loc[:, 'chart_type'] = chart_type
+            bioenergy_supply.loc[:, 'scenario'] = scenarios_list[scenario_num]
+            
+            bioenergy_supply = bioenergy_supply[~bioenergy_supply.plotting_name.isin(['Stock change', 'TPES', 'Bunkers'])]
+        #################
+        
+        table_id = 'energy_Coal_5'
+        coal_products = charts_mapping[(charts_mapping.table_id == table_id)]
+        if len(coal_products) == 0:
             breakpoint()
             raise Exception(f'No data found for table {table_id}')
-        bioenergy_supply.loc[:, 'chart_title'] = 'Figure 9-29. Coal and biomass supply'
-        bioenergy_supply.loc[:, 'table_id'] = original_table_id
-        bioenergy_supply.loc[:, 'aggregate_name'] = 'Biomass'
-        bioenergy_supply.loc[:, 'sheet_name'] = sheet
+        coal_products.loc[:, 'chart_title'] = 'Figure 9-29. Coal and biomass supply'
+        coal_products.loc[:, 'table_id'] = original_table_id
+        coal_products.loc[:, 'aggregate_name'] = 'Coal products'
+        coal_products.loc[:, 'sheet_name'] = sheet
         
-        bioenergy_supply.loc[:, 'chart_type'] = chart_type
-        bioenergy_supply.loc[:, 'scenario'] = scenarios_list[scenario_num]
+        coal_products.loc[:, 'chart_type'] = chart_type
+        coal_products.loc[:, 'scenario'] = scenarios_list[scenario_num]
         
-        bioenergy_supply = bioenergy_supply[bioenergy_supply.plotting_name!='TPES']
+        coal_products = coal_products[~coal_products.plotting_name.isin(['Stock change', 'TPES', 'Bunkers'])]
+        
+        ##################
+        #join and then take coal products away from the coal data to get the non-coal products data so we can show coal produycts seaparately
+        year_cols = [col for col in coal.columns if re.search(r'\d{4}', str(col))]
+        non_year_cols = [col for col in coal.columns if col not in year_cols + ['value']]
+        coal_products_melt = coal_products.melt(id_vars=non_year_cols, value_vars=year_cols, var_name='year', value_name='value').copy()
+        coal_melt = coal.melt(id_vars=non_year_cols, value_vars=year_cols, var_name='year', value_name='value').copy()
+        coal_supply = pd.merge(coal_products_melt, coal_melt, on=['plotting_name', 'year'], how='right', suffixes=('_prods', ''))
+        coal_supply['value'] = coal_supply['value'] - coal_supply['value_prods'].replace(np.nan, 0)
+        coal_supply = coal_supply.drop(columns=[col for col in coal_supply.columns if col.endswith('_prods')])
+        coal_supply = coal_supply.pivot(index=non_year_cols, columns='year', values='value').reset_index()
+
         ##################
         #add '- NAME' to the plotting names for the data
         coal.loc[:, 'plotting_name'] = coal['plotting_name'] + ' - Coal'
-        bioenergy_supply.loc[:, 'plotting_name'] = bioenergy_supply['plotting_name'] + ' - Biomass'
-        bioenergy_supply = pd.concat([bioenergy_supply, coal])
-        
+        if original_table_id == 'coal_and_bioenergy_supply':
+            bioenergy_supply.loc[:, 'plotting_name'] = bioenergy_supply['plotting_name'] + ' - Biomass'
+            coal = pd.concat([bioenergy_supply, coal])
+        coal_products.loc[:, 'plotting_name'] = coal_products['plotting_name'] + ' - Coal products'
+        supply = pd.concat([coal, coal_products])
         #drop table_number since this is not needed
-        bioenergy_supply = bioenergy_supply.drop(columns=['table_number'])
+        supply = supply.drop(columns=['table_number'])
         
+        supply = drop_minor_supply_rows(supply)
         ##################
         max_and_min_values_dict = {}
         
         #we woud be better of doing these max and min values manually here since we want them to match for the two chart types (and they wont if we use the funciton below)
         
         #extract the year cols forw hich we will calculate the net imports by finding 4 digits in the column name
-        year_cols = [col for col in bioenergy_supply.columns if re.search(r'\d{4}', str(col))]
-        non_year_cols = [col for col in bioenergy_supply.columns if col not in year_cols]
+        year_cols = [col for col in supply.columns if re.search(r'\d{4}', str(col))]
+        non_year_cols = [col for col in supply.columns if col not in year_cols]
         #drop teh total, set any negative values to 0 and then sum the rest to get the max value
-        positives = bioenergy_supply[(bioenergy_supply['plotting_name']!='TPES')].copy()
+        positives = supply[(supply['plotting_name']!='TPES')].copy()
         #melt so we can filter out the negative values
         positives = positives.melt(id_vars=non_year_cols, value_vars=year_cols, var_name='year', value_name='value').copy()
         #filter
@@ -2519,7 +2750,7 @@ def create_coal_and_biomass_supply_charts(charts_mapping, sheet,plotting_names_o
         key_max = (sheet, chart_type, original_table_id, "max")
         
         #the min value will be the min of the sum of the NEGATIVE refined products and the min of the net imports:#first melt, then filter and then group by and sum
-        negatives = bioenergy_supply.melt(id_vars=non_year_cols, value_vars=year_cols, var_name='year', value_name='value').copy()
+        negatives = supply.melt(id_vars=non_year_cols, value_vars=year_cols, var_name='year', value_name='value').copy()
         #filter
         negatives = negatives[(negatives['value'] < 0) & (negatives['plotting_name']!='TPES')].copy()
         #group by and sum
@@ -2536,20 +2767,20 @@ def create_coal_and_biomass_supply_charts(charts_mapping, sheet,plotting_names_o
         max_and_min_values_dict[key_min] = min_value
         
         ##################
-        final_table = pd.concat([final_table, bioenergy_supply])
+        final_table = pd.concat([final_table, supply])
         ##################
     #check if table is empty or all values are 0
     if final_table.empty or final_table[year_cols].sum().sum() == 0:        
         return None, None, worksheet, current_row, colours_dict
-    colours_dict = workbook_creation_functions.check_plotting_names_in_colours_dict(bioenergy_supply, colours_dict)
+    colours_dict = workbook_creation_functions.check_plotting_names_in_colours_dict(supply, colours_dict)
     patterns_dict = workbook_creation_functions.check_plotting_names_in_patterns_dict(patterns_dict)
     
     plotting_name_to_label_dict = workbook_creation_functions.check_plotting_name_label_in_plotting_name_to_label_dict(colours_dict, patterns_dict, plotting_name_to_label_dict)
     
     unit_dict = {sheet: 'PJ'}
-    bioenergy_supply.loc[:, 'table_id'] = original_table_id
+    supply.loc[:, 'table_id'] = original_table_id
     #we should have the columns source	chart_type	plotting_name	plotting_name_column	aggregate_name	aggregate_name_column	scenario	unit	table_id	dimensions	chart_title	sheet_name + year_cols before we call this function
-    charts_to_plot, chart_positions, worksheet, current_scenario, current_row = format_sheet_for_other_graphs(bioenergy_supply,plotting_names_order,plotting_name_to_label_dict, scenario_num, scenarios_list, header_format, worksheet, workbook, plotting_specifications, writer, sheet, colours_dict, patterns_dict,cell_format1, cell_format2,  max_and_min_values_dict, total_plotting_names, chart_types, ECONOMY_ID, unit_dict, current_scenario, current_row, original_table_id, NEW_SCENARIO)
+    charts_to_plot, chart_positions, worksheet, current_scenario, current_row = format_sheet_for_other_graphs(supply,plotting_names_order,plotting_name_to_label_dict, scenario_num, scenarios_list, header_format, worksheet, workbook, plotting_specifications, writer, sheet, colours_dict, patterns_dict,cell_format1, cell_format2,  max_and_min_values_dict, total_plotting_names, chart_types, ECONOMY_ID, unit_dict, current_scenario, current_row, original_table_id, NEW_SCENARIO)
     return charts_to_plot, chart_positions, worksheet, current_row, colours_dict
 
 
@@ -2572,17 +2803,24 @@ def create_refined_products_and_liquid_biofuels_supply_charts(charts_mapping, sh
     for chart_type in chart_types:
         # if original_table_id == 'net_imports':#we will extract data for net imports as opposed to output
         #     table_id1 = 'energy_Refining_3'
-        #     table_id2 = 'energy_Bioenergy_3'
+        #     table_id2 = 'energy_Bioenergy & waste_3'
         #     bioenergy_plotting_name= 'Net imports'
         #     chart_title = 'Net imports of refined products and liquid biofuels'
-        if original_table_id == 'output':
+        if original_table_id == 'refined_products_and_liq_bio':
             
             table_id1 = 'energy_Refining_3'
-            table_id2 = 'energy_Bioenergy_4'
+            table_id2 = 'energy_Bioenergy & waste_4'
             table_id3 = 'energy_Hydrogen_6'
             efuels_plotting_name='Production'
             bioenergy_plotting_name = 'Production'
             chart_title = 'Figure 9-34. Refined products and liquid biofuels output'
+        elif original_table_id == 'refined_products':
+            
+            table_id1 = 'energy_Refining_3'
+            table_id3 = 'energy_Hydrogen_6'
+            efuels_plotting_name='Production'
+            bioenergy_plotting_name = 'Production'
+            chart_title = 'Figure 9-34. Refined products output'
         else: 
             breakpoint()
             raise Exception("Invalid original_table_id")
@@ -2617,40 +2855,43 @@ def create_refined_products_and_liquid_biofuels_supply_charts(charts_mapping, sh
             efuels_supply.loc[:, 'scenario'] = scenarios_list[scenario_num]
             
             efuels_supply.loc[:, 'plotting_name'] = 'Efuels'
+            
             efuels_supply = pd.concat([efuels_supply, refining])
         #drop table_number since this is not needed
         efuels_supply = efuels_supply.drop(columns=['table_number'])
         ##################
-        bioenergy_supply = charts_mapping[(charts_mapping.table_id == table_id2) & (charts_mapping.plotting_name == bioenergy_plotting_name)]
-        if len(bioenergy_supply) == 0:
-            breakpoint()
-            # raise Exception(f'No data found for table {table_id2}')
-            #create empty df
-            bioenergy_supply = efuels_supply.copy()
-        else:
-            bioenergy_supply.loc[:, 'chart_title'] = chart_title
-            bioenergy_supply.loc[:, 'table_id'] = original_table_id
-            bioenergy_supply.loc[:, 'aggregate_name'] = 'Liquid biofuels'
-            bioenergy_supply.loc[:, 'sheet_name'] = sheet
-            
-            bioenergy_supply.loc[:, 'chart_type'] = chart_type
-            bioenergy_supply.loc[:, 'scenario'] = scenarios_list[scenario_num]
-            
-            ##################
-            #add '- NAME' to the plotting names for the data
-            bioenergy_supply.loc[:, 'plotting_name'] = 'Liquid biofuels'
-            bioenergy_supply = pd.concat([bioenergy_supply, efuels_supply])
-        
+        if original_table_id == 'refined_products_and_liq_bio':
+            bioenergy_supply = charts_mapping[(charts_mapping.table_id == table_id2) & (charts_mapping.plotting_name == bioenergy_plotting_name)]
+            if len(bioenergy_supply) == 0:
+                breakpoint()
+                # raise Exception(f'No data found for table {table_id2}')
+                #create empty df
+                bioenergy_supply = efuels_supply.copy()
+            else:
+                bioenergy_supply.loc[:, 'chart_title'] = chart_title
+                bioenergy_supply.loc[:, 'table_id'] = original_table_id
+                bioenergy_supply.loc[:, 'aggregate_name'] = 'Liquid biofuels'
+                bioenergy_supply.loc[:, 'sheet_name'] = sheet
+                
+                bioenergy_supply.loc[:, 'chart_type'] = chart_type
+                bioenergy_supply.loc[:, 'scenario'] = scenarios_list[scenario_num]
+                
+                ##################
+                #add '- NAME' to the plotting names for the data
+                bioenergy_supply.loc[:, 'plotting_name'] = 'Liquid biofuels'
+                efuels_supply = pd.concat([bioenergy_supply, efuels_supply])
+        supply = efuels_supply.copy()
         ##################
         max_and_min_values_dict = {}
         
         #we woud be better of doing these max and min values manually here since we want them to match for the two chart types (and they wont if we use the funciton below)
         
         #extract the year cols forw hich we will calculate the net imports by finding 4 digits in the column name
-        year_cols = [col for col in bioenergy_supply.columns if re.search(r'\d{4}', str(col))]
-        non_year_cols = [col for col in bioenergy_supply.columns if col not in year_cols]
+        year_cols = [col for col in supply.columns if re.search(r'\d{4}', str(col))]
+        non_year_cols = [col for col in supply.columns if col not in year_cols]
+        
         #drop teh total, set any negative values to 0 and then sum the rest to get the max value
-        positives = bioenergy_supply[(~bioenergy_supply['plotting_name'].isin(total_plotting_names))]
+        positives = supply[(~supply['plotting_name'].isin(total_plotting_names))]
         #melt 
         positives = positives.melt(id_vars=non_year_cols, value_vars=year_cols, var_name='year', value_name='value').copy()
         
@@ -2660,7 +2901,7 @@ def create_refined_products_and_liquid_biofuels_supply_charts(charts_mapping, sh
         max_value = workbook_creation_functions.calculate_y_axis_value(max_value)
             
         key_max = (sheet, chart_type, original_table_id, "max")
-        negatives = bioenergy_supply[(~bioenergy_supply['plotting_name'].isin(total_plotting_names))]
+        negatives = supply[(~supply['plotting_name'].isin(total_plotting_names))]
         #the min value will be the min of the sum of the NEGATIVE refined products and the min of the net imports:#first melt
         negatives = negatives.melt(id_vars=non_year_cols, value_vars=year_cols, var_name='year', value_name='value').copy()
         #filter
@@ -2678,20 +2919,20 @@ def create_refined_products_and_liquid_biofuels_supply_charts(charts_mapping, sh
         max_and_min_values_dict[key_min] = min_value
         
         ##################
-        final_table = pd.concat([final_table, bioenergy_supply])
+        final_table = pd.concat([final_table, supply])
         ##################
     #check if table is empty or all values are 0
     if final_table.empty or final_table[year_cols].sum().sum() == 0:        
         return None, None, worksheet, current_row, colours_dict
-    colours_dict = workbook_creation_functions.check_plotting_names_in_colours_dict(bioenergy_supply, colours_dict)
+    colours_dict = workbook_creation_functions.check_plotting_names_in_colours_dict(supply, colours_dict)
     patterns_dict = workbook_creation_functions.check_plotting_names_in_patterns_dict(patterns_dict)
     
     plotting_name_to_label_dict = workbook_creation_functions.check_plotting_name_label_in_plotting_name_to_label_dict(colours_dict, patterns_dict, plotting_name_to_label_dict)
     
     unit_dict = {sheet: 'PJ'}
-    bioenergy_supply.loc[:, 'table_id'] = original_table_id
+    supply.loc[:, 'table_id'] = original_table_id
     #we should have the columns source	chart_type	plotting_name	plotting_name_column	aggregate_name	aggregate_name_column	scenario	unit	table_id	dimensions	chart_title	sheet_name + year_cols before we call this function
-    charts_to_plot, chart_positions, worksheet, current_scenario, current_row = format_sheet_for_other_graphs(bioenergy_supply,plotting_names_order,plotting_name_to_label_dict, scenario_num, scenarios_list, header_format, worksheet, workbook, plotting_specifications, writer, sheet, colours_dict, patterns_dict,cell_format1, cell_format2,  max_and_min_values_dict, total_plotting_names, chart_types, ECONOMY_ID, unit_dict, current_scenario, current_row, original_table_id, NEW_SCENARIO)
+    charts_to_plot, chart_positions, worksheet, current_scenario, current_row = format_sheet_for_other_graphs(supply,plotting_names_order,plotting_name_to_label_dict, scenario_num, scenarios_list, header_format, worksheet, workbook, plotting_specifications, writer, sheet, colours_dict, patterns_dict,cell_format1, cell_format2,  max_and_min_values_dict, total_plotting_names, chart_types, ECONOMY_ID, unit_dict, current_scenario, current_row, original_table_id, NEW_SCENARIO)
     return charts_to_plot, chart_positions, worksheet, current_row, colours_dict
 
 def create_hydrogen_input_charts(charts_mapping, sheet,plotting_names_order,plotting_name_to_label_dict, worksheet,workbook,  colours_dict, patterns_dict,cell_format1, cell_format2,  scenario_num,scenarios_list, header_format,plotting_specifications, writer, chart_types,ECONOMY_ID, current_scenario, current_row,original_table_id, NEW_SCENARIO):
@@ -2743,7 +2984,7 @@ def create_hydrogen_input_charts(charts_mapping, sheet,plotting_names_order,plot
             # raise Exception(f'No data found for table {table_id}')
             gas.loc[:, 'chart_title'] = chart_title
             gas.loc[:, 'table_id'] = original_table_id
-            gas.loc[:, 'aggregate_name'] = 'gas'
+            gas.loc[:, 'aggregate_name'] = 'Natural gas'
             gas.loc[:, 'sheet_name'] = sheet
             
             gas.loc[:, 'chart_type'] = chart_type
@@ -2762,7 +3003,7 @@ def create_hydrogen_input_charts(charts_mapping, sheet,plotting_names_order,plot
             # raise Exception(f'No data found for table {table_id}')
             gas.loc[:, 'chart_title'] = chart_title
             gas.loc[:, 'table_id'] = original_table_id
-            gas.loc[:, 'aggregate_name'] = 'gas'
+            gas.loc[:, 'aggregate_name'] = 'Natural gas'
             gas.loc[:, 'sheet_name'] = sheet
             
             gas.loc[:, 'chart_type'] = chart_type
@@ -2997,7 +3238,7 @@ def create_crude_and_ngl_supply_charts(charts_mapping, sheet,plotting_names_orde
         if len(crude) == 0:
             breakpoint()
             raise Exception(f'No data found for table {table_id}')
-        crude.loc[:, 'chart_title'] = 'Figure 9-32. Crude oil and NGL supply'
+        crude.loc[:, 'chart_title'] = 'Figure 9-32. Crude, NGL & others supply'
         crude.loc[:, 'table_id'] = original_table_id
         crude.loc[:, 'aggregate_name'] = 'Crude oil'
         crude.loc[:, 'sheet_name'] = sheet
@@ -3012,7 +3253,7 @@ def create_crude_and_ngl_supply_charts(charts_mapping, sheet,plotting_names_orde
         if len(ngls) == 0:
             breakpoint()
             raise Exception(f'No data found for table {table_id}')
-        ngls.loc[:, 'chart_title'] = 'Figure 9-32. Crude oil and NGL supply'
+        ngls.loc[:, 'chart_title'] = 'Figure 9-32. Crude, NGL & others supply'
         ngls.loc[:, 'table_id'] = original_table_id
         ngls.loc[:, 'aggregate_name'] = 'NGLs'
         ngls.loc[:, 'sheet_name'] = sheet
@@ -3021,22 +3262,39 @@ def create_crude_and_ngl_supply_charts(charts_mapping, sheet,plotting_names_orde
         ngls.loc[:, 'scenario'] = scenarios_list[scenario_num]
         
         ngls = ngls[~ngls.plotting_name.isin(['Stock change', 'TPES', 'Bunkers'])]
+        ######
+        table_id = 'energy_Refining_7'
+        others = charts_mapping[(charts_mapping.table_id == table_id)]
+        if len(ngls) == 0:
+            breakpoint()
+            raise Exception(f'No data found for table {table_id}')
+        others.loc[:, 'chart_title'] = 'Figure 9-32. Crude, NGL & others supply'
+        others.loc[:, 'table_id'] = original_table_id
+        others.loc[:, 'aggregate_name'] = 'Other hydrocarbons'
+        others.loc[:, 'sheet_name'] = sheet
+
+        others.loc[:, 'chart_type'] = chart_type
+        others.loc[:, 'scenario'] = scenarios_list[scenario_num]
+
+        others = others[~others.plotting_name.isin(['Stock change', 'TPES', 'Bunkers'])]
         ##################
         #add '- NAME' to the plotting names for the data
         ngls.loc[:, 'plotting_name'] = ngls['plotting_name'] + ' - NGL'
         crude.loc[:, 'plotting_name'] = crude['plotting_name'] + ' - Crude'
-        crude_and_ngls = pd.concat([crude, ngls])
+        others.loc[:, 'plotting_name'] = others['plotting_name'] + ' - Other hydrocarbons'
+        crude_and_ngls = pd.concat([crude, ngls,others])
         
         #drop table_number since this is not needed
         crude_and_ngls = crude_and_ngls.drop(columns=['table_number'])
         
+        crude_and_ngls = drop_minor_supply_rows(crude_and_ngls)
         ##################
         max_and_min_values_dict = {}
         
+        year_cols = [col for col in crude_and_ngls.columns if re.search(r'\d{4}', str(col))]
         #we woud be better of doing these max and min values manually here since we want them to match for the two chart types (and they wont if we use the funciton below)
         
         #extract the year cols forw hich we will calculate the net imports by finding 4 digits in the column name
-        year_cols = [col for col in crude_and_ngls.columns if re.search(r'\d{4}', str(col))]
         non_year_cols = [col for col in crude_and_ngls.columns if col not in year_cols]
         #drop teh total, set any negative values to 0 and then sum the rest to get the max value
         positives = crude_and_ngls[(crude_and_ngls['plotting_name']!='TPES')].copy()
@@ -3084,4 +3342,198 @@ def create_crude_and_ngl_supply_charts(charts_mapping, sheet,plotting_names_orde
     crude_and_ngls.loc[:, 'table_id'] = original_table_id
     #we should have the columns source	chart_type	plotting_name	plotting_name_column	aggregate_name	aggregate_name_column	scenario	unit	table_id	dimensions	chart_title	sheet_name + year_cols before we call this function
     charts_to_plot, chart_positions, worksheet, current_scenario, current_row = format_sheet_for_other_graphs(crude_and_ngls,plotting_names_order,plotting_name_to_label_dict, scenario_num, scenarios_list, header_format, worksheet, workbook, plotting_specifications, writer, sheet, colours_dict, patterns_dict,cell_format1, cell_format2,  max_and_min_values_dict, total_plotting_names, chart_types, ECONOMY_ID, unit_dict, current_scenario, current_row, original_table_id, NEW_SCENARIO)
+    return charts_to_plot, chart_positions, worksheet, current_row, colours_dict
+
+def drop_minor_supply_rows(supply):
+    #calacuslte the  sum of the abs values for every row, and calcualte if each row is > or < then 0.01% of the sum of every rows abs sum. if so, drop the row
+    year_cols = [col for col in supply.columns if re.search(r'\d{4}', str(col))]
+    abs_sum = supply[year_cols].abs().sum(axis=1)
+    total_abs_sum = abs_sum.sum()
+    threshold = total_abs_sum * 0.001
+    supply['abs_sum'] = abs_sum
+    supply = supply[supply['abs_sum'] > threshold].copy()
+    supply = supply.drop(columns=['abs_sum'])
+    return supply
+
+def create_bioenergy_supply_charts(charts_mapping, sheet,plotting_names_order,plotting_name_to_label_dict, worksheet,workbook,  colours_dict, patterns_dict,cell_format1, cell_format2,  scenario_num,scenarios_list, header_format,plotting_specifications, writer, chart_types,ECONOMY_ID, current_scenario, current_row,original_table_id, NEW_SCENARIO):
+    """    
+    # Add the new chart creation function to the new_charts_dict
+    new_charts_dict = {
+        'Natural gas, LNG and biogas supply': {
+        'source': 'energy',
+        'sheet_name': 'natural_gas_and_lng_supply',
+        'function': workbook_creation_functions.create_natural_gas_and_lng_supply_charts,
+        'chart_type': 'bar'    
+    }
+
+    }
+    
+    energy	Refining and other transformation	Refining	5	line	sectors_plotting	Refining_output	Other petroleum products	Jet fuel	Ethane	Refinery gas not liquefied	LPG	Fuel oil	Diesel	Kerosene	Naphtha	Aviation gasoline	Gasoline
+    """
+    
+    final_table = pd.DataFrame()
+    for chart_type in chart_types:
+        #extract the data we want to use for the refined products graph, then do wahtever manipulations and calculations are needed to get it into the right format, then plotit
+        if original_table_id == 'bioenergy_supply':
+            chart_title = 'Figure 9-37. Bioenergy and waste supply by type'
+        else:
+            raise Exception(f'Unknown original_table_id: {original_table_id}')
+            
+        #charts we will use    
+        # Figure 9-37. Bioenergy and waste supply 2
+        # Liquid biofuels supply 4
+        # Biogas supply 5
+        # Biomass supply 6
+
+        table_id = 'energy_Bioenergy & waste_2'#this contains all data. we will take away the sum of liquid, biogas and biomass to find waste
+        waste = charts_mapping[(charts_mapping.table_id == table_id)]
+        if len(waste) == 0:
+            breakpoint()
+            raise Exception(f'No data found for table {table_id}')
+        waste.loc[:, 'chart_title'] = chart_title
+        waste.loc[:, 'table_id'] = original_table_id
+        waste.loc[:, 'aggregate_name'] = 'Waste'
+        waste.loc[:, 'sheet_name'] = sheet
+        
+        waste.loc[:, 'chart_type'] = chart_type
+        waste.loc[:, 'scenario'] = scenarios_list[scenario_num]
+        
+        waste = waste[~waste.plotting_name.isin(['Stock change', 'TPES', 'Bunkers'])]
+        ######Figure 9-29. 
+        table_id = 'energy_Bioenergy & waste_4'
+        liq_biof = charts_mapping[(charts_mapping.table_id == table_id)]
+        if len(liq_biof) == 0:
+            breakpoint()
+            raise Exception(f'No data found for table {table_id}')
+        liq_biof.loc[:, 'chart_title'] = chart_title
+        liq_biof.loc[:, 'table_id'] = original_table_id
+        liq_biof.loc[:, 'aggregate_name'] = 'Liquid biofuels'
+        liq_biof.loc[:, 'sheet_name'] = sheet
+        
+        liq_biof.loc[:, 'chart_type'] = chart_type
+        liq_biof.loc[:, 'scenario'] = scenarios_list[scenario_num]
+        
+        liq_biof = liq_biof[~liq_biof.plotting_name.isin(['Stock change', 'TPES', 'Bunkers'])]
+        #################
+        
+        table_id = 'energy_Bioenergy & waste_5'
+        biogas = charts_mapping[(charts_mapping.table_id == table_id)]
+        if len(biogas) == 0:
+            breakpoint()
+            raise Exception(f'No data found for table {table_id}')
+        biogas.loc[:, 'chart_title'] = chart_title
+        biogas.loc[:, 'table_id'] = original_table_id
+        biogas.loc[:, 'aggregate_name'] = 'Biogas'
+        biogas.loc[:, 'sheet_name'] = sheet
+        
+        biogas.loc[:, 'chart_type'] = chart_type
+        biogas.loc[:, 'scenario'] = scenarios_list[scenario_num]
+        
+        biogas = biogas[~biogas.plotting_name.isin(['Stock change', 'TPES', 'Bunkers'])]
+        #################
+        
+        table_id = 'energy_Bioenergy & waste_6'
+        biomass = charts_mapping[(charts_mapping.table_id == table_id)]
+        if len(biomass) == 0:
+            breakpoint()
+            raise Exception(f'No data found for table {table_id}')
+        biomass.loc[:, 'chart_title'] = chart_title
+        biomass.loc[:, 'table_id'] = original_table_id
+        biomass.loc[:, 'aggregate_name'] = 'Biomass'
+        biomass.loc[:, 'sheet_name'] = sheet
+        
+        biomass.loc[:, 'chart_type'] = chart_type
+        biomass.loc[:, 'scenario'] = scenarios_list[scenario_num]
+        
+        biomass = biomass[~biomass.plotting_name.isin(['Stock change', 'TPES', 'Bunkers'])]
+        
+        ##################
+        #join and then take coal products away from the coal data to get the non-coal products data so we can show coal produycts seaparately
+        year_cols = [col for col in biomass.columns if re.search(r'\d{4}', str(col))]
+        non_year_cols = [col for col in biomass.columns if col not in year_cols + ['value']]
+        #concat biomass, gas and liq and sum them up so we can take them away form waste to calc totoal waste
+        # breakpoint()
+        non_year_cols.remove('aggregate_name')
+        bioenergy = pd.concat([biomass, biogas, liq_biof]).groupby(non_year_cols).sum().reset_index()
+        #melt and then kjoin to waste
+        
+        bioenergy_melt = bioenergy.melt(id_vars=non_year_cols + ['aggregate_name'], value_vars=year_cols, var_name='year', value_name='value').copy()
+        bioenergy_melt =bioenergy_melt.groupby(['plotting_name', 'year']).sum(numeric_only=True).reset_index()
+        waste_melt = waste.melt(id_vars=non_year_cols, value_vars=year_cols, var_name='year', value_name='value').copy()
+        waste_bioenergy = pd.merge(waste_melt, bioenergy_melt, on=['plotting_name', 'year'], how='left', suffixes=('', '_bioenergy'))
+        waste_bioenergy['value'] = waste_bioenergy['value'] - waste_bioenergy['value_bioenergy'].replace(np.nan, 0)
+        waste_bioenergy = waste_bioenergy.drop(columns=[col for col in waste_bioenergy.columns if col.endswith('_bioenergy')])
+        waste_bioenergy = waste_bioenergy.pivot(index=non_year_cols, columns='year', values='value').reset_index()
+        # breakpoint()#why no waste?
+        ##################
+        #add '- NAME' to the plotting names for the data
+        waste_bioenergy.loc[:, 'plotting_name'] = waste_bioenergy['plotting_name'] + ' - Waste'
+        waste_bioenergy['aggregate_name'] = 'Waste'
+        liq_biof.loc[:, 'plotting_name'] = liq_biof['plotting_name'] + ' - Liquid biofuels'
+        biogas.loc[:, 'plotting_name'] = biogas['plotting_name'] + ' - Biogas'
+        biomass.loc[:, 'plotting_name'] = biomass['plotting_name'] + ' - Biomass'
+        #if there is a plotting name for Fuel	Sector
+        #Liquid biofuels	Net imports - Liquid biofuels
+        #then  rename it to Imports - Liquid biofuels
+        liq_biof['plotting_name'] = liq_biof['plotting_name'].replace({'Net imports - Liquid biofuels': 'Imports - Liquid biofuels'})
+        bioenergy_supply = pd.concat([waste_bioenergy, liq_biof, biogas, biomass])
+        #drop table_number since this is not needed
+        bioenergy_supply = bioenergy_supply.drop(columns=['table_number'])
+        breakpoint()#why is exportts of biomass remaining?
+        bioenergy_supply = drop_minor_supply_rows(bioenergy_supply)
+        #drop any rows whos sums make up less than 0.01% of the total 
+        ##################
+        max_and_min_values_dict = {}
+        
+        #we woud be better of doing these max and min values manually here since we want them to match for the two chart types (and they wont if we use the funciton below)
+        
+        #extract the year cols forw hich we will calculate the net imports by finding 4 digits in the column name
+        year_cols = [col for col in bioenergy_supply.columns if re.search(r'\d{4}', str(col))]
+        non_year_cols = [col for col in bioenergy_supply.columns if col not in year_cols]
+        #drop teh total, set any negative values to 0 and then sum the rest to get the max value
+        positives = bioenergy_supply[(bioenergy_supply['plotting_name']!='TPES')].copy()
+        #melt so we can filter out the negative values
+        positives = positives.melt(id_vars=non_year_cols, value_vars=year_cols, var_name='year', value_name='value').copy()
+        #filter
+        positives = positives[(positives['value'] > 0)].copy()
+        #group by and sum
+        max_value = positives.groupby(['year'])['value'].sum().max()
+        if pd.isna(max_value):
+            max_value = 0
+        max_value = workbook_creation_functions.calculate_y_axis_value(max_value)
+            
+        key_max = (sheet, chart_type, original_table_id, "max")
+        
+        #the min value will be the min of the sum of the NEGATIVE refined products and the min of the net imports:#first melt, then filter and then group by and sum
+        negatives = bioenergy_supply.melt(id_vars=non_year_cols, value_vars=year_cols, var_name='year', value_name='value').copy()
+        #filter
+        negatives = negatives[(negatives['value'] < 0) & (negatives['plotting_name']!='TPES')].copy()
+        #group by and sum
+        negatives = negatives.groupby(['year'])['value'].sum().reset_index()
+        min_value = negatives.value.min()
+        #if there are no negative values, then the min value will be 0, so check for na
+        if pd.isna(min_value):
+            min_value = 0
+        min_value = workbook_creation_functions.calculate_y_axis_value(min_value)
+                    
+        key_min = (sheet, chart_type, original_table_id, "min")
+        
+        max_and_min_values_dict[key_max] = max_value
+        max_and_min_values_dict[key_min] = min_value
+        
+        ##################
+        final_table = pd.concat([final_table, bioenergy_supply])
+        ##################
+    #check if table is empty or all values are 0
+    if final_table.empty or final_table[year_cols].sum().sum() == 0:        
+        return None, None, worksheet, current_row, colours_dict
+    colours_dict = workbook_creation_functions.check_plotting_names_in_colours_dict(bioenergy_supply, colours_dict)
+    patterns_dict = workbook_creation_functions.check_plotting_names_in_patterns_dict(patterns_dict)
+    
+    plotting_name_to_label_dict = workbook_creation_functions.check_plotting_name_label_in_plotting_name_to_label_dict(colours_dict, patterns_dict, plotting_name_to_label_dict)
+    
+    unit_dict = {sheet: 'PJ'}
+    bioenergy_supply.loc[:, 'table_id'] = original_table_id
+    #we should have the columns source	chart_type	plotting_name	plotting_name_column	aggregate_name	aggregate_name_column	scenario	unit	table_id	dimensions	chart_title	sheet_name + year_cols before we call this function
+    charts_to_plot, chart_positions, worksheet, current_scenario, current_row = format_sheet_for_other_graphs(bioenergy_supply,plotting_names_order,plotting_name_to_label_dict, scenario_num, scenarios_list, header_format, worksheet, workbook, plotting_specifications, writer, sheet, colours_dict, patterns_dict,cell_format1, cell_format2,  max_and_min_values_dict, total_plotting_names, chart_types, ECONOMY_ID, unit_dict, current_scenario, current_row, original_table_id, NEW_SCENARIO)
     return charts_to_plot, chart_positions, worksheet, current_row, colours_dict

@@ -423,14 +423,19 @@ def calculate_y_axis_value(value):
 
     # Use absolute value to handle the logarithm for negatives
     if y_axis_value != 0:
-        order_of_magnitude = 10 ** math.floor(math.log10(abs(y_axis_value)))
-        rounding_step = order_of_magnitude / 2
+        try:
+            order_of_magnitude = 10 ** math.floor(math.log10(abs(y_axis_value)))
+            rounding_step = order_of_magnitude / 2
 
-        # If the value is positive, round up. If negative, round down.
-        if y_axis_value > 0:
-            y_axis_value = math.ceil(y_axis_value / rounding_step) * rounding_step
-        else:
-            y_axis_value = math.floor(y_axis_value / rounding_step) * rounding_step
+            # If the value is positive, round up. If negative, round down.
+            if y_axis_value > 0:
+                y_axis_value = math.ceil(y_axis_value / rounding_step) * rounding_step
+            else:
+                y_axis_value = math.floor(y_axis_value / rounding_step) * rounding_step
+        
+        except OverflowError:
+            breakpoint()#why si this occurring
+            raise Exception('Overflow error when calculating y_axis_value. This is not expected. Please check the data')
 
     return y_axis_value
 

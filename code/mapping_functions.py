@@ -660,8 +660,13 @@ def modify_dataframe_content(all_model_df_wides_dict, source, modification_func)
     return all_model_df_wides_dict
 
 
-def split_gas_imports_exports_by_economy(df, ECONOMIES_TO_SPLIT_DICT={'01_AUS': 'Australia', '03_CDA': 'Canada', '04_CHL': 'Chile', '08_JPN': 'Japan', '09_ROK':'Republic of Korea', '11_MEX': 'Mexico', '20_USA': 'United States of America'}):
+def split_gas_imports_exports_by_economy(df, ECONOMIES_TO_SPLIT_DICT={'01_AUS': 'Australia', '03_CDA': 'Canada', '04_CHL': 'Chile', '08_JPN': 'Japan', '09_ROK':'Republic of Korea', '11_MEX': 'Mexico', '20_USA': 'United States of America', '02_BD':'Brunei Darussalam', '05_PRC': 'China', '06_HKC':'Hong Kong, China', '10_MAS':'Malaysia', '12_NZ':'New Zealand', '13_PNG': 'Papua New Guinea', 'Peru':'14_PE','17_SGP': 'Singapore', '15_PHL':'Philippines', '16_RUS':'Russia', '18_CT':'Chinese Taipei', '19_THA':'Thailand', '21_VN':'Vietnam'}):#', #PLEASE NOTE THAT WE HAVE ADDED A NUMBR OF NON OECD COUNTRIES TO THE MIX.
     """
+    'Australia', 'Brunei Darussalam', 'Canada', 'Chile', 'China',
+    'Hong Kong, China', 'Indonesia', 'Japan', 'Republic of Korea',
+    'Malaysia', 'Mexico', 'New Zealand', 'Papua New Guinea', 'Peru',
+    'Philippines', 'Russia', 'Singapore', 'Chinese Taipei', 'Thailand',
+    'United States of America', 'Vietnam']
     Splits the gas supply into LNG and pipeline gas for OECD countries and filters data before the OUTLOOK_BASE_YEAR.
     
     Data is from https://www.egeda.ewg.apec.org/egeda/database_info/gas_monthly_select_form2.html and the data at the bottom of the page is used since it allows you to select all applicable data rather than data in small subsets.
@@ -672,13 +677,16 @@ def split_gas_imports_exports_by_economy(df, ECONOMIES_TO_SPLIT_DICT={'01_AUS': 
     Returns:
     - df (pd.DataFrame): The modified dataframe with LNG and pipeline splits for relevant economies and years.
     """
+    df_copy = df.copy()
     # Identify year columns
     year_columns = [col for col in df.columns if col.isdigit()]
     year_columns_to_modify = [col for col in year_columns if int(col) < OUTLOOK_BASE_YEAR]
-
+    # breakpoint()
     # Filter data for OECD countries
     is_oecd_economy = df['economy'].isin(ECONOMIES_TO_SPLIT_DICT.keys())
     if not is_oecd_economy.any():
+        # breakpoint()#why is sgp lng not included? what economies are we missing?
+        # Filter for ECONOMIES_TO_SPLIT countries
         print('No OECD countries found in the dataset. Not modifying gas splits.')
         # breakpoint()
         return df
@@ -699,7 +707,7 @@ def split_gas_imports_exports_by_economy(df, ECONOMIES_TO_SPLIT_DICT={'01_AUS': 
     pipeline_exports = pd.read_csv('../input_data/raw_data/gas_splits/esto_pipeline_exports.txt', delimiter="\t", skiprows=6)
     lng_imports = pd.read_csv('../input_data/raw_data/gas_splits/esto_lng_imports.txt', delimiter="\t", skiprows=6)
     lng_exports = pd.read_csv('../input_data/raw_data/gas_splits/esto_lng_exports.txt', delimiter="\t", skiprows=6)
-
+    # breakpoint()#why is sgp lng not included? what economies are we missing?
     # Filter for ECONOMIES_TO_SPLIT countries
     pipeline_imports = pipeline_imports[pipeline_imports['Member/Month'].isin(ECONOMIES_TO_SPLIT_DICT.values())]
     pipeline_exports = pipeline_exports[pipeline_exports['Member/Month'].isin(ECONOMIES_TO_SPLIT_DICT.values())]
@@ -737,13 +745,18 @@ def split_gas_imports_exports_by_economy(df, ECONOMIES_TO_SPLIT_DICT={'01_AUS': 
     
     #sum the values for the same economy and year and sector and subfuel
     data = data.groupby(['economy', 'Year']).sum().reset_index()
+    # breakpoint()#where an economy has 0s for everything then we want to not do this one.
+    if data[(data['Pipeline Imports'] != 0) & (data['Pipeline Exports'] != 0) & (data['LNG Imports'] != 0) & (data['LNG Exports'] != 0)].shape[0] == 0:
+        print('No data found for LNG and pipeline imports/exports. Not modifying gas splits.')
+        breakpoint()
+        return df_copy
     data['Imports LNG Ratio'] = data.apply(lambda row: row['LNG Imports'] /(row['Pipeline Imports']+row['LNG Imports']) if (row['Pipeline Imports']+row['LNG Imports']) != 0 else 0, axis=1)
     data['Exports LNG Ratio'] = data.apply(lambda row: row['LNG Exports'] / (row['Pipeline Exports']+row['LNG Exports']) if (row['Pipeline Exports']+row['LNG Exports']) != 0 else 0, axis=1)
     #drop non ratios
     data = data.drop(columns=['Pipeline Imports', 'Pipeline Exports', 'LNG Imports', 'LNG Exports'])
     
     #if the economy is sealocked then we must assume everything is lngand also add on rpws for years all the way back to EBT_EARLIEST_YEAR (since we KNOW they would have been using lng) (for the other economies it is better to jsut leave the data as is to avoid estiamting anythign we dont know)
-    SEALOCKED_ECONOMIES = ['08_JPN', '01_AUS', '12_NZ', '09_ROK', '15_PHL', '18_CT']
+    SEALOCKED_ECONOMIES = ['08_JPN', '01_AUS', '12_NZ', '09_ROK', '15_PHL', '18_CT', '15_PHL']
     data['Imports LNG Ratio'] = data.apply(lambda row: 1 if row['economy'] in SEALOCKED_ECONOMIES else row['Imports LNG Ratio'], axis=1)
     data['Exports LNG Ratio'] = data.apply(lambda row: 1 if row['economy'] in SEALOCKED_ECONOMIES else row['Exports LNG Ratio'], axis=1)
     
@@ -765,19 +778,21 @@ def split_gas_imports_exports_by_economy(df, ECONOMIES_TO_SPLIT_DICT={'01_AUS': 
     #now we have the data in the correct format, we can merge it with the df_oecd
     #first melt the df_oecd
     df_oecd_melt = df_oecd.melt(id_vars=['scenarios', 'economy', 'sectors', 'sub1sectors', 'sub2sectors', 'sub3sectors', 'sub4sectors', 'fuels', 'subfuels', 'subtotal_layout', 'subtotal_results'], var_name='Year', value_name='Value')
-    
+    # breakpoint()
     df_oecd_melt = df_oecd_melt[df_oecd_melt['Year'].astype(int) <= OUTLOOK_BASE_YEAR]
     #check there is no energy in the 08_02_lng subfuels
     if df_oecd_melt[(df_oecd_melt['fuels'] == '08_gas') & (df_oecd_melt['subfuels'] == '08_02_lng')]['Value'].sum() != 0:
-        breakpoint()
-        raise Exception(f'There is energy in the 08_02_lng subfuels for economy {df_oecd_melt["economy"].unique()}. Please check the data.')
+        breakpoint()#i think we can just pass here since we have already split the data
+        return df_copy
+        # raise Exception(f'There is energy in the 08_02_lng subfuels for economy {df_oecd_melt["economy"].unique()}. Please check the data.')
     #drop the lng subfuels
     df_oecd_melt = df_oecd_melt[df_oecd_melt['subfuels'] != '08_02_lng']
     
     #adjust the names of the columns to match the data in df_oecd as well as work out what calcs to do
     # breakpoint()#can we save the ratio here so it can be used in EBT
     #save the ratio so it can be used in EBT for estiamting losses from lng prodcution:
-    data.to_csv('../output/output_data/lng_to_pipeline_trade_ratios_for_oecds.csv', index=False)
+    # breakpoint()
+    data.to_csv('../output/output_data/lng_to_pipeline_trade_ratios.csv', index=False)
     #now merge
     df_oecd_melt = df_oecd_melt.merge(data, on=['economy', 'Year', 'sectors'], how='left', suffixes=('', '_lng_to_natgas_ratio'))
     
@@ -1017,6 +1032,108 @@ def create_net_emission_rows(df):
     df = pd.concat([df, new_rows1, new_rows2], ignore_index=True)
     return df
     
+def create_24_TPES_excluding_bunkers(df):
+    #grab the tpes value and then minus the (negative) bunkers values from it so we have the tpes excluding bunkers
+    tpes = df[df['sectors'] == '07_total_primary_energy_supply'].copy()
+    bunkers = df[(df['sectors'] == '04_international_marine_bunkers') | (df['sectors'] == '05_international_aviation_bunkers')].copy()
+    # Identify year columns (assuming columns are 4-digit years)
+    year_columns = [col for col in df.columns if re.match(r'^\d{4}$', str(col))]
+    historical_years = [str(year) for year in range(EBT_EARLIEST_YEAR, OUTLOOK_BASE_YEAR + 1)]
+    max_year = max([int(year) for year in year_columns])
+    future_years = [str(year) for year in range(OUTLOOK_BASE_YEAR + 1, max_year + 1)]
+    # breakpoint()#is this right for the years
+    # Merge the two dataframes on key columns to align TPES and bunkers
+    key_cols = ['scenarios', 'economy','fuels', 'subfuels']#scenarios	economy	sectors	sub1sectors	sub2sectors	sub3sectors	sub4sectors	fuels	subfuels	subtotal_layout	subtotal_results
+
+    tpes_historical = tpes[key_cols + ['subtotal_layout',  'sectors', 'sub1sectors', 'sub2sectors', 'sub3sectors', 'sub4sectors'] + historical_years]
+    tpes_future = tpes[key_cols + ['subtotal_results',  'sectors', 'sub1sectors', 'sub2sectors', 'sub3sectors', 'sub4sectors'] + future_years]
+    bunkers_historical = bunkers[key_cols + ['subtotal_layout'] + historical_years]
+    bunkers_future = bunkers[key_cols + ['subtotal_results'] + future_years]
+    # Set indexes for merging
+    tpes_historical = tpes_historical.set_index(key_cols + ['subtotal_layout'])
+    tpes_future = tpes_future.set_index(key_cols + ['subtotal_results'])
+    bunkers_historical = bunkers_historical.set_index(key_cols + ['subtotal_layout'])
+    bunkers_future = bunkers_future.set_index(key_cols + ['subtotal_results'])
+    #sum up bunkers when we exclude its sectors cols so that we ahve aviation plus nabigation
+    bunkers_historical = bunkers_historical.groupby(key_cols + ['subtotal_layout']).sum()
+    bunkers_future = bunkers_future.groupby(key_cols + ['subtotal_results']).sum()
+    
+    
+    # Merge historical and future dataframes with their respective bunkers
+    tpes_historical_merged = tpes_historical.merge(
+        bunkers_historical,
+        left_index=True,
+        right_index=True,
+        how='left',
+        suffixes=('', '_bunkers'),
+        indicator=True
+    )
+    tpes_future_merged = tpes_future.merge(
+        bunkers_future,
+        left_index=True,
+        right_index=True,
+        how='left',
+        suffixes=('', '_bunkers'),
+        indicator=True
+    )
+
+    # Check for mismatches in merges (specifically, rightonly which is whre we have bunkers but no t TPES)
+    if (tpes_historical_merged['_merge'] == 'right_only').any():
+        mismatches = tpes_historical_merged[tpes_historical_merged['_merge'] == 'right_only']
+        print("Mismatches found in historical merge:")
+        print(mismatches)
+        breakpoint()
+        raise Exception("There are rows that do not match between historical TPES and bunkers data. Please check the data.")
+    if (tpes_future_merged['_merge'] == 'right_only').any():
+        #right_only means we have bunkers but no TPES so we need to check this
+        mismatches = tpes_future_merged[tpes_future_merged['_merge'] == 'right_only']
+        print("Mismatches found in future merge:")
+        print(mismatches)
+        breakpoint()
+        raise Exception("There are rows that do not match between future TPES and bunkers data. Please check the data.")
+
+    # Drop the merge indicator
+    tpes_historical_merged = tpes_historical_merged.drop(columns=['_merge'])
+    tpes_future_merged = tpes_future_merged.drop(columns=['_merge'])
+
+    # For each year, subtract bunkers from TPES to get TPES excluding bunkers
+    for year in historical_years:
+        tpes_historical_merged[year] = tpes_historical_merged[year] - tpes_historical_merged[f"{year}_bunkers"].fillna(0)
+    for year in future_years:
+        tpes_future_merged[year] = tpes_future_merged[year] - tpes_future_merged[f"{year}_bunkers"].fillna(0)
+
+    # Remove bunkers columns
+    tpes_historical_merged = tpes_historical_merged[[col for col in tpes_historical_merged.columns if not col.endswith('_bunkers')]]
+    tpes_future_merged = tpes_future_merged[[col for col in tpes_future_merged.columns if not col.endswith('_bunkers')]]
+
+    # merge the historiacl and future dataframes back together
+    tpes_new = pd.merge(
+        tpes_historical_merged.reset_index(),
+        tpes_future_merged.reset_index(),
+        on=key_cols + ['sectors', 'sub1sectors', 'sub2sectors', 'sub3sectors', 'sub4sectors'],
+        how='outer',
+        suffixes=('_historical', '_future'),
+        indicator=True
+    )
+    #double check fro indicators
+    if (tpes_new['_merge'] != 'both').any():
+        mismatches = tpes_new[tpes_new['_merge'] != 'both']
+        print("Mismatches found in TPES excluding bunkers merge:")
+        print(mismatches)
+        breakpoint()
+        raise Exception("There are rows that do not match between historical and future TPES excluding bunkers data. Please check the data.")
+    # Reset index to return to original format
+    tpes_new = tpes_new.reset_index(drop=True)
+    
+    tpes_new = tpes_new.drop(columns=['_merge'])
+    # Set the correct labels for the new TPES excluding bunkers rows
+    tpes_new['sectors'] = '24_TPES_excluding_bunkers'
+    #check that the years look right. 
+    # breakpoint()#
+    # Concatenate the new rows to the original dataframe
+    df_new = pd.concat([df, tpes_new], ignore_index=True)
+    return df_new
+
 def create_net_imports_rows(df):
     imports = df[df['sectors'] == '02_imports'].copy()
     exports = df[df['sectors'] == '03_exports'].copy()
@@ -1207,8 +1324,8 @@ def rename_production_16_others_x_to_16_others_unallocated(df):
                 (df['subtotal_results'] == False)
 
     #check that there are no other sectors that have 16_others and x as subfuels than 01_production
-    
-    years = [str(year) for year in range(OUTLOOK_BASE_YEAR+1, OUTLOOK_LAST_YEAR+1)]
+    max_year = max([int(year) for year in df.columns if re.match(r'^\d{4}$', str(year))])
+    years = [str(year) for year in range(OUTLOOK_BASE_YEAR+1, max_year+1)]
     if df[(df['fuels'] == '16_others') & (df['subfuels'] == 'x') & (df['subtotal_layout'] == False) & (df['subtotal_results'] == False) & (df['sectors'] != '01_production')][years].sum().sum() != 0:
         breakpoint()
         # df.loc[condition, 'sub1sectors'] = '16_others_unallocated'
